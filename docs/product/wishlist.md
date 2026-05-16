@@ -1,0 +1,6 @@
+- mobile first layout, and mobile optimized UI, that means we should design for mobile first, and then scale up to tablet and desktop.
+- the UI for mobile device should be more concise and focus on the most important information and actions, while the UI for tablet and desktop should be more spacious and allow for more information and actions to be displayed.
+- make sure spacing and font size are consistent with the design system, the design system is mobile optimized.
+- make sure layout have provision to scaling the font size for accessibility, for the larger font size
+- always use portrait mode, no landscape mode
+- no need to implement native integration like dynamic app icon, deep linking, notification, analytics, etc, can just implement as mockup only, maybe still need handle firebase_auth.
