@@ -1,0 +1,77 @@
+basePath: /api/v1
+host: localhost:8080
+info:
+  contact: {}
+  description: Backend API for the Tealive & Baskbear Twin App
+  title: Loob Unified API
+  version: "1.0"
+paths:
+  /catalog/menu:
+    get:
+      consumes:
+      - application/json
+      description: Fetches the menu catalog customized for the region specified in
+        the header
+      parameters:
+      - default: MY
+        description: Country Code (e.g., MY, TH)
+        in: header
+        name: X-Country-Code
+        type: string
+      - default: en-US
+        description: Language (e.g., en-US, ms-MY)
+        in: header
+        name: Accept-Language
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get localized menu
+      tags:
+      - catalog
+  /orders/checkout:
+    post:
+      consumes:
+      - application/json
+      description: Pushes the order intent to the SQS queue for asynchronous processing
+      parameters:
+      - description: Country Code (e.g., MY, TH)
+        in: header
+        name: X-Country-Code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Process an order
+      tags:
+      - orders
+produces:
+- application/json
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

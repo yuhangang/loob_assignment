@@ -1,0 +1,557 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-4g7h-8i9j-k0l1m2n3o4p5",
+		"name": "Loob API",
+		"description": "API collection for Loob backend services including Catalog, Checkout, Campaigns, Vouchers, and Payments.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-Country-Code",
+						"value": "{{countryId}}"
+					},
+					{
+						"key": "X-Language",
+						"value": "{{language}}"
+					}
+				],
+				"url": {
+					"raw": "{{baseUrl}}/health",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "App Config",
+			"item": [
+				{
+					"name": "Get App Config",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/app/config",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"app",
+								"config"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Feed",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/app/feed",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"app",
+								"feed"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Catalog",
+			"item": [
+				{
+					"name": "Get Menu",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/catalog/menu?store_id=1&brand_id=1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"catalog",
+								"menu"
+							],
+							"query": [
+								{
+									"key": "store_id",
+									"value": "1"
+								},
+								{
+									"key": "brand_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Brands",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/catalog/brands",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"catalog",
+								"brands"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Stores",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/catalog/stores?country_id=MY",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"catalog",
+								"stores"
+							],
+							"query": [
+								{
+									"key": "country_id",
+									"value": "MY"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Checkout",
+			"item": [
+				{
+					"name": "Checkout Order",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": \"user_123\",\n    \"store_id\": 1,\n    \"fulfillment_type\": \"PICKUP\",\n    \"voucher_code\": \"PROMO2024\",\n    \"payment_method\": \"GRABPAY\",\n    \"idempotency_key\": \"{{$guid}}\",\n    \"items\": [\n        {\n            \"menu_item_id\": 101,\n            \"quantity\": 2,\n            \"customization_option_ids\": [1, 5]\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/orders/checkout",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"orders",
+								"checkout"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Order Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/orders/:tracking_id/status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"orders",
+								":tracking_id",
+								"status"
+							],
+							"variable": [
+								{
+									"key": "tracking_id",
+									"value": "TRK-12345"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Campaigns",
+			"item": [
+				{
+					"name": "Home Feed",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/campaigns/home?brand_id=1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"campaigns",
+								"home"
+							],
+							"query": [
+								{
+									"key": "brand_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Vouchers",
+			"item": [
+				{
+					"name": "Voucher Wallet",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/vouchers/wallet?user_id=user_123&brand_id=1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vouchers",
+								"wallet"
+							],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "user_123"
+								},
+								{
+									"key": "brand_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Payments",
+			"item": [
+				{
+					"name": "List Providers",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/payments/providers?include_inactive=false",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"payments",
+								"providers"
+							],
+							"query": [
+								{
+									"key": "include_inactive",
+									"value": "false"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Methods",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/payments/methods?brand_id=1&include_inactive=false",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"payments",
+								"methods"
+							],
+							"query": [
+								{
+									"key": "brand_id",
+									"value": "1"
+								},
+								{
+									"key": "include_inactive",
+									"value": "false"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Transaction",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/payments/:transaction_id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"payments",
+								":transaction_id"
+							],
+							"variable": [
+								{
+									"key": "transaction_id",
+									"value": "TXN-12345"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mock Gateway Callback",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"transaction_id\": \"TXN-12345\",\n    \"gateway_reference\": \"REF-999\",\n    \"gateway_event_id\": \"EVT-888\",\n    \"status\": \"SUCCESS\",\n    \"failure_reason\": \"\",\n    \"payload\": {}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/payments/mock-gateway/callback",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"payments",
+								"mock-gateway",
+								"callback"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "language",
+			"value": "en",
+			"type": "string"
+		}
+	],
+	"auth": {
+		"type": "noauth"
+	}
+}
+

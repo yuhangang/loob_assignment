@@ -1,0 +1,46 @@
+{
+  "zones": [
+    { "id": "MY_KV", "name": "Klang Valley" },
+    { "id": "MY_NORTH", "name": "Northern Region" },
+    { "id": "MY_SOUTH", "name": "Southern Region" },
+    { "id": "MY_EAST", "name": "East Malaysia" }
+  ],
+  "stores": [
+    { "name": "Pavilion KL", "bid": 1, "zid": "MY_KV" },
+    { "name": "Mid Valley", "bid": 2, "zid": "MY_KV" },
+    { "name": "Sunway Pyramid", "bid": 1, "zid": "MY_KV" },
+    { "name": "Gurney Plaza", "bid": 1, "zid": "MY_NORTH" }
+  ],
+  "categories": [
+    { "id": 10, "bid": 1, "name": { "en-US": "Signature Boba", "ms-MY": "Boba Signatur" } },
+    { "id": 11, "bid": 1, "name": { "en-US": "Fruit Tea", "ms-MY": "Teh Buah" } },
+    { "id": 12, "bid": 2, "name": { "en-US": "Toasties", "ms-MY": "Roti Bakar" } }
+  ],
+  "items": [
+    {
+      "id": 100,
+      "cid": 10,
+      "sku": "MY-TL-PMT",
+      "name": { "en-US": "Signature Pearl Milk Tea", "ms-MY": "Teh Susu Mutiara Signatur" },
+      "price_min": 800,
+      "price_max": 1200,
+      "has_customization": true
+    },
+    {
+      "id": 101,
+      "cid": 10,
+      "sku": "MY-TL-GMT",
+      "name": { "en-US": "Grass Jelly Milk Tea", "ms-MY": "Teh Susu Cincau" },
+      "price_min": 850,
+      "price_max": 1300
+    },
+    {
+      "id": 102,
+      "cid": 12,
+      "sku": "MY-BB-CHZ",
+      "name": { "en-US": "Cheesy Chicken Toastie", "ms-MY": "Roti Bakar Ayam Keju" },
+      "price_min": 1200,
+      "price_max": 1500
+    }
+  ]
+}

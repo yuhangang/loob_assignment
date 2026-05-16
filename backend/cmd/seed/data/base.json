@@ -1,0 +1,36 @@
+{
+  "countries": [
+    {
+      "id": "MY",
+      "name": "Malaysia",
+      "currency_code": "MYR",
+      "timezone": "Asia/Kuala_Lumpur",
+      "tax_rate": 0.06,
+      "default_language": "en-US"
+    },
+    {
+      "id": "TH",
+      "name": "Thailand",
+      "currency_code": "THB",
+      "timezone": "Asia/Bangkok",
+      "tax_rate": 0.07,
+      "default_language": "th-TH"
+    }
+  ],
+  "brands": [
+    {
+      "id": 1,
+      "slug": "tealive",
+      "name": "Tealive",
+      "primary_color": "#6F2DBD",
+      "accent_color": "#F7C948"
+    },
+    {
+      "id": 2,
+      "slug": "baskbear",
+      "name": "Baskbear",
+      "primary_color": "#111827",
+      "accent_color": "#D97706"
+    }
+  ]
+}

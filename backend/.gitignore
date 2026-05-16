@@ -1,0 +1,55 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+build/
+loob-server
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+*.prof
+*.cgo1.go
+*.cgo2.c
+_cgo_defun.c
+_cgo_gotypes.go
+_cgo_export.*
+
+# Dependency directories
+vendor/
+.gomodcache/
+.go/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# env file
+.env
+.env.*
+!.env.example
+
+# OS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# Logs
+logs/
+*.log
+
+# Project specific
+scratch/
+tmp/
