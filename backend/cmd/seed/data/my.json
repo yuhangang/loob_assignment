@@ -1,46 +1,1301 @@
 {
   "zones": [
-    { "id": "MY_KV", "name": "Klang Valley" },
-    { "id": "MY_NORTH", "name": "Northern Region" },
-    { "id": "MY_SOUTH", "name": "Southern Region" },
-    { "id": "MY_EAST", "name": "East Malaysia" }
+    {
+      "id": "MY_KV",
+      "name": "Klang Valley"
+    },
+    {
+      "id": "MY_NORTH",
+      "name": "Northern Region"
+    },
+    {
+      "id": "MY_SOUTH",
+      "name": "Southern Region"
+    },
+    {
+      "id": "MY_EAST",
+      "name": "East Malaysia"
+    }
   ],
   "stores": [
-    { "name": "Pavilion KL", "bid": 1, "zid": "MY_KV" },
-    { "name": "Mid Valley", "bid": 2, "zid": "MY_KV" },
-    { "name": "Sunway Pyramid", "bid": 1, "zid": "MY_KV" },
-    { "name": "Gurney Plaza", "bid": 1, "zid": "MY_NORTH" }
+    {
+      "code": "MY-TL-PAV",
+      "name": "Pavilion KL",
+      "bid": 1,
+      "zid": "MY_KV"
+    },
+    {
+      "code": "MY-BB-MDV",
+      "name": "Mid Valley",
+      "bid": 2,
+      "zid": "MY_KV"
+    },
+    {
+      "code": "MY-TL-SWP",
+      "name": "Sunway Pyramid",
+      "bid": 1,
+      "zid": "MY_KV",
+      "operational_status": "TEMPORARILY_CLOSED",
+      "status_message": "Temporarily closed for outlet maintenance."
+    },
+    {
+      "code": "MY-TL-GUR",
+      "name": "Gurney Plaza",
+      "bid": 1,
+      "zid": "MY_NORTH"
+    }
   ],
   "categories": [
-    { "id": 10, "bid": 1, "name": { "en-US": "Signature Boba", "ms-MY": "Boba Signatur" } },
-    { "id": 11, "bid": 1, "name": { "en-US": "Fruit Tea", "ms-MY": "Teh Buah" } },
-    { "id": 12, "bid": 2, "name": { "en-US": "Toasties", "ms-MY": "Roti Bakar" } }
+    {
+      "id": 10,
+      "bid": 1,
+      "name": {
+        "en-US": "Signature Boba",
+        "ms-MY": "Boba Signatur"
+      },
+      "icon_url": "/cdn/categories/boba.svg"
+    },
+    {
+      "id": 11,
+      "bid": 1,
+      "name": {
+        "en-US": "Fruit Tea",
+        "ms-MY": "Teh Buah"
+      },
+      "icon_url": "/cdn/categories/fruit_tea.svg"
+    },
+    {
+      "id": 12,
+      "bid": 2,
+      "name": {
+        "en-US": "Toasties",
+        "ms-MY": "Roti Bakar"
+      },
+      "icon_url": "/cdn/categories/toasties.svg"
+    },
+    {
+      "id": 13,
+      "bid": 2,
+      "name": {
+        "en-US": "Coffee",
+        "ms-MY": "Kopi"
+      },
+      "icon_url": "/cdn/categories/coffee.svg"
+    },
+    {
+      "id": 14,
+      "bid": 1,
+      "name": {
+        "en-US": "Matcha Latte & Tea",
+        "ms-MY": "Siri Matcha"
+      },
+      "icon_url": "/cdn/categories/matcha.svg"
+    },
+    {
+      "id": 15,
+      "bid": 1,
+      "name": {
+        "en-US": "Cocoa Series",
+        "ms-MY": "Siri Koko"
+      },
+      "icon_url": "/cdn/categories/cocoa.svg"
+    },
+    {
+      "id": 16,
+      "bid": 2,
+      "name": {
+        "en-US": "Signature Frappes",
+        "ms-MY": "Frappe Signatur"
+      },
+      "icon_url": "/cdn/categories/frappe.svg"
+    },
+    {
+      "id": 17,
+      "bid": 2,
+      "name": {
+        "en-US": "Gourmet Mains",
+        "ms-MY": "Hidangan Utama"
+      },
+      "icon_url": "/cdn/categories/mains.svg"
+    }
   ],
   "items": [
     {
       "id": 100,
+      "bid": 1,
       "cid": 10,
+      "item_type": "MAIN",
       "sku": "MY-TL-PMT",
-      "name": { "en-US": "Signature Pearl Milk Tea", "ms-MY": "Teh Susu Mutiara Signatur" },
+      "name": {
+        "en-US": "Signature Pearl Milk Tea",
+        "ms-MY": "Teh Susu Mutiara Signatur"
+      },
+      "description": {
+        "en-US": "Classic milk tea finished with chewy pearls.",
+        "ms-MY": "Teh susu klasik dengan mutiara kenyal."
+      },
+      "dietary_tags": [
+        "halal",
+        "contains_dairy",
+        "caffeine"
+      ],
       "price_min": 800,
       "price_max": 1200,
-      "has_customization": true
+      "customization_groups": [
+        {
+          "code": "size",
+          "name": {
+            "en-US": "Choose Size",
+            "ms-MY": "Pilih Saiz"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 1,
+          "options": [
+            {
+              "code": "regular",
+              "name": {
+                "en-US": "Regular",
+                "ms-MY": "Biasa"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "large",
+              "name": {
+                "en-US": "Large",
+                "ms-MY": "Besar"
+              },
+              "price_adjustment": 150,
+              "display_order": 2
+            }
+          ]
+        },
+        {
+          "code": "sugar",
+          "name": {
+            "en-US": "Sugar Level",
+            "ms-MY": "Tahap Gula"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 2,
+          "options": [
+            {
+              "code": "sugar_0",
+              "name": {
+                "en-US": "No Sugar (0%)",
+                "ms-MY": "Tiada Gula (0%)"
+              },
+              "price_adjustment": 0,
+              "display_order": 1
+            },
+            {
+              "code": "sugar_50",
+              "name": {
+                "en-US": "Half Sugar (50%)",
+                "ms-MY": "Separuh Gula (50%)"
+              },
+              "price_adjustment": 0,
+              "display_order": 2
+            },
+            {
+              "code": "sugar_100",
+              "name": {
+                "en-US": "Regular Sugar (100%)",
+                "ms-MY": "Gula Biasa (100%)"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 3
+            }
+          ]
+        },
+        {
+          "code": "addons",
+          "name": {
+            "en-US": "Add-ons",
+            "ms-MY": "Add-on"
+          },
+          "selection_type": "MULTI_SELECT",
+          "min_selections": 0,
+          "max_selections": 3,
+          "display_order": 3,
+          "options": [
+            {
+              "code": "pearl",
+              "linked_sku": "MY-TL-ADD-PEARL",
+              "name": {
+                "en-US": "Pearl",
+                "ms-MY": "Mutiara"
+              },
+              "price_adjustment": 0,
+              "display_order": 1
+            },
+            {
+              "code": "grass_jelly",
+              "linked_sku": "MY-TL-ADD-GJ",
+              "name": {
+                "en-US": "Grass Jelly",
+                "ms-MY": "Cincau"
+              },
+              "price_adjustment": 0,
+              "display_order": 2
+            },
+            {
+              "code": "pudding",
+              "linked_sku": "MY-TL-ADD-PUD",
+              "name": {
+                "en-US": "Pudding",
+                "ms-MY": "Puding"
+              },
+              "price_adjustment": 0,
+              "display_order": 3
+            },
+            {
+              "code": "coconut_jelly",
+              "linked_sku": "MY-TL-ADD-CJ",
+              "name": {
+                "en-US": "Coconut Jelly",
+                "ms-MY": "Jeli Kelapa"
+              },
+              "price_adjustment": 0,
+              "display_order": 4
+            }
+          ]
+        }
+      ],
+      "image_url_sm": "/cdn/my-tl-pmt.png",
+      "image_url_lg": "/cdn/my-tl-pmt.png"
     },
     {
       "id": 101,
+      "bid": 1,
       "cid": 10,
+      "item_type": "MAIN",
       "sku": "MY-TL-GMT",
-      "name": { "en-US": "Grass Jelly Milk Tea", "ms-MY": "Teh Susu Cincau" },
+      "name": {
+        "en-US": "Grass Jelly Milk Tea",
+        "ms-MY": "Teh Susu Cincau"
+      },
+      "description": {
+        "en-US": "Milk tea with grass jelly and a mellow finish.",
+        "ms-MY": "Teh susu dengan cincau dan rasa yang lembut."
+      },
+      "dietary_tags": [
+        "halal",
+        "contains_dairy",
+        "caffeine"
+      ],
       "price_min": 850,
-      "price_max": 1300
+      "price_max": 1300,
+      "customization_groups": [
+        {
+          "code": "size",
+          "name": {
+            "en-US": "Choose Size",
+            "ms-MY": "Pilih Saiz"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 1,
+          "options": [
+            {
+              "code": "regular",
+              "name": {
+                "en-US": "Regular",
+                "ms-MY": "Biasa"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "large",
+              "name": {
+                "en-US": "Large",
+                "ms-MY": "Besar"
+              },
+              "price_adjustment": 150,
+              "display_order": 2
+            }
+          ]
+        },
+        {
+          "code": "sugar",
+          "name": {
+            "en-US": "Sugar Level",
+            "ms-MY": "Tahap Gula"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 2,
+          "options": [
+            {
+              "code": "sugar_25",
+              "name": {
+                "en-US": "Light Sugar (25%)",
+                "ms-MY": "Kurang Gula (25%)"
+              },
+              "price_adjustment": 0,
+              "display_order": 1
+            },
+            {
+              "code": "sugar_50",
+              "name": {
+                "en-US": "Half Sugar (50%)",
+                "ms-MY": "Separuh Gula (50%)"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 2
+            },
+            {
+              "code": "sugar_100",
+              "name": {
+                "en-US": "Regular Sugar (100%)",
+                "ms-MY": "Gula Biasa (100%)"
+              },
+              "price_adjustment": 0,
+              "display_order": 3
+            }
+          ]
+        }
+      ],
+      "image_url_sm": "/cdn/my-tl-gmt.png",
+      "image_url_lg": "/cdn/my-tl-gmt.png"
+    },
+    {
+      "id": 104,
+      "bid": 1,
+      "cid": 10,
+      "item_type": "MAIN",
+      "sku": "MY-TL-BMT",
+      "name": {
+        "en-US": "Brown Sugar Pearl Milk Tea",
+        "ms-MY": "Teh Susu Mutiara Gula Perang"
+      },
+      "description": {
+        "en-US": "Rich milk tea infused with caramelized brown sugar syrup and pearls.",
+        "ms-MY": "Teh susu pekat dengan sirap gula perang karamel dan mutiara."
+      },
+      "dietary_tags": [
+        "halal",
+        "contains_dairy",
+        "caffeine"
+      ],
+      "price_min": 900,
+      "price_max": 1300,
+      "customization_groups": [
+        {
+          "code": "size",
+          "name": {
+            "en-US": "Choose Size",
+            "ms-MY": "Pilih Saiz"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 1,
+          "options": [
+            {
+              "code": "regular",
+              "name": {
+                "en-US": "Regular",
+                "ms-MY": "Biasa"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "large",
+              "name": {
+                "en-US": "Large",
+                "ms-MY": "Besar"
+              },
+              "price_adjustment": 150,
+              "display_order": 2
+            }
+          ]
+        },
+        {
+          "code": "sugar",
+          "name": {
+            "en-US": "Sugar Level",
+            "ms-MY": "Tahap Gula"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 2,
+          "options": [
+            {
+              "code": "sugar_0",
+              "name": {
+                "en-US": "No Sugar (0%)",
+                "ms-MY": "Tiada Gula (0%)"
+              },
+              "price_adjustment": 0,
+              "display_order": 1
+            },
+            {
+              "code": "sugar_50",
+              "name": {
+                "en-US": "Half Sugar (50%)",
+                "ms-MY": "Separuh Gula (50%)"
+              },
+              "price_adjustment": 0,
+              "display_order": 2
+            },
+            {
+              "code": "sugar_100",
+              "name": {
+                "en-US": "Regular Sugar (100%)",
+                "ms-MY": "Gula Biasa (100%)"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 3
+            }
+          ]
+        }
+      ],
+      "image_url_sm": "/cdn/my-tl-bmt.png",
+      "image_url_lg": "/cdn/my-tl-bmt.png"
+    },
+    {
+      "id": 105,
+      "bid": 1,
+      "cid": 10,
+      "item_type": "MAIN",
+      "sku": "MY-TL-RTD",
+      "name": {
+        "en-US": "Roasted Milk Tea with Grass Jelly",
+        "ms-MY": "Teh Susu Panggang dengan Cincau"
+      },
+      "description": {
+        "en-US": "Fragrant roasted milk tea served with cooling grass jelly.",
+        "ms-MY": "Teh susu panggang wangi dihidangkan dengan cincau sejuk."
+      },
+      "dietary_tags": [
+        "halal",
+        "contains_dairy",
+        "caffeine"
+      ],
+      "price_min": 850,
+      "price_max": 1250,
+      "customization_groups": [
+        {
+          "code": "size",
+          "name": {
+            "en-US": "Choose Size",
+            "ms-MY": "Pilih Saiz"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 1,
+          "options": [
+            {
+              "code": "regular",
+              "name": {
+                "en-US": "Regular",
+                "ms-MY": "Biasa"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "large",
+              "name": {
+                "en-US": "Large",
+                "ms-MY": "Besar"
+              },
+              "price_adjustment": 150,
+              "display_order": 2
+            }
+          ]
+        }
+      ],
+      "image_url_sm": "/cdn/my-tl-rtd.png",
+      "image_url_lg": "/cdn/my-tl-rtd.png"
+    },
+    {
+      "id": 106,
+      "bid": 1,
+      "cid": 11,
+      "item_type": "MAIN",
+      "sku": "MY-TL-MGT",
+      "name": {
+        "en-US": "Mango Fruit Green Tea",
+        "ms-MY": "Teh Hijau Buah Mangga"
+      },
+      "description": {
+        "en-US": "Refreshing green tea blended with sweet mango puree and coconut jelly.",
+        "ms-MY": "Teh hijau menyegarkan diadun dengan puri mangga manis dan jeli kelapa."
+      },
+      "dietary_tags": [
+        "halal"
+      ],
+      "price_min": 950,
+      "price_max": 1350,
+      "customization_groups": [
+        {
+          "code": "size",
+          "name": {
+            "en-US": "Choose Size",
+            "ms-MY": "Pilih Saiz"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 1,
+          "options": [
+            {
+              "code": "regular",
+              "name": {
+                "en-US": "Regular",
+                "ms-MY": "Biasa"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "large",
+              "name": {
+                "en-US": "Large",
+                "ms-MY": "Besar"
+              },
+              "price_adjustment": 150,
+              "display_order": 2
+            }
+          ]
+        }
+      ],
+      "image_url_sm": "/cdn/my-tl-mgt.png",
+      "image_url_lg": "/cdn/my-tl-mgt.png"
+    },
+    {
+      "id": 107,
+      "bid": 1,
+      "cid": 11,
+      "item_type": "MAIN",
+      "sku": "MY-TL-SFT",
+      "name": {
+        "en-US": "Signature Fruit Tea",
+        "ms-MY": "Teh Buah Signatur"
+      },
+      "description": {
+        "en-US": "A vibrant blend of black tea, fresh orange, passion fruit, and apple slices.",
+        "ms-MY": "Campuran teh hitam, oren segar, markisa, dan hiasan epal."
+      },
+      "dietary_tags": [
+        "halal",
+        "caffeine"
+      ],
+      "price_min": 1000,
+      "price_max": 1400,
+      "image_url_sm": "/cdn/my-tl-sft.png",
+      "image_url_lg": "/cdn/my-tl-sft.png"
+    },
+    {
+      "id": 108,
+      "bid": 1,
+      "cid": 14,
+      "item_type": "MAIN",
+      "sku": "MY-TL-NML",
+      "name": {
+        "en-US": "Nishio Matcha Latte",
+        "ms-MY": "Latte Matcha Nishio"
+      },
+      "description": {
+        "en-US": "Premium Japanese Nishio matcha whisked with fresh milk.",
+        "ms-MY": "Matcha Nishio Jepun premium dipukul bersama susu segar."
+      },
+      "dietary_tags": [
+        "halal",
+        "contains_dairy",
+        "caffeine"
+      ],
+      "price_min": 1050,
+      "price_max": 1450,
+      "customization_groups": [
+        {
+          "code": "size",
+          "name": {
+            "en-US": "Choose Size",
+            "ms-MY": "Pilih Saiz"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 1,
+          "options": [
+            {
+              "code": "regular",
+              "name": {
+                "en-US": "Regular",
+                "ms-MY": "Biasa"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "large",
+              "name": {
+                "en-US": "Large",
+                "ms-MY": "Besar"
+              },
+              "price_adjustment": 150,
+              "display_order": 2
+            }
+          ]
+        }
+      ],
+      "image_url_sm": "/cdn/my-tl-nml.png",
+      "image_url_lg": "/cdn/my-tl-nml.png"
+    },
+    {
+      "id": 109,
+      "bid": 1,
+      "cid": 15,
+      "item_type": "MAIN",
+      "sku": "MY-TL-BCC",
+      "name": {
+        "en-US": "Belgian Cocoa",
+        "ms-MY": "Koko Belgium"
+      },
+      "description": {
+        "en-US": "Rich and indulgent premium Belgian chocolate with fresh milk.",
+        "ms-MY": "Coklat Belgium premium yang pekat dan lazat dengan susu segar."
+      },
+      "dietary_tags": [
+        "halal",
+        "contains_dairy"
+      ],
+      "price_min": 1000,
+      "price_max": 1400,
+      "image_url_sm": "/cdn/my-tl-bcc.png",
+      "image_url_lg": "/cdn/my-tl-bcc.png"
     },
     {
       "id": 102,
+      "bid": 2,
       "cid": 12,
+      "item_type": "MAIN",
       "sku": "MY-BB-CHZ",
-      "name": { "en-US": "Cheesy Chicken Toastie", "ms-MY": "Roti Bakar Ayam Keju" },
+      "name": {
+        "en-US": "Cheesy Chicken Toastie",
+        "ms-MY": "Roti Bakar Ayam Keju"
+      },
+      "description": {
+        "en-US": "Grilled toastie with chicken and cheese.",
+        "ms-MY": "Roti bakar panas dengan ayam dan keju."
+      },
+      "dietary_tags": [
+        "halal"
+      ],
       "price_min": 1200,
-      "price_max": 1500
+      "price_max": 1500,
+      "image_url_sm": "/cdn/my-bb-chz.png",
+      "image_url_lg": "/cdn/my-bb-chz.png"
+    },
+    {
+      "id": 110,
+      "bid": 2,
+      "cid": 12,
+      "item_type": "MAIN",
+      "sku": "MY-BB-BFT",
+      "name": {
+        "en-US": "Classic Beef Bacon Toastie",
+        "ms-MY": "Roti Bakar Daging Salai Klasik"
+      },
+      "description": {
+        "en-US": "Toasted bread stuffed with savory beef bacon, cheddar, and signature sauce.",
+        "ms-MY": "Roti bakar dengan daging bacon lembu, keju cheddar dan sos istimewa."
+      },
+      "dietary_tags": [
+        "halal"
+      ],
+      "price_min": 1350,
+      "price_max": 1650,
+      "image_url_sm": "/cdn/my-bb-bft.png",
+      "image_url_lg": "/cdn/my-bb-bft.png"
+    },
+    {
+      "id": 111,
+      "bid": 2,
+      "cid": 12,
+      "item_type": "MAIN",
+      "sku": "MY-BB-AVT",
+      "name": {
+        "en-US": "Avocado Egg Toastie",
+        "ms-MY": "Roti Bakar Avokado & Telur"
+      },
+      "description": {
+        "en-US": "Healthy toastie loaded with mashed avocado, fluffy scrambled eggs, and cheese.",
+        "ms-MY": "Roti bakar sihat dimuatkan dengan avokado lecek, telur hancur gebu dan keju."
+      },
+      "dietary_tags": [
+        "halal",
+        "contains_dairy"
+      ],
+      "price_min": 1400,
+      "price_max": 1750,
+      "image_url_sm": "/cdn/my-bb-avt.png",
+      "image_url_lg": "/cdn/my-bb-avt.png"
+    },
+    {
+      "id": 103,
+      "bid": 2,
+      "cid": 13,
+      "item_type": "MAIN",
+      "sku": "MY-BB-LAT",
+      "name": {
+        "en-US": "Sea Salt Oat Latte",
+        "ms-MY": "Latte Oat Garam Laut"
+      },
+      "description": {
+        "en-US": "Smooth espresso latte with oat milk support.",
+        "ms-MY": "Latte espresso lembut dengan pilihan susu oat."
+      },
+      "dietary_tags": [
+        "halal",
+        "caffeine"
+      ],
+      "price_min": 1100,
+      "price_max": 1450,
+      "customization_groups": [
+        {
+          "code": "size",
+          "name": {
+            "en-US": "Choose Size",
+            "ms-MY": "Pilih Saiz"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 1,
+          "options": [
+            {
+              "code": "regular",
+              "name": {
+                "en-US": "Regular",
+                "ms-MY": "Biasa"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "large",
+              "name": {
+                "en-US": "Large",
+                "ms-MY": "Besar"
+              },
+              "price_adjustment": 180,
+              "display_order": 2
+            }
+          ]
+        },
+        {
+          "code": "milk",
+          "name": {
+            "en-US": "Milk Selection",
+            "ms-MY": "Pilihan Susu"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 2,
+          "options": [
+            {
+              "code": "fresh_milk",
+              "name": {
+                "en-US": "Fresh Milk",
+                "ms-MY": "Susu Segar"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "oat_milk",
+              "linked_sku": "MY-BB-ADD-OAT",
+              "name": {
+                "en-US": "Oat Milk",
+                "ms-MY": "Susu Oat"
+              },
+              "price_adjustment": 0,
+              "display_order": 2
+            }
+          ]
+        },
+        {
+          "code": "sugar",
+          "name": {
+            "en-US": "Sugar Level",
+            "ms-MY": "Tahap Gula"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 0,
+          "max_selections": 1,
+          "display_order": 3,
+          "options": [
+            {
+              "code": "sugar_0",
+              "name": {
+                "en-US": "No Sugar",
+                "ms-MY": "Tiada Gula"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "sugar_50",
+              "name": {
+                "en-US": "Half Sugar",
+                "ms-MY": "Separuh Gula"
+              },
+              "price_adjustment": 0,
+              "display_order": 2
+            }
+          ]
+        },
+        {
+          "code": "addons",
+          "name": {
+            "en-US": "Add-ons",
+            "ms-MY": "Add-on"
+          },
+          "selection_type": "MULTI_SELECT",
+          "min_selections": 0,
+          "max_selections": 3,
+          "display_order": 4,
+          "options": [
+            {
+              "code": "extra_shot",
+              "linked_sku": "MY-BB-ADD-SHOT",
+              "name": {
+                "en-US": "Extra Shot",
+                "ms-MY": "Espresso Tambahan"
+              },
+              "price_adjustment": 0,
+              "display_order": 1
+            },
+            {
+              "code": "whipped_cream",
+              "linked_sku": "MY-BB-ADD-WC",
+              "name": {
+                "en-US": "Whipped Cream",
+                "ms-MY": "Krim Putar"
+              },
+              "price_adjustment": 0,
+              "display_order": 2
+            },
+            {
+              "code": "extra_cheese",
+              "linked_sku": "MY-BB-ADD-CHZ",
+              "name": {
+                "en-US": "Extra Cheddar Slice",
+                "ms-MY": "Kepingan Keju Ekstra"
+              },
+              "price_adjustment": 0,
+              "display_order": 3
+            }
+          ]
+        }
+      ],
+      "image_url_sm": "/cdn/my-bb-lat.png",
+      "image_url_lg": "/cdn/my-bb-lat.png"
+    },
+    {
+      "id": 112,
+      "bid": 2,
+      "cid": 13,
+      "item_type": "MAIN",
+      "sku": "MY-BB-ANC",
+      "name": {
+        "en-US": "Aren Signature Latte",
+        "ms-MY": "Latte Gula Aren Signatur"
+      },
+      "description": {
+        "en-US": "Our famous espresso coffee sweetened with natural and aromatic Aren palm sugar.",
+        "ms-MY": "Kopi espresso terkenal kami dimaniskan dengan gula kabung Aren yang wangi semula jadi."
+      },
+      "dietary_tags": [
+        "halal",
+        "caffeine"
+      ],
+      "price_min": 1000,
+      "price_max": 1350,
+      "customization_groups": [
+        {
+          "code": "size",
+          "name": {
+            "en-US": "Choose Size",
+            "ms-MY": "Pilih Saiz"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 1,
+          "options": [
+            {
+              "code": "regular",
+              "name": {
+                "en-US": "Regular",
+                "ms-MY": "Biasa"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "large",
+              "name": {
+                "en-US": "Large",
+                "ms-MY": "Besar"
+              },
+              "price_adjustment": 180,
+              "display_order": 2
+            }
+          ]
+        }
+      ],
+      "image_url_sm": "/cdn/my-bb-anc.png",
+      "image_url_lg": "/cdn/my-bb-anc.png"
+    },
+    {
+      "id": 113,
+      "bid": 2,
+      "cid": 16,
+      "item_type": "MAIN",
+      "sku": "MY-BB-CCF",
+      "name": {
+        "en-US": "Cookies & Cream Frappe",
+        "ms-MY": "Frappe Kuki & Krim"
+      },
+      "description": {
+        "en-US": "Ice-blended creamy cookies and milk, topped with whipped cream.",
+        "ms-MY": "Kuki berkrim dan susu kisar ais, dihiasi krim putar."
+      },
+      "dietary_tags": [
+        "halal",
+        "contains_dairy"
+      ],
+      "price_min": 1300,
+      "price_max": 1600,
+      "image_url_sm": "/cdn/my-bb-ccf.png",
+      "image_url_lg": "/cdn/my-bb-ccf.png"
+    },
+    {
+      "id": 114,
+      "bid": 2,
+      "cid": 16,
+      "item_type": "MAIN",
+      "sku": "MY-BB-AMF",
+      "name": {
+        "en-US": "Aren Matcha Frappe",
+        "ms-MY": "Frappe Matcha Aren"
+      },
+      "description": {
+        "en-US": "Unique combination of Japanese matcha, milk, and Aren palm sugar.",
+        "ms-MY": "Kombinasi unik teh hijau matcha Jepun, susu dan gula kabung Aren."
+      },
+      "dietary_tags": [
+        "halal",
+        "contains_dairy",
+        "caffeine"
+      ],
+      "price_min": 1400,
+      "price_max": 1700,
+      "image_url_sm": "/cdn/my-bb-amf.png",
+      "image_url_lg": "/cdn/my-bb-amf.png"
+    },
+    {
+      "id": 115,
+      "bid": 2,
+      "cid": 17,
+      "item_type": "MAIN",
+      "sku": "MY-BB-NLM",
+      "name": {
+        "en-US": "Baskbear Nasi Lemak Royale",
+        "ms-MY": "Nasi Lemak Royale Baskbear"
+      },
+      "description": {
+        "en-US": "Fragrant coconut rice served with spicy sambal, crispy anchovies, boiled egg, and fried chicken.",
+        "ms-MY": "Nasi lemak wangi dihidangkan dengan sambal pedas, bilis rangup, telur rebus dan ayam goreng."
+      },
+      "dietary_tags": [
+        "halal"
+      ],
+      "price_min": 1690,
+      "price_max": 1990,
+      "image_url_sm": "/cdn/my-bb-nlm.png",
+      "image_url_lg": "/cdn/my-bb-nlm.png"
+    },
+    {
+      "id": 116,
+      "bid": 2,
+      "cid": 17,
+      "item_type": "MAIN",
+      "sku": "MY-BB-MCP",
+      "name": {
+        "en-US": "Creamy Carbonara Pasta",
+        "ms-MY": "Pasta Carbonara Berkrim"
+      },
+      "description": {
+        "en-US": "Spaghetti tossed in rich creamy white sauce with mushrooms and chicken ham.",
+        "ms-MY": "Spageti digaul dengan sos putih berkrim bersama cendawan dan ham ayam."
+      },
+      "dietary_tags": [
+        "halal",
+        "contains_dairy"
+      ],
+      "price_min": 1590,
+      "price_max": 1890,
+      "image_url_sm": "/cdn/my-bb-mcp.png",
+      "image_url_lg": "/cdn/my-bb-mcp.png"
+    },
+    {
+      "id": 1001,
+      "bid": 1,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "MY-TL-ADD-PEARL",
+      "name": {
+        "en-US": "Pearl",
+        "ms-MY": "Mutiara"
+      },
+      "description": {
+        "en-US": "Chewy tapioca pearls.",
+        "ms-MY": "Mutiara ubi kayu kenyal."
+      },
+      "dietary_tags": [
+        "halal"
+      ],
+      "price_min": 120,
+      "price_max": 120
+    },
+    {
+      "id": 1002,
+      "bid": 1,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "MY-TL-ADD-GJ",
+      "name": {
+        "en-US": "Grass Jelly",
+        "ms-MY": "Cincau"
+      },
+      "description": {
+        "en-US": "Cooling grass jelly topping.",
+        "ms-MY": "Add-on cincau yang menyegarkan."
+      },
+      "dietary_tags": [
+        "halal"
+      ],
+      "price_min": 120,
+      "price_max": 120
+    },
+    {
+      "id": 1003,
+      "bid": 1,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "MY-TL-ADD-PUD",
+      "name": {
+        "en-US": "Pudding",
+        "ms-MY": "Puding"
+      },
+      "description": {
+        "en-US": "Silky pudding topping.",
+        "ms-MY": "Add-on puding lembut."
+      },
+      "dietary_tags": [
+        "halal",
+        "contains_dairy"
+      ],
+      "price_min": 150,
+      "price_max": 150
+    },
+    {
+      "id": 1004,
+      "bid": 1,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "MY-TL-ADD-CJ",
+      "name": {
+        "en-US": "Coconut Jelly",
+        "ms-MY": "Jeli Kelapa"
+      },
+      "description": {
+        "en-US": "Sweet and chewable coconut jelly cubes.",
+        "ms-MY": "Kiub jeli kelapa manis dan kenyal."
+      },
+      "dietary_tags": [
+        "halal"
+      ],
+      "price_min": 150,
+      "price_max": 150
+    },
+    {
+      "id": 1005,
+      "bid": 1,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "MY-TL-ADD-AL",
+      "name": {
+        "en-US": "Aloe Vera",
+        "ms-MY": "Lidah Buaya"
+      },
+      "description": {
+        "en-US": "Refreshing aloe vera chunks.",
+        "ms-MY": "Kepingan aloe vera yang segar."
+      },
+      "dietary_tags": [
+        "halal"
+      ],
+      "price_min": 150,
+      "price_max": 150
+    },
+    {
+      "id": 1101,
+      "bid": 2,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "MY-BB-ADD-OAT",
+      "name": {
+        "en-US": "Oat Milk",
+        "ms-MY": "Susu Oat"
+      },
+      "description": {
+        "en-US": "Oat milk substitute.",
+        "ms-MY": "Pengganti susu oat."
+      },
+      "dietary_tags": [
+        "halal"
+      ],
+      "price_min": 200,
+      "price_max": 200
+    },
+    {
+      "id": 1102,
+      "bid": 2,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "MY-BB-ADD-SHOT",
+      "name": {
+        "en-US": "Extra Shot",
+        "ms-MY": "Espresso Tambahan"
+      },
+      "description": {
+        "en-US": "Additional espresso shot.",
+        "ms-MY": "Tambahan satu shot espresso."
+      },
+      "dietary_tags": [
+        "caffeine"
+      ],
+      "price_min": 250,
+      "price_max": 250
+    },
+    {
+      "id": 1103,
+      "bid": 2,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "MY-BB-ADD-WC",
+      "name": {
+        "en-US": "Whipped Cream",
+        "ms-MY": "Krim Putar"
+      },
+      "description": {
+        "en-US": "Whipped cream topping.",
+        "ms-MY": "Add-on krim putar."
+      },
+      "dietary_tags": [
+        "contains_dairy"
+      ],
+      "price_min": 180,
+      "price_max": 180
+    },
+    {
+      "id": 1104,
+      "bid": 2,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "MY-BB-ADD-CHZ",
+      "name": {
+        "en-US": "Extra Cheddar Slice",
+        "ms-MY": "Kepingan Keju Ekstra"
+      },
+      "description": {
+        "en-US": "Melted cheddar slice for cheese lovers.",
+        "ms-MY": "Kepingan keju cheddar cair untuk peminat tegar keju."
+      },
+      "dietary_tags": [
+        "halal",
+        "contains_dairy"
+      ],
+      "price_min": 150,
+      "price_max": 150
+    },
+    {
+      "id": 1105,
+      "bid": 2,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "MY-BB-ADD-CBG",
+      "name": {
+        "en-US": "Caramel Drizzle",
+        "ms-MY": "Sirap Karamel"
+      },
+      "description": {
+        "en-US": "Sweet caramel sauce drizzle.",
+        "ms-MY": "Curahan sos karamel manis."
+      },
+      "dietary_tags": [
+        "halal"
+      ],
+      "price_min": 120,
+      "price_max": 120
+    }
+  ],
+  "store_item_statuses": [
+    {
+      "store_code": "MY-TL-GUR",
+      "sku": "MY-TL-PMT",
+      "is_listed": true,
+      "is_available": false
+    },
+    {
+      "store_code": "MY-TL-SWP",
+      "sku": "MY-TL-ADD-PUD",
+      "is_listed": false,
+      "is_available": false
+    },
+    {
+      "store_code": "MY-BB-MDV",
+      "sku": "MY-BB-ADD-OAT",
+      "is_listed": true,
+      "is_available": false
+    },
+    {
+      "store_code": "MY-BB-MDV",
+      "sku": "MY-BB-ADD-WC",
+      "is_listed": false,
+      "is_available": false
     }
   ]
 }

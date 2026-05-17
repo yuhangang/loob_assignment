@@ -42,7 +42,7 @@ The Flutter app should almost never pass `country` or `language` inside the URL 
 
 **Client Request:**
 ```http
-GET /api/v1/menu/categories
+GET /api/v1/catalog/categories
 X-Country-Code: MY
 Accept-Language: ms-MY
 ```

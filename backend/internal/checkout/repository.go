@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -23,10 +24,15 @@ type Country struct {
 }
 
 type Store struct {
-	ID        int
-	CountryID string
-	ZoneID    string
-	BrandID   int
+	ID                int
+	CountryID         string
+	ZoneID            string
+	BrandID           int
+	OperationalStatus string
+}
+
+func (s Store) AcceptsOrders() bool {
+	return strings.EqualFold(strings.TrimSpace(s.OperationalStatus), "OPEN")
 }
 
 type PricedItem struct {
@@ -46,6 +52,7 @@ type CustomizationGroupRule struct {
 	ID            int
 	MenuItemID    int
 	SelectionType string
+	MinSelections int
 	IsRequired    bool
 	MaxSelections int
 }
@@ -125,10 +132,10 @@ func (r *Repository) GetCountry(ctx context.Context, countryID string) (Country,
 func (r *Repository) GetStore(ctx context.Context, countryID string, storeID int) (Store, error) {
 	var store Store
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, country_id, zone_id, brand_id
+		SELECT id, country_id, zone_id, brand_id, operational_status
 		FROM stores
 		WHERE id = ? AND country_id = ? AND is_active = true
-	`, storeID, countryID).Scan(&store.ID, &store.CountryID, &store.ZoneID, &store.BrandID)
+	`, storeID, countryID).Scan(&store.ID, &store.CountryID, &store.ZoneID, &store.BrandID, &store.OperationalStatus)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Store{}, ErrNotFound
@@ -147,18 +154,23 @@ func (r *Repository) UpsertUser(ctx context.Context, userID, countryID string) e
 	return err
 }
 
-func (r *Repository) GetPricedItems(ctx context.Context, zoneID string, itemIDs []int) (map[int]PricedItem, error) {
+func (r *Repository) GetPricedItems(ctx context.Context, storeID int, zoneID string, itemIDs []int) (map[int]PricedItem, error) {
 	if len(itemIDs) == 0 {
 		return map[int]PricedItem{}, nil
 	}
 	query, args := inQuery(`
-		SELECT mi.id, mip.base_price, c.brand_id
+		SELECT mi.id, mip.base_price, mi.brand_id
 		FROM menu_items mi
-		INNER JOIN categories c ON c.id = mi.category_id
 		INNER JOIN menu_item_pricing mip ON mip.menu_item_id = mi.id AND mip.zone_id = ?
-		WHERE mi.id IN (%s) AND mi.is_active = true AND mi.deleted_at IS NULL
+		LEFT JOIN store_menu_item_status smis ON smis.store_id = ? AND smis.menu_item_id = mi.id
+		WHERE mi.id IN (%s)
+		  AND mi.item_type = 'MAIN'
+		  AND mi.is_active = true
+		  AND mi.deleted_at IS NULL
+		  AND COALESCE(smis.is_listed, true) = true
+		  AND COALESCE(smis.is_available, true) = true
 	`, itemIDs)
-	args = append([]any{zoneID}, args...)
+	args = append([]any{zoneID, storeID}, args...)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -177,16 +189,31 @@ func (r *Repository) GetPricedItems(ctx context.Context, zoneID string, itemIDs 
 	return items, rows.Err()
 }
 
-func (r *Repository) GetOptionPrices(ctx context.Context, optionIDs []int) (map[int]OptionPrice, error) {
+func (r *Repository) GetOptionPrices(ctx context.Context, storeID int, zoneID string, optionIDs []int) (map[int]OptionPrice, error) {
 	if len(optionIDs) == 0 {
 		return map[int]OptionPrice{}, nil
 	}
 	query, args := inQuery(`
-		SELECT co.id, cg.menu_item_id, cg.id, co.price_adjustment
+		SELECT co.id, cg.menu_item_id, cg.id, co.price_adjustment + COALESCE(mip.base_price, 0)
 		FROM customization_options co
 		INNER JOIN customization_groups cg ON cg.id = co.group_id
+		LEFT JOIN menu_items linked ON linked.id = co.linked_menu_item_id
+		     AND linked.is_active = true
+		     AND linked.deleted_at IS NULL
+		     AND linked.item_type = 'ADDON'
+		LEFT JOIN menu_item_pricing mip ON mip.menu_item_id = co.linked_menu_item_id AND mip.zone_id = ?
+		LEFT JOIN store_menu_item_status smis ON smis.store_id = ? AND smis.menu_item_id = co.linked_menu_item_id
 		WHERE co.id IN (%s)
+		  AND (
+		    co.linked_menu_item_id IS NULL
+		    OR (
+		      linked.id IS NOT NULL
+		      AND COALESCE(smis.is_listed, true) = true
+		      AND COALESCE(smis.is_available, true) = true
+		    )
+		  )
 	`, optionIDs)
+	args = append([]any{zoneID, storeID}, args...)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -210,7 +237,7 @@ func (r *Repository) GetCustomizationRules(ctx context.Context, menuItemIDs []in
 		return nil, map[int]CustomizationOptionRule{}, nil
 	}
 	groupQuery, groupArgs := inQuery(`
-		SELECT id, menu_item_id, selection_type, is_required, max_selections
+		SELECT id, menu_item_id, selection_type, min_selections, is_required, max_selections
 		FROM customization_groups
 		WHERE menu_item_id IN (%s)
 	`, menuItemIDs)
@@ -225,7 +252,7 @@ func (r *Repository) GetCustomizationRules(ctx context.Context, menuItemIDs []in
 	var groupIDs []int
 	for groupRows.Next() {
 		var group CustomizationGroupRule
-		if err := groupRows.Scan(&group.ID, &group.MenuItemID, &group.SelectionType, &group.IsRequired, &group.MaxSelections); err != nil {
+		if err := groupRows.Scan(&group.ID, &group.MenuItemID, &group.SelectionType, &group.MinSelections, &group.IsRequired, &group.MaxSelections); err != nil {
 			return nil, nil, err
 		}
 		groups = append(groups, group)
@@ -437,6 +464,32 @@ func (r *Repository) GetStatus(ctx context.Context, countryID, trackingID string
 		return Status{}, err
 	}
 	return status, nil
+}
+
+func (r *Repository) ListStatusesByUser(ctx context.Context, countryID, userID string) ([]Status, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT oi.tracking_id, oi.status, pt.status, oi.subtotal, oi.tax_amount,
+		       oi.discount_amount, oi.total_amount, oi.created_at, oi.updated_at
+		FROM order_intents oi
+		LEFT JOIN payment_transactions pt ON pt.order_tracking_id = oi.tracking_id
+		WHERE oi.country_id = ? AND oi.user_id = ?
+		ORDER BY oi.created_at DESC
+		LIMIT 50
+	`, countryID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	statuses := []Status{}
+	for rows.Next() {
+		var status Status
+		if err := rows.Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &status.CreatedAt, &status.UpdatedAt); err != nil {
+			return nil, err
+		}
+		statuses = append(statuses, status)
+	}
+	return statuses, rows.Err()
 }
 
 var ErrNotFound = errors.New("not found")

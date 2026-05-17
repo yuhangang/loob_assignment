@@ -15,14 +15,15 @@ type CheckoutRepository interface {
 	GetCountry(ctx context.Context, countryID string) (Country, error)
 	GetStore(ctx context.Context, countryID string, storeID int) (Store, error)
 	UpsertUser(ctx context.Context, userID, countryID string) error
-	GetPricedItems(ctx context.Context, zoneID string, itemIDs []int) (map[int]PricedItem, error)
-	GetOptionPrices(ctx context.Context, optionIDs []int) (map[int]OptionPrice, error)
+	GetPricedItems(ctx context.Context, storeID int, zoneID string, itemIDs []int) (map[int]PricedItem, error)
+	GetOptionPrices(ctx context.Context, storeID int, zoneID string, optionIDs []int) (map[int]OptionPrice, error)
 	GetCustomizationRules(ctx context.Context, menuItemIDs []int) ([]CustomizationGroupRule, map[int]CustomizationOptionRule, error)
 	GetVoucher(ctx context.Context, countryID, code string) (Voucher, error)
 	FindIntentByIdempotency(ctx context.Context, countryID, userID, key string) (IntentWithPayment, error)
 	CreateIntentWithPayment(ctx context.Context, intent Intent, payment PaymentTransaction) error
 	CreatePaymentIfMissing(ctx context.Context, payment PaymentTransaction) (PaymentTransaction, error)
 	GetStatus(ctx context.Context, countryID, trackingID string) (Status, error)
+	ListStatusesByUser(ctx context.Context, countryID, userID string) ([]Status, error)
 }
 
 type Service struct {
@@ -74,13 +75,16 @@ func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req Checkout
 		}
 		return CheckoutResponse{}, err
 	}
+	if !store.AcceptsOrders() {
+		return CheckoutResponse{}, ErrStoreClosed
+	}
 
 	if err := s.repo.UpsertUser(ctx, req.UserID, rc.CountryCode); err != nil {
 		return CheckoutResponse{}, err
 	}
 
 	itemIDs := uniqueItemIDs(req.Items)
-	pricedItems, err := s.repo.GetPricedItems(ctx, store.ZoneID, itemIDs)
+	pricedItems, err := s.repo.GetPricedItems(ctx, store.ID, store.ZoneID, itemIDs)
 	if err != nil {
 		return CheckoutResponse{}, err
 	}
@@ -89,7 +93,7 @@ func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req Checkout
 	}
 
 	optionIDs := uniqueOptionIDs(req.Items)
-	optionPrices, err := s.repo.GetOptionPrices(ctx, optionIDs)
+	optionPrices, err := s.repo.GetOptionPrices(ctx, store.ID, store.ZoneID, optionIDs)
 	if err != nil {
 		return CheckoutResponse{}, err
 	}
@@ -127,7 +131,7 @@ func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req Checkout
 	}
 
 	taxAmount := int(math.Round(float64(subtotal-discount) * country.TaxRate))
-	total := subtotal - discount
+	total := subtotal - discount + taxAmount
 	if total < 0 {
 		total = 0
 	}
@@ -209,6 +213,9 @@ func (s *Service) createMissingPayment(ctx context.Context, intent Intent, metho
 		}
 		return CheckoutResponse{}, err
 	}
+	if !store.AcceptsOrders() {
+		return CheckoutResponse{}, ErrStoreClosed
+	}
 	method, err := s.payments.ValidateMethod(ctx, payments.StartPaymentRequest{
 		OrderTrackingID: intent.TrackingID,
 		CountryID:       intent.CountryID,
@@ -250,17 +257,22 @@ func (s *Service) GetStatus(ctx context.Context, countryID, trackingID string) (
 		}
 		return OrderStatus{}, err
 	}
-	return OrderStatus{
-		TrackingID:     status.TrackingID,
-		Status:         status.Status,
-		PaymentStatus:  status.PaymentStatus.String,
-		Subtotal:       status.Subtotal,
-		TaxAmount:      status.TaxAmount,
-		DiscountAmount: status.DiscountAmount,
-		TotalAmount:    status.TotalAmount,
-		CreatedAt:      status.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:      status.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	}, nil
+	return orderStatusFromRow(status), nil
+}
+
+func (s *Service) ListOrders(ctx context.Context, countryID, userID string) ([]OrderStatus, error) {
+	if strings.TrimSpace(userID) == "" {
+		return nil, ErrUserRequired
+	}
+	statuses, err := s.repo.ListStatusesByUser(ctx, countryID, userID)
+	if err != nil {
+		return nil, err
+	}
+	orders := make([]OrderStatus, 0, len(statuses))
+	for _, status := range statuses {
+		orders = append(orders, orderStatusFromRow(status))
+	}
+	return orders, nil
 }
 
 func (s *Service) discount(ctx context.Context, countryID, code string, subtotal int, items map[int]PricedItem) (int, error) {
@@ -301,6 +313,20 @@ func (s *Service) discount(ctx context.Context, countryID, code string, subtotal
 		return subtotal, nil
 	}
 	return discount, nil
+}
+
+func orderStatusFromRow(status Status) OrderStatus {
+	return OrderStatus{
+		TrackingID:     status.TrackingID,
+		Status:         status.Status,
+		PaymentStatus:  status.PaymentStatus.String,
+		Subtotal:       status.Subtotal,
+		TaxAmount:      status.TaxAmount,
+		DiscountAmount: status.DiscountAmount,
+		TotalAmount:    status.TotalAmount,
+		CreatedAt:      status.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:      status.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
 }
 
 func validate(req CheckoutRequest) error {
@@ -352,7 +378,11 @@ func validateCustomizations(items []CartItem, groups []CustomizationGroupRule, o
 
 		for _, group := range groupsByItem[item.MenuItemID] {
 			count := selectedByGroup[group.ID]
-			if group.IsRequired && count == 0 {
+			minSelections := group.MinSelections
+			if minSelections == 0 && group.IsRequired {
+				minSelections = 1
+			}
+			if count < minSelections {
 				return ErrInvalidCustomization
 			}
 			if group.SelectionType == "SINGLE_SELECT" && count > 1 {
@@ -428,6 +458,7 @@ var (
 	ErrInvalidCartItem          = errors.New("cart item must include menu_item_id and positive quantity")
 	ErrUnsupportedCountry       = errors.New("unsupported country")
 	ErrStoreNotFound            = errors.New("store not found")
+	ErrStoreClosed              = errors.New("selected store is closed")
 	ErrItemUnavailable          = errors.New("menu item unavailable")
 	ErrInvalidCustomization     = errors.New("invalid customization")
 	ErrVoucherNotFound          = errors.New("voucher not found")

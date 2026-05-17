@@ -1,6 +1,6 @@
 package catalog
 
-type Catalog struct {
+type CategoryList struct {
 	CatalogVersion string     `json:"catalog_version"`
 	Brand          string     `json:"brand"`
 	CountryCode    string     `json:"country_code"`
@@ -10,11 +10,23 @@ type Catalog struct {
 	Categories     []Category `json:"categories"`
 }
 
+type CategoryItems struct {
+	CatalogVersion string    `json:"catalog_version"`
+	Brand          string    `json:"brand"`
+	CountryCode    string    `json:"country_code"`
+	Currency       string    `json:"currency"`
+	TaxInclusive   bool      `json:"tax_inclusive"`
+	Language       string    `json:"language_resolved"`
+	CategoryID     int       `json:"category_id"`
+	Products       []Product `json:"products"`
+}
+
 type Category struct {
 	ID           int       `json:"id"`
 	DisplayOrder int       `json:"display_order"`
 	Name         string    `json:"name"`
-	Products     []Product `json:"products"`
+	IconURL      string    `json:"icon_url"`
+	Products     []Product `json:"products,omitempty"`
 }
 
 type Product struct {
@@ -35,19 +47,23 @@ type Media struct {
 }
 
 type CustomizationGroup struct {
+	Code          string                `json:"code"`
 	ID            int                   `json:"id"`
 	Type          string                `json:"type"`
 	Required      bool                  `json:"required"`
+	MinSelections int                   `json:"min_selections"`
 	MaxSelections int                   `json:"max_selections"`
 	Name          string                `json:"name"`
 	Options       []CustomizationOption `json:"options"`
 }
 
 type CustomizationOption struct {
+	Code            string `json:"code"`
 	ID              int    `json:"id"`
 	Name            string `json:"name"`
 	PriceAdjustment int    `json:"price_adjustment"`
 	IsDefault       bool   `json:"is_default"`
+	IsAvailable     bool   `json:"is_available"`
 }
 
 type Brand struct {
@@ -59,14 +75,16 @@ type Brand struct {
 }
 
 type Store struct {
-	ID        int     `json:"id"`
-	BrandID   int     `json:"brand_id"`
-	CountryID string  `json:"country_id"`
-	ZoneID    string  `json:"zone_id"`
-	StoreCode string  `json:"store_code"`
-	Name      string  `json:"name"`
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Address   string  `json:"address"`
-	IsActive  bool    `json:"is_active"`
+	ID                int     `json:"id"`
+	BrandID           int     `json:"brand_id"`
+	CountryID         string  `json:"country_id"`
+	ZoneID            string  `json:"zone_id"`
+	StoreCode         string  `json:"store_code"`
+	Name              string  `json:"name"`
+	Latitude          float64 `json:"latitude"`
+	Longitude         float64 `json:"longitude"`
+	Address           string  `json:"address"`
+	IsActive          bool    `json:"is_active"`
+	OperationalStatus string  `json:"operational_status"`
+	StatusMessage     string  `json:"status_message"`
 }

@@ -30,7 +30,7 @@ The decision entirely depends on **how personalized** the home feed is.
 *   **The Problem with MySQL:** Generating this feed dynamically on app launch requires complex `JOIN`s across `users`, `orders`, `loyalty`, and `menu_items`. Doing this synchronously for thousands of users concurrently will cause massive CPU spikes and slow app launch times.
 *   **The Verdict (DynamoDB is Required):**
     *   We use DynamoDB as a **Materialized View Layer**.
-    *   Background workers (NestJS) crunch the heavy MySQL joins every hour (or upon a trigger like completing an order) and generate a massive, pre-calculated JSON payload specifically for that user.
+    *   Go background workers crunch the heavy MySQL joins every hour (or upon a trigger like completing an order) and generate a massive, pre-calculated JSON payload specifically for that user.
     *   This JSON is saved into a DynamoDB table (`UserHomeFeeds`) with `user_id` as the Partition Key.
     *   When the Flutter app launches, the API does a simple `GetItem` from DynamoDB, returning the complex feed in single-digit milliseconds without touching MySQL.
 

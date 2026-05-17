@@ -1,42 +1,782 @@
 {
   "zones": [
-    { "id": "TH_BKK", "name": "Bangkok Metropolitan" },
-    { "id": "TH_SOUTH", "name": "Southern Thailand" }
+    {
+      "id": "TH_BKK",
+      "name": "Bangkok Metropolitan"
+    },
+    {
+      "id": "TH_SOUTH",
+      "name": "Southern Thailand"
+    }
   ],
   "stores": [
-    { "name": "Siam Paragon", "bid": 1, "zid": "TH_BKK" },
-    { "name": "CentralWorld", "bid": 2, "zid": "TH_BKK" },
-    { "name": "IconSiam", "bid": 1, "zid": "TH_BKK" }
+    {
+      "code": "TH-TL-SIA",
+      "name": "Siam Paragon",
+      "bid": 1,
+      "zid": "TH_BKK"
+    },
+    {
+      "code": "TH-BB-CTW",
+      "name": "CentralWorld",
+      "bid": 2,
+      "zid": "TH_BKK"
+    },
+    {
+      "code": "TH-TL-ICS",
+      "name": "IconSiam",
+      "bid": 1,
+      "zid": "TH_BKK",
+      "operational_status": "TEMPORARILY_CLOSED",
+      "status_message": "Temporarily closed for outlet maintenance."
+    }
   ],
   "categories": [
-    { "id": 20, "bid": 1, "name": { "en-US": "Thai Tea Series", "th-TH": "ซีรีส์ชาไทย" } },
-    { "id": 21, "bid": 1, "name": { "en-US": "Sparkling Tea", "th-TH": "ชาโซดา" } },
-    { "id": 22, "bid": 2, "name": { "en-US": "Golden Toasties", "th-TH": "โกลเด้นโทสต์" } }
+    {
+      "id": 20,
+      "bid": 1,
+      "name": {
+        "en-US": "Thai Tea Series",
+        "th-TH": "ซีรีส์ชาไทย"
+      },
+      "icon_url": "/cdn/categories/thai_tea.svg"
+    },
+    {
+      "id": 21,
+      "bid": 1,
+      "name": {
+        "en-US": "Sparkling Tea",
+        "th-TH": "ชาโซดา"
+      },
+      "icon_url": "/cdn/categories/sparkling_tea.svg"
+    },
+    {
+      "id": 22,
+      "bid": 2,
+      "name": {
+        "en-US": "Golden Toasties",
+        "th-TH": "โกลเด้นโทสต์"
+      },
+      "icon_url": "/cdn/categories/toasties.svg"
+    },
+    {
+      "id": 23,
+      "bid": 2,
+      "name": {
+        "en-US": "Coffee",
+        "th-TH": "กาแฟ"
+      },
+      "icon_url": "/cdn/categories/coffee.svg"
+    },
+    {
+      "id": 24,
+      "bid": 1,
+      "name": {
+        "en-US": "Brown Sugar Boba",
+        "th-TH": "ชานมไข่มุกบราวน์ชูการ์"
+      },
+      "icon_url": "/cdn/categories/boba.svg"
+    },
+    {
+      "id": 25,
+      "bid": 1,
+      "name": {
+        "en-US": "Fruit Smoothies",
+        "th-TH": "สมูทตี้ผลไม้"
+      },
+      "icon_url": "/cdn/categories/smoothie.svg"
+    },
+    {
+      "id": 26,
+      "bid": 2,
+      "name": {
+        "en-US": "Premium Croffle",
+        "th-TH": "ครอฟเฟิลพรีเมียม"
+      },
+      "icon_url": "/cdn/categories/croffle.svg"
+    },
+    {
+      "id": 27,
+      "bid": 2,
+      "name": {
+        "en-US": "Local Thai Mains",
+        "th-TH": "อาหารจานหลักสไตล์ไทย"
+      },
+      "icon_url": "/cdn/categories/mains.svg"
+    }
   ],
   "items": [
     {
       "id": 200,
+      "bid": 1,
       "cid": 20,
+      "item_type": "MAIN",
       "sku": "TH-TL-TMT",
-      "name": { "en-US": "Signature Thai Milk Tea", "th-TH": "ชาไทยซิกเนเจอร์" },
+      "name": {
+        "en-US": "Signature Thai Milk Tea",
+        "th-TH": "ชาไทยซิกเนเจอร์"
+      },
+      "description": {
+        "en-US": "Rich Thai milk tea with balanced sweetness options.",
+        "th-TH": "ชาไทยเข้มข้นพร้อมตัวเลือกความหวาน"
+      },
+      "dietary_tags": [
+        "contains_dairy",
+        "caffeine"
+      ],
       "price_min": 6500,
-      "price_max": 8500
+      "price_max": 8500,
+      "customization_groups": [
+        {
+          "code": "size",
+          "name": {
+            "en-US": "Choose Size",
+            "th-TH": "เลือกขนาด"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 1,
+          "options": [
+            {
+              "code": "regular",
+              "name": {
+                "en-US": "Regular",
+                "th-TH": "ปกติ"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "large",
+              "name": {
+                "en-US": "Large",
+                "th-TH": "ใหญ่"
+              },
+              "price_adjustment": 1000,
+              "display_order": 2
+            }
+          ]
+        },
+        {
+          "code": "sugar",
+          "name": {
+            "en-US": "Sugar Level",
+            "th-TH": "ระดับความหวาน"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 2,
+          "options": [
+            {
+              "code": "sugar_25",
+              "name": {
+                "en-US": "Light Sugar (25%)",
+                "th-TH": "หวานน้อย (25%)"
+              },
+              "price_adjustment": 0,
+              "display_order": 1
+            },
+            {
+              "code": "sugar_50",
+              "name": {
+                "en-US": "Half Sugar (50%)",
+                "th-TH": "หวานครึ่ง (50%)"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 2
+            },
+            {
+              "code": "sugar_100",
+              "name": {
+                "en-US": "Regular Sugar (100%)",
+                "th-TH": "หวานปกติ (100%)"
+              },
+              "price_adjustment": 0,
+              "display_order": 3
+            }
+          ]
+        },
+        {
+          "code": "addons",
+          "name": {
+            "en-US": "Add-ons",
+            "th-TH": "ท็อปปิ้ง"
+          },
+          "selection_type": "MULTI_SELECT",
+          "min_selections": 0,
+          "max_selections": 3,
+          "display_order": 3,
+          "options": [
+            {
+              "code": "pearl",
+              "linked_sku": "TH-TL-ADD-PEARL",
+              "name": {
+                "en-US": "Pearl",
+                "th-TH": "ไข่มุก"
+              },
+              "price_adjustment": 0,
+              "display_order": 1
+            },
+            {
+              "code": "grass_jelly",
+              "linked_sku": "TH-TL-ADD-GJ",
+              "name": {
+                "en-US": "Grass Jelly",
+                "th-TH": "เฉาก๊วย"
+              },
+              "price_adjustment": 0,
+              "display_order": 2
+            },
+            {
+              "code": "coconut_jelly",
+              "linked_sku": "TH-TL-ADD-CJ",
+              "name": {
+                "en-US": "Coconut Jelly",
+                "th-TH": "วุ้นมะพร้าว"
+              },
+              "price_adjustment": 0,
+              "display_order": 3
+            }
+          ]
+        }
+      ],
+      "image_url_sm": "/cdn/th-tl-tmt.png",
+      "image_url_lg": "/cdn/th-tl-tmt.png"
     },
     {
       "id": 201,
+      "bid": 1,
       "cid": 20,
+      "item_type": "MAIN",
       "sku": "TH-TL-PMT",
-      "name": { "en-US": "Thai Pearl Milk Tea", "th-TH": "ชานมไข่มุกไทย" },
+      "name": {
+        "en-US": "Thai Pearl Milk Tea",
+        "th-TH": "ชานมไข่มุกไทย"
+      },
+      "description": {
+        "en-US": "Thai milk tea finished with chewy pearls.",
+        "th-TH": "ชานมไทยพร้อมไข่มุกหนึบ"
+      },
+      "dietary_tags": [
+        "contains_dairy",
+        "caffeine"
+      ],
       "price_min": 7000,
-      "price_max": 9000
+      "price_max": 9000,
+      "image_url_sm": "/cdn/th-tl-pmt.png",
+      "image_url_lg": "/cdn/th-tl-pmt.png"
+    },
+    {
+      "id": 204,
+      "bid": 1,
+      "cid": 20,
+      "item_type": "MAIN",
+      "sku": "TH-TL-GTT",
+      "name": {
+        "en-US": "Thai Green Milk Tea",
+        "th-TH": "ชาเขียวชมพูไทย"
+      },
+      "description": {
+        "en-US": "Creamy and aromatic Thai green milk tea with optional toppings.",
+        "th-TH": "ชาเขียวนมไทยหอมละมุนสูตรดั้งเดิม"
+      },
+      "dietary_tags": [
+        "contains_dairy",
+        "caffeine"
+      ],
+      "price_min": 6500,
+      "price_max": 8500,
+      "image_url_sm": "/cdn/th-tl-gtt.png",
+      "image_url_lg": "/cdn/th-tl-gtt.png"
+    },
+    {
+      "id": 205,
+      "bid": 1,
+      "cid": 20,
+      "item_type": "MAIN",
+      "sku": "TH-TL-RLT",
+      "name": {
+        "en-US": "Roasted Thai Tea Latte",
+        "th-TH": "ชาไทยคั่วลาเต้"
+      },
+      "description": {
+        "en-US": "Distinctively smoky roasted Thai tea infused with fresh milk.",
+        "th-TH": "ชาไทยคั่วกลิ่นหอมรมควันผสมผสานนมสดแท้"
+      },
+      "dietary_tags": [
+        "contains_dairy",
+        "caffeine"
+      ],
+      "price_min": 7500,
+      "price_max": 9500,
+      "image_url_sm": "/cdn/th-tl-rlt.png",
+      "image_url_lg": "/cdn/th-tl-rlt.png"
+    },
+    {
+      "id": 206,
+      "bid": 1,
+      "cid": 21,
+      "item_type": "MAIN",
+      "sku": "TH-TL-LSP",
+      "name": {
+        "en-US": "Lemon Sparkling Tea",
+        "th-TH": "ชาโซดามะนาว"
+      },
+      "description": {
+        "en-US": "Tangy lemon mixed with refreshing sparkling black tea.",
+        "th-TH": "ชามะนาวโซดาซาบซ่าสดชื่นลงตัว"
+      },
+      "dietary_tags": [
+        "caffeine"
+      ],
+      "price_min": 6000,
+      "price_max": 8000,
+      "image_url_sm": "/cdn/th-tl-lsp.png",
+      "image_url_lg": "/cdn/th-tl-lsp.png"
+    },
+    {
+      "id": 207,
+      "bid": 1,
+      "cid": 21,
+      "item_type": "MAIN",
+      "sku": "TH-TL-PSP",
+      "name": {
+        "en-US": "Peach Sparkling Tea",
+        "th-TH": "ชาโซดาพีช"
+      },
+      "description": {
+        "en-US": "Fruity and sweet peach syrup combined with bubbly sparkling green tea.",
+        "th-TH": "ชาเขียวโซดารสพีชหวานหอมสดชื่น"
+      },
+      "dietary_tags": [
+        "caffeine"
+      ],
+      "price_min": 6500,
+      "price_max": 8500,
+      "image_url_sm": "/cdn/th-tl-psp.png",
+      "image_url_lg": "/cdn/th-tl-psp.png"
+    },
+    {
+      "id": 208,
+      "bid": 1,
+      "cid": 24,
+      "item_type": "MAIN",
+      "sku": "TH-TL-BSF",
+      "name": {
+        "en-US": "Brown Sugar Boba Fresh Milk",
+        "th-TH": "นมสดบราวน์ชูการ์ไข่มุก"
+      },
+      "description": {
+        "en-US": "Creamy fresh milk poured over caramelized warm brown sugar pearls.",
+        "th-TH": "นมสดแท้ราดบนไข่มุกบราวน์ชูการ์เคี่ยวอุ่นๆ"
+      },
+      "dietary_tags": [
+        "contains_dairy"
+      ],
+      "price_min": 8000,
+      "price_max": 10000,
+      "image_url_sm": "/cdn/th-tl-bsf.png",
+      "image_url_lg": "/cdn/th-tl-bsf.png"
+    },
+    {
+      "id": 209,
+      "bid": 1,
+      "cid": 25,
+      "item_type": "MAIN",
+      "sku": "TH-TL-MBS",
+      "name": {
+        "en-US": "Mango Berry Smoothie",
+        "th-TH": "สมูทตี้มะม่วงเบอร์รี่"
+      },
+      "description": {
+        "en-US": "Ice-blended sweet mango and assorted berries for a healthy kick.",
+        "th-TH": "มะม่วงผสมเบอร์รี่รวมปั่นเย็นชื่นใจ"
+      },
+      "dietary_tags": [],
+      "price_min": 8500,
+      "price_max": 11000,
+      "image_url_sm": "/cdn/th-tl-mbs.png",
+      "image_url_lg": "/cdn/th-tl-mbs.png"
     },
     {
       "id": 202,
+      "bid": 2,
       "cid": 22,
+      "item_type": "MAIN",
       "sku": "TH-BB-HNY",
-      "name": { "en-US": "Honey Butter Toastie", "th-TH": "โทสต์เนยน้ำผึ้ง" },
+      "name": {
+        "en-US": "Honey Butter Toastie",
+        "th-TH": "โทสต์เนยน้ำผึ้ง"
+      },
+      "description": {
+        "en-US": "Crisp toastie with honey butter glaze.",
+        "th-TH": "โทสต์กรอบเคลือบเนยน้ำผึ้ง"
+      },
+      "dietary_tags": [],
       "price_min": 9500,
-      "price_max": 12000
+      "price_max": 12000,
+      "image_url_sm": "/cdn/th-bb-hny.png",
+      "image_url_lg": "/cdn/th-bb-hny.png"
+    },
+    {
+      "id": 210,
+      "bid": 2,
+      "cid": 22,
+      "item_type": "MAIN",
+      "sku": "TH-BB-CCT",
+      "name": {
+        "en-US": "Crispy Chicken & Egg Toastie",
+        "th-TH": "โทสต์ไก่กรอบและไข่"
+      },
+      "description": {
+        "en-US": "Crisp toast stuffed with crunchy chicken cutlet, fried egg, and cheese.",
+        "th-TH": "โทสต์เนยกรอบสอดไส้ไก่ทอดกรอบ ไข่ดาว และชีสเยิ้ม"
+      },
+      "dietary_tags": [],
+      "price_min": 12000,
+      "price_max": 14500,
+      "image_url_sm": "/cdn/th-bb-cct.png",
+      "image_url_lg": "/cdn/th-bb-cct.png"
+    },
+    {
+      "id": 211,
+      "bid": 2,
+      "cid": 22,
+      "item_type": "MAIN",
+      "sku": "TH-BB-TLT",
+      "name": {
+        "en-US": "Thai Tom Yum Chicken Toastie",
+        "th-TH": "โทสต์ไก่ต้มยำกุ้ง"
+      },
+      "description": {
+        "en-US": "Unique fusion of spicy Tom Yum chicken spread inside a perfectly grilled toastie.",
+        "th-TH": "โทสต์แซนด์วิชฟิวชั่นไก่รสซอสต้มยำรสจัดจ้านเข้มข้น"
+      },
+      "dietary_tags": [],
+      "price_min": 13000,
+      "price_max": 15500,
+      "image_url_sm": "/cdn/th-bb-tlt.png",
+      "image_url_lg": "/cdn/th-bb-tlt.png"
+    },
+    {
+      "id": 203,
+      "bid": 2,
+      "cid": 23,
+      "item_type": "MAIN",
+      "sku": "TH-BB-OAT",
+      "name": {
+        "en-US": "Brown Sugar Oat Latte",
+        "th-TH": "ลาเต้น้ำตาลทรายนมโอ๊ต"
+      },
+      "description": {
+        "en-US": "Espresso latte with oat milk selection.",
+        "th-TH": "ลาเต้เอสเปรสโซพร้อมตัวเลือกนมโอ๊ต"
+      },
+      "dietary_tags": [
+        "caffeine"
+      ],
+      "price_min": 9000,
+      "price_max": 11500,
+      "customization_groups": [
+        {
+          "code": "milk",
+          "name": {
+            "en-US": "Milk Selection",
+            "th-TH": "ประเภทนม"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 1,
+          "max_selections": 1,
+          "display_order": 1,
+          "options": [
+            {
+              "code": "fresh_milk",
+              "name": {
+                "en-US": "Fresh Milk",
+                "th-TH": "นมสด"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "oat_milk",
+              "linked_sku": "TH-BB-ADD-OAT",
+              "name": {
+                "en-US": "Oat Milk",
+                "th-TH": "นมโอ๊ต"
+              },
+              "price_adjustment": 0,
+              "display_order": 2
+            }
+          ]
+        },
+        {
+          "code": "sugar",
+          "name": {
+            "en-US": "Sugar Level",
+            "th-TH": "ระดับความหวาน"
+          },
+          "selection_type": "SINGLE_SELECT",
+          "min_selections": 0,
+          "max_selections": 1,
+          "display_order": 2,
+          "options": [
+            {
+              "code": "sugar_0",
+              "name": {
+                "en-US": "No Sugar",
+                "th-TH": "ไม่หวาน"
+              },
+              "price_adjustment": 0,
+              "is_default": true,
+              "display_order": 1
+            },
+            {
+              "code": "sugar_50",
+              "name": {
+                "en-US": "Half Sugar",
+                "th-TH": "หวานครึ่ง"
+              },
+              "price_adjustment": 0,
+              "display_order": 2
+            }
+          ]
+        },
+        {
+          "code": "addons",
+          "name": {
+            "en-US": "Add-ons",
+            "th-TH": "ท็อปปิ้ง"
+          },
+          "selection_type": "MULTI_SELECT",
+          "min_selections": 0,
+          "max_selections": 3,
+          "display_order": 3,
+          "options": [
+            {
+              "code": "extra_shot",
+              "linked_sku": "TH-BB-ADD-SHOT",
+              "name": {
+                "en-US": "Extra Espresso Shot",
+                "th-TH": "ช็อตเอสเปรสโซเพิ่ม"
+              },
+              "price_adjustment": 0,
+              "display_order": 1
+            },
+            {
+              "code": "double_cheese",
+              "linked_sku": "TH-BB-ADD-CHZ",
+              "name": {
+                "en-US": "Double Cheese Slice",
+                "th-TH": "ชีสแผ่นสองเท่า"
+              },
+              "price_adjustment": 0,
+              "display_order": 2
+            }
+          ]
+        }
+      ],
+      "image_url_sm": "/cdn/th-bb-oat.png",
+      "image_url_lg": "/cdn/th-bb-oat.png"
+    },
+    {
+      "id": 212,
+      "bid": 2,
+      "cid": 23,
+      "item_type": "MAIN",
+      "sku": "TH-BB-ESP",
+      "name": {
+        "en-US": "Premium Espresso",
+        "th-TH": "เอสเปรสโซพรีเมียม"
+      },
+      "description": {
+        "en-US": "Bold and intense shot of our signature house blend coffee.",
+        "th-TH": "เอสเปรสโซ่ช็อตเข้มข้นจากเมล็ดกาแฟสูตรพิเศษ"
+      },
+      "dietary_tags": [
+        "caffeine"
+      ],
+      "price_min": 7000,
+      "price_max": 8500,
+      "image_url_sm": "/cdn/th-bb-esp.png",
+      "image_url_lg": "/cdn/th-bb-esp.png"
+    },
+    {
+      "id": 213,
+      "bid": 2,
+      "cid": 26,
+      "item_type": "MAIN",
+      "sku": "TH-BB-CRF",
+      "name": {
+        "en-US": "Golden Glazed Croffle",
+        "th-TH": "ครอฟเฟิลเคลือบทอง"
+      },
+      "description": {
+        "en-US": "Flaky croissant dough pressed waffle-style, finished with a sweet sugar glaze.",
+        "th-TH": "ครอฟเฟิลแป้งครัวซองต์กรอบนอกนุ่มในเคลือบน้ำตาลหวานพอดี"
+      },
+      "dietary_tags": [],
+      "price_min": 8500,
+      "price_max": 10500,
+      "image_url_sm": "/cdn/th-bb-crf.png",
+      "image_url_lg": "/cdn/th-bb-crf.png"
+    },
+    {
+      "id": 214,
+      "bid": 2,
+      "cid": 27,
+      "item_type": "MAIN",
+      "sku": "TH-BB-PST",
+      "name": {
+        "en-US": "Spicy Basil Chicken Rice (Pad Kra Prow)",
+        "th-TH": "ข้าวกะเพราไก่ไข่ดาว"
+      },
+      "description": {
+        "en-US": "Classic Thai street food: spicy minced chicken stir-fried with holy basil, served with rice and fried egg.",
+        "th-TH": "กะเพราไก่สับรสจัดจ้านยอดนิยม เสิร์ฟพร้อมข้าวสวยและไข่ดาวกรอบ"
+      },
+      "dietary_tags": [],
+      "price_min": 13500,
+      "price_max": 16000,
+      "image_url_sm": "/cdn/th-bb-pst.png",
+      "image_url_lg": "/cdn/th-bb-pst.png"
+    },
+    {
+      "id": 2001,
+      "bid": 1,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "TH-TL-ADD-PEARL",
+      "name": {
+        "en-US": "Pearl",
+        "th-TH": "ไข่มุก"
+      },
+      "description": {
+        "en-US": "Chewy tapioca pearls.",
+        "th-TH": "ไข่มุกหนึบ"
+      },
+      "dietary_tags": [],
+      "price_min": 800,
+      "price_max": 800
+    },
+    {
+      "id": 2002,
+      "bid": 1,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "TH-TL-ADD-GJ",
+      "name": {
+        "en-US": "Grass Jelly",
+        "th-TH": "เฉาก๊วย"
+      },
+      "description": {
+        "en-US": "Cooling grass jelly topping.",
+        "th-TH": "ท็อปปิ้งเฉาก๊วย"
+      },
+      "dietary_tags": [],
+      "price_min": 800,
+      "price_max": 800
+    },
+    {
+      "id": 2003,
+      "bid": 1,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "TH-TL-ADD-CJ",
+      "name": {
+        "en-US": "Coconut Jelly",
+        "th-TH": "วุ้นมะพร้าว"
+      },
+      "description": {
+        "en-US": "Chewy coconut jelly pieces.",
+        "th-TH": "ท็อปปิ้งวุ้นมะพร้าวเคี้ยวหนึบ"
+      },
+      "dietary_tags": [],
+      "price_min": 1000,
+      "price_max": 1000
+    },
+    {
+      "id": 2101,
+      "bid": 2,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "TH-BB-ADD-OAT",
+      "name": {
+        "en-US": "Oat Milk",
+        "th-TH": "นมโอ๊ต"
+      },
+      "description": {
+        "en-US": "Oat milk substitute.",
+        "th-TH": "ตัวเลือกนมโอ๊ต"
+      },
+      "dietary_tags": [],
+      "price_min": 1200,
+      "price_max": 1200
+    },
+    {
+      "id": 2102,
+      "bid": 2,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "TH-BB-ADD-SHOT",
+      "name": {
+        "en-US": "Extra Espresso Shot",
+        "th-TH": "ช็อตเอสเปรสโซเพิ่ม"
+      },
+      "description": {
+        "en-US": "Add an extra kick to your morning brew.",
+        "th-TH": "เพิ่มช็อตกาแฟเพื่อความกระปรี้กระเปร่า"
+      },
+      "dietary_tags": [
+        "caffeine"
+      ],
+      "price_min": 2000,
+      "price_max": 2000
+    },
+    {
+      "id": 2103,
+      "bid": 2,
+      "cid": null,
+      "item_type": "ADDON",
+      "sku": "TH-BB-ADD-CHZ",
+      "name": {
+        "en-US": "Double Cheese Slice",
+        "th-TH": "ชีสแผ่นสองเท่า"
+      },
+      "description": {
+        "en-US": "Rich melted cheese slices.",
+        "th-TH": "ชีสสไลซ์สองแผ่นละลายหอมกรุ่น"
+      },
+      "dietary_tags": [
+        "contains_dairy"
+      ],
+      "price_min": 1500,
+      "price_max": 1500
+    }
+  ],
+  "store_item_statuses": [
+    {
+      "store_code": "TH-TL-ICS",
+      "sku": "TH-TL-ADD-GJ",
+      "is_listed": false,
+      "is_available": false
+    },
+    {
+      "store_code": "TH-TL-SIA",
+      "sku": "TH-TL-TMT",
+      "is_listed": true,
+      "is_available": false
+    },
+    {
+      "store_code": "TH-BB-CTW",
+      "sku": "TH-BB-ADD-OAT",
+      "is_listed": true,
+      "is_available": false
     }
   ]
 }

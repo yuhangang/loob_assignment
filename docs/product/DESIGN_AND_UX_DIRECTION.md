@@ -49,4 +49,4 @@ Southeast Asian expansion requires strict layout rules to prevent broken UI:
 3.  **Switch:** User swipes the top toggle. The screen turns purple. They are now browsing the Tealive menu.
 4.  **Add to Cart:** Selects "Signature Boba". Bottom sheet slides up for Sugar/Ice levels. Taps "Add". Haptic buzz.
 5.  **Checkout:** Taps the Cart. UI reverts to the clean Neutral Zone. User sees both the Toastie and the Boba. Applies a "Loob Master Voucher".
-6.  **Success:** Receives queue number. App enters "Polling Mode" showing a playful animation while the NestJS background worker processes the SQS queue.
+6.  **Success:** Receives queue number. App enters "Polling Mode" showing a playful animation while the Go ordering worker processes the SQS queue.

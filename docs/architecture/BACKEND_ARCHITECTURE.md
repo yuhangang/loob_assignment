@@ -1,123 +1,297 @@
-# Backend Architecture: Scale, Stability & Observability
+# Backend Architecture
 
-This document outlines the detailed backend architecture for the Loob Unified App, built on **Go (Node.js/TypeScript)**. It is designed to handle high-velocity operations across Southeast Asia, with a specific focus on surviving extreme traffic spikes (e.g., "RM 1 Boba Flash Sales").
+This document is the implementation contract for the Loob assessment backend. It replaces the earlier cloud-scale narrative with a backend shape that can be implemented incrementally in this repository while still demonstrating how the system scales for flash-sale ordering.
 
----
+## Goals
 
-## 1. Core Architectural Pattern: Modular Monolith
+- Support the four assessment modules: menu browsing, ordering, vouchers/campaigns, and multi-country experience.
+- Keep one Go deployable codebase, but separate business domains clearly enough that API and worker runtimes can scale independently.
+- Protect checkout from traffic spikes by accepting order intents quickly and processing database writes asynchronously.
+- Keep mobile responses lean by resolving country, language, price, and tax rules in the backend.
+- Make production failure modes observable: every checkout should be traceable from HTTP request to queue message to worker result.
 
-While full microservices introduce massive operational overhead for early-stage deployments, a traditional monolith becomes a bottleneck. We utilize a **Modular Monolith** pattern within Go. 
+## Non-Goals For The Assignment
 
-The application runs as a single deployable unit but is strictly isolated by Domain-Driven Design (DDD) bounded contexts.
+- Full microservices split.
+- Real payment gateway integration.
+- Terraform/CDK implementation.
+- DynamoDB home-feed implementation unless the core assignment is already complete.
+- Full admin CMS implementation beyond the APIs needed to prove the data model.
 
-### Bounded Contexts (Go Modules)
-*   **`@loob/catalog`:** Handles Menus, Categories, Customizations, and Pricing. Heavily cached. Read-heavy.
-*   **`@loob/checkout`:** Handles Cart validation, Voucher verification, and Tax calculations. Compute-heavy.
-*   **`@loob/ordering`:** Handles Order ingestion, SQS queuing, and Store fulfillment routing. Write-heavy.
-*   **`@loob/campaigns`:** Handles Banners, Splash screens, and Gamification parameters.
-*   **`@loob/ops-admin`:** Dedicated module for CMS interactions (RBAC, CRUD operations on the catalog).
+## Architecture Pattern
 
-### Deployment Profiles (Scaling without Microservices)
-While the codebase is a single repository, we achieve **independent scaling** using Deployment Profiles. We do not need to split the codebase into separate microservices (which introduces distributed transaction complexity) to scale the ordering bottleneck.
-*   **API Profile:** Instances deployed to handle incoming HTTP requests (`@loob/catalog`, `@loob/checkout`). These scale based on CPU/HTTP traffic.
-*   **Worker Profile:** Instances deployed with HTTP disabled, running only the `@loob/ordering` module to consume the SQS queue. These scale automatically based on **SQS Queue Depth**. During a flash sale, AWS Auto-Scaling might spin up 50 Worker instances to process transactions and status updates, while the API instances remain at a stable 5 instances.
+Use a Go modular monolith.
 
----
+The repository remains one backend module and one deployable artifact, but domain logic is organized into bounded packages. Runtime behavior is selected by profile:
 
-## 2. Surviving Spike Traffic (Flash Sales)
+- `api`: starts Echo HTTP routes for mobile/admin clients.
+- `worker`: starts background consumers for order processing.
 
-Flash sales generate sudden, 10x–50x spikes in traffic (the "Thundering Herd" problem). If orders write directly to the database, table locks will occur, transactions will time out, and the database will crash.
+This gives the architecture benefits needed for the assignment without taking on distributed-service complexity.
 
-### The Asynchronous Queue Architecture
+```mermaid
+flowchart LR
+    Mobile["Flutter App"] --> API["Go API Profile\nEcho HTTP"]
+    Admin["Admin Panel"] --> API
 
-1.  **Ingestion & Validation (Fast Fail):**
-    *   User hits "Checkout".
-    *   The Go API intercepts the request.
-    *   It checks **Redis** for active vouchers and inventory levels (e.g., "Are pearls sold out?").
-    *   *If invalid:* Returns HTTP 400 instantly.
-2.  **Order Intent Creation:**
-    *   If valid, the API generates an `OrderIntent` JSON payload.
-    *   The API pushes this payload directly to an **AWS SQS (Simple Queue Service) FIFO Queue**.
-    *   The API responds to the Flutter App with HTTP 202 (Accepted) and an `order_tracking_id`.
-    *   *Time taken:* < 50ms. The database has not been touched.
-3.  **Background Workers (Throttled DB Writes):**
-    *   A separate pool of Go Worker instances (running only the `@loob/ordering` worker context) consumes the SQS queue.
-    *   They pull batches of 10 messages.
-    *   They perform the actual heavy MySQL `INSERT` operations (creating the Order, Order Items, deducting DB inventory).
-    *   Because the workers process at a controlled rate (e.g., 500 orders/sec max), the RDS MySQL instance never gets overwhelmed, no matter how many users hit "Checkout" simultaneously.
-4.  **Client Polling / WebSockets:**
-    *   The Flutter app sees "Processing Order...". It uses Server-Sent Events (SSE) or short-polling against Redis to check the status of `order_tracking_id`. Once the worker updates Redis with "SUCCESS", the app moves to the Receipt screen.
+    API --> Catalog["catalog module"]
+    API --> Checkout["checkout module"]
+    API --> Campaigns["campaigns module"]
+    API --> Redis[("Redis\ncache, inventory, order status")]
+    API --> Queue["SQS FIFO\norder intents"]
+    API --> MySQL[("MySQL 8\nsource of truth")]
 
-### Mitigating Database Write Bottlenecks
+    Queue --> Worker["Go Worker Profile"]
+    Worker --> Ordering["ordering module"]
+    Worker --> MySQL
+    Worker --> Redis
+```
 
-Even with SQS controlling the rate of incoming orders, the primary MySQL database is the ultimate physical bottleneck for write operations. We implement several strategies to protect it:
+## Package Boundaries
 
-1.  **CQRS (Command Query Responsibility Segregation) & Read Replicas:**
-    *   The Primary RDS MySQL instance handles **only writes** (Orders, Vouchers).
-    *   We spin up AWS Aurora Auto-Scaling Read Replicas. All read operations (CMS fetching data, background analytics) are routed strictly to the replicas. This offloads up to 80% of CPU strain from the Primary instance.
-2.  **Write Batching (Bulk Inserts):**
-    *   When the Worker pulls 10 `OrderIntent` messages from SQS, it does not execute 10 separate `INSERT INTO orders` statements.
-    *   It maps the 10 intents into a single Bulk Insert SQL command (`INSERT INTO orders (...) VALUES (...), (...), (...)`). This drastically reduces transaction overhead and network round trips to the database.
-3.  **Redis Atomic Decrements (Write-Behind Inventory):**
-    *   For extremely hot items (e.g., 500 limited "Free Tealive" vouchers), checking the database on every order causes row locks. 
-    *   Instead, we load the inventory count into Redis (`SET inventory:free_voucher 500`).
-    *   The API performs an atomic `DECR` in Redis. If it drops below 0, it fails the checkout. The worker later performs the actual SQL update asynchronously. This protects the DB from thousands of concurrent update locks on a single row.
+Target backend structure:
 
----
+```text
+backend/
+  cmd/
+    api/main.go
+    worker/main.go
+  internal/
+    platform/
+      config/
+      database/
+      httpserver/
+      observability/
+      queue/
+      redis/
+      sqlc/
+    contextx/
+    catalog/
+      domain/
+      repository/
+      service/
+      transport/http/
+    checkout/
+      domain/
+      service/
+      transport/http/
+    ordering/
+      domain/
+      worker/
+      repository/
+    campaigns/
+      domain/
+      service/
+      transport/http/
+    users/
+      auth/
+      domain/
+    models/
+```
 
-## 3. Efficiency & Caching Strategy
+Rules:
 
-To achieve sub-100ms response times for the Catalog module, the backend relies on an aggressive caching tier.
+- `cmd/*` only wires dependencies and starts a runtime.
+- `transport/http` packages decode requests and encode responses only.
+- `service` packages own business rules and orchestration.
+- `repository` packages own database access.
+- Domain packages must not import Echo, `database/sql`, generated SQL code, Redis, or AWS SDK types.
+- Platform packages must not contain Loob business rules.
 
-### Multi-Tiered Read Architecture
-1.  **L1 Cache (In-Memory / LruCache):** The Go pods maintain an in-memory cache for static configurations (e.g., Country Tax Rules, Active Feature Flags) that update rarely. TTL: 5 minutes.
-2.  **L2 Cache (Redis ElastiCache):** The "Fat" translated JSON menu is resolved and cached here based on the `Country:Language` taxonomy. All Flutter app menu fetches hit Redis directly.
-3.  **L3 Materialized Views (DynamoDB):** Used exclusively for highly personalized, complex data reads (e.g., the User Home Feed). Background workers compute these heavy JSON payloads and store them in DynamoDB. The API fetches them instantly by `user_id` to guarantee sub-100ms app launch times without executing expensive `JOIN` queries.
-4.  **Database (MySQL RDS):** Serves as the ultimate source of truth. Only hit directly by the Admin CMS or when a cache miss occurs.
+## Request Context Contract
 
----
+Every API request gets a normalized context:
 
-## 4. Stability & Resilience
+- `trace_id`: from `X-Trace-Id` or generated by middleware.
+- `country_code`: from `X-Country-Code`, validated against active countries.
+- `language`: from `Accept-Language`, normalized to the country-supported language list with fallback to `en-US`.
+- `user_id`: from Firebase token when authentication is required.
 
-### Circuit Breakers
-External integrations (Payment Gateways, SMS Providers, 3rd Party Delivery APIs) are wrapped in Circuit Breakers (using libraries like `opossum`).
-*   *Scenario:* The Thai Prompt-Pay gateway goes down.
-*   *Action:* After 5 consecutive timeouts, the Circuit Breaker "opens". The Go app stops sending requests to the gateway, immediately returning a "Payment Gateway Unavailable" error to the user, preventing the entire backend thread pool from stalling while waiting for the dead gateway.
+Handlers must not read raw headers repeatedly. They should consume a typed request context from middleware.
 
-### Connection Pooling & Backpressure
-*   Database connections use `pg` or `mysql2` connection pools strictly limited per pod to prevent connection exhaustion on RDS.
-*   Rate limiting (via Redis) is applied per user and per IP to prevent bot scraping or DDoS attacks from degrading the experience for legitimate users.
+## Core Flows
 
----
+### Catalog Read Flow
 
-## 5. Observability (The "Three Pillars")
+1. Client requests menu with `X-Country-Code` and `Accept-Language`.
+2. API normalizes request context.
+3. Catalog service checks Redis using deterministic keys:
+   - `menu:{country}:{language}:brand:{brand_id}`
+   - `menu:{country}:{language}:store:{store_id}`
+4. On cache miss, repository reads MySQL source data.
+5. Service resolves translations, zone pricing, tax display, and availability.
+6. API returns a lean mobile payload with only the selected language.
 
-To ensure the Cloud Ops team can instantly identify issues across countries, the backend integrates with an APM tool (e.g., Datadog, New Relic, or AWS X-Ray/CloudWatch).
+### Checkout Ingestion Flow
 
-### 1. Tracing (Where did it break?)
-*   Every incoming request receives an `X-Trace-Id`.
-*   This ID is passed through every layer (API -> Redis -> SQS -> Worker -> DB).
-*   If a Thai user's order fails in the background worker 2 minutes after checkout, Ops can search the `Trace-Id` and see the exact millisecond the failure occurred and at which step.
+1. Client submits cart, store, fulfillment type, voucher code, and idempotency key.
+2. Checkout service authenticates user and validates country/store/brand availability.
+3. Service performs fast checks:
+   - cart shape and item availability
+   - voucher eligibility
+   - Redis inventory or campaign quota decrement when relevant
+   - idempotency key reuse
+4. Service creates an `OrderIntent` with a generated tracking id and trace id.
+5. API sends the intent to SQS FIFO.
+6. API returns `202 Accepted` with `order_tracking_id` and current status URL.
 
-### 2. Metrics (Is the system healthy?)
-Go exposes a `/metrics` endpoint (Prometheus format) scraped by CloudWatch/Datadog. Key alerts:
-*   **Business Metrics:** "Voucher redemption rate in MY dropped 80%." (Flags a logic bug, even if servers are healthy).
-*   **Queue Depth:** "SQS Queue depth > 10,000." (Triggers AWS Auto-Scaling to spin up more Worker Pods).
-*   **Cache Hit Ratio:** "Menu endpoint hitting DB > 5% of the time." (Flags a cache invalidation bug).
+If SQS is unavailable, checkout must fail closed with a retryable error. The API must not claim an order is processing unless the queue accepted the message.
 
-### 3. Structured Logging (Why did it break?)
-*   `console.log` is banned.
-*   The backend uses a structured logger (like `pino` or `winston`) outputting strict JSON.
-*   Every log includes mandatory contextual metadata injected by middleware:
-    ```json
-    {
-      "level": "error",
-      "message": "Payment Gateway Timeout",
-      "context": "CheckoutService",
-      "country_code": "TH",
-      "brand": "baskbear",
-      "user_id": "uuid-1234",
-      "trace_id": "abc-987"
-    }
-    ```
-*   *Benefit:* During a crisis, Ops can filter logs globally: `level=error AND country_code=TH AND brand=baskbear` to instantly isolate the noise.ly isolate the noise.
+### Order Worker Flow
+
+1. Worker receives SQS messages in batches.
+2. Worker validates intent schema version and idempotency.
+3. Worker creates order and order items in a MySQL transaction.
+4. Worker stores immutable price/customization snapshots.
+5. Worker updates Redis order status for polling.
+6. Worker deletes successful SQS messages.
+7. Failed messages are retried by SQS and eventually moved to a DLQ.
+
+Worker processing should be idempotent. Retrying the same message must not create duplicate orders.
+
+## Data Ownership
+
+- `catalog`: countries, brands, zones, stores, categories, menu items, customizations, pricing.
+- `checkout`: cart validation, voucher eligibility, tax calculation, idempotency, order intent creation.
+- `ordering`: durable orders, order items, order status transitions, worker persistence.
+- `campaigns`: banners, campaign quotas, mini-game campaign metadata, daily check-in rewards.
+- `users`: Firebase UID mapping, country/language preferences, authorization helpers.
+
+Shared tables can exist in MySQL, but business writes should go through the owning module.
+
+## Storage And Caching
+
+### MySQL
+
+MySQL 8 is the source of truth for relational data:
+
+- menu catalog and pricing
+- stores and zones
+- vouchers
+- orders and order items
+- user profile references
+
+Use integer currency values in the smallest unit. Use JSON columns for translations and immutable snapshots, not for core relational joins.
+
+Persistence should use raw SQL with a lightweight typed layer:
+
+- `database/sql` owns connection pooling and transactions.
+- `sqlc` is the preferred query layer once queries become non-trivial.
+- SQL files live near the owning module or under `backend/sql/queries`.
+- Migrations are handwritten SQL under `backend/sql/migrations`.
+- GORM is intentionally avoided so checkout, order persistence, idempotency, and country-partitioned queries stay explicit.
+
+For narrow prototypes, a repository may use `database/sql` directly. For production-facing assignment flows, prefer `sqlc` so query inputs and result structs are generated from real SQL.
+
+### Redis
+
+Redis is used for:
+
+- localized menu payload cache
+- feature flag and tax-rule cache
+- hot campaign inventory and voucher counters
+- checkout idempotency guard
+- temporary order processing status
+
+Redis is not the source of truth for completed orders.
+
+### SQS FIFO
+
+SQS FIFO is used for order intents:
+
+- `MessageGroupId`: country or store id, depending on desired ordering scope.
+- `MessageDeduplicationId`: checkout idempotency key or tracking id.
+- message body includes schema version, trace id, country, user, store, cart snapshot, voucher snapshot, and totals.
+
+## API Surface
+
+Initial implementation endpoints:
+
+- `GET /health`
+- `GET /api/v1/catalog/categories`
+- `GET /api/v1/catalog/categories/:category_id/items`
+- `POST /api/v1/orders/checkout`
+- `GET /api/v1/orders/:tracking_id/status`
+- `GET /api/v1/campaigns/home`
+- `GET /api/v1/vouchers/wallet`
+
+Admin endpoints can be added later under `/api/v1/admin/*` once the mobile-critical flows are stable.
+
+## Observability Contract
+
+Minimum implementation:
+
+- structured JSON logs
+- trace id middleware
+- request logging with country, route, status, latency, and trace id
+- checkout logs for accepted/rejected order intents
+- worker logs for message received, order persisted, retryable failure, permanent failure
+- `/metrics` endpoint when Prometheus dependency is added
+
+No checkout or worker error should be logged without `trace_id`, `country_code`, and either `tracking_id` or `message_id`.
+
+## Failure Modes
+
+| Failure | Expected Behavior |
+| --- | --- |
+| Missing country header | Default to `MY` only for public browsing; require explicit country for checkout. |
+| Unsupported language | Fallback to country default language and include resolved language in response. |
+| Redis down during catalog read | Fall back to MySQL and log degraded cache. |
+| Redis down during flash-sale checkout | Fail closed for quota-protected campaigns; allow normal checkout only if DB-safe validation exists. |
+| SQS send fails | Return retryable error; do not return `202`. |
+| Worker crashes mid-message | SQS visibility timeout makes message retry. |
+| Duplicate checkout submit | Return the existing tracking id for the idempotency key. |
+| Poison message | Retry up to queue policy, then move to DLQ. |
+
+## Implementation Phases
+
+### Phase 1: Backend Foundation
+
+- Create `cmd/api` and `cmd/worker`.
+- Add typed config loading.
+- Add request context middleware.
+- Move current route setup out of `main.go`.
+- Add structured logger.
+- Replace ORM-style database access with `database/sql` and prepare `sqlc` query generation.
+- Keep MySQL local via Docker Compose.
+
+### Phase 2: Catalog
+
+- Implement database schema/migrations for countries, brands, zones, stores, categories, items, pricing, customizations.
+- Seed minimal MY data for Tealive and Baskbear.
+- Implement localized menu response.
+- Add Redis cache interface, with in-memory/no-op fallback for local development if Redis is unavailable.
+
+### Phase 3: Checkout API
+
+- Define checkout request/response DTOs.
+- Add validation, tax calculation, voucher lookup, and idempotency.
+- Add queue producer interface.
+- Send real `OrderIntent` messages.
+- Add order status polling endpoint.
+
+### Phase 4: Ordering Worker
+
+- Add SQS consumer.
+- Persist orders and order items transactionally.
+- Update Redis order status.
+- Add retry/DLQ-aware logging.
+
+### Phase 5: Campaigns And Admin
+
+- Add campaign home payload.
+- Add voucher wallet.
+- Add admin write APIs only where needed to demonstrate CMS/back-office architecture.
+
+## Architecture Quality Gates
+
+Before implementing a new domain feature:
+
+- The domain package owns its business terms.
+- Handler logic stays thin.
+- External systems are behind interfaces.
+- Database behavior is expressed in reviewed SQL, not ORM-generated queries.
+- Checkout paths are idempotent.
+- Country and language are resolved once per request.
+- Logs include trace id.
+- Tests cover service-level business behavior before route tests.

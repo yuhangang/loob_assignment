@@ -99,7 +99,7 @@
 			"name": "Catalog",
 			"item": [
 				{
-					"name": "Get Menu",
+					"name": "List Categories",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -113,7 +113,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/v1/catalog/menu?store_id=1&brand_id=1",
+							"raw": "{{baseUrl}}/api/v1/catalog/categories?store_id=1&brand_id=1",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -121,7 +121,48 @@
 								"api",
 								"v1",
 								"catalog",
-								"menu"
+								"categories"
+							],
+							"query": [
+								{
+									"key": "store_id",
+									"value": "1"
+								},
+								{
+									"key": "brand_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Category Items",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/catalog/categories/1/items?store_id=1&brand_id=1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"catalog",
+								"categories",
+								"1",
+								"items"
 							],
 							"query": [
 								{
@@ -554,4 +595,3 @@
 		"type": "noauth"
 	}
 }
-

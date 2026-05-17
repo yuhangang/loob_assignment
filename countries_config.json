@@ -1,0 +1,31 @@
+{
+  "countries": [
+    {
+      "id": 1,
+      "code": "MY",
+      "name": "Malaysia",
+      "currency_code": "MYR",
+      "languages": ["ms", "en", "zh"],
+      "tax_rate": 0.06,
+      "timezone": "Asia/Kuala_Lumpur"
+    },
+    {
+      "id": 2,
+      "code": "TH",
+      "name": "Thailand",
+      "currency_code": "THB",
+      "languages": ["th", "en"],
+      "tax_rate": 0.07,
+      "timezone": "Asia/Bangkok"
+    },
+    {
+      "id": 3,
+      "code": "VN",
+      "name": "Vietnam",
+      "currency_code": "VND",
+      "languages": ["vi", "en"],
+      "tax_rate": 0.10,
+      "timezone": "Asia/Ho_Chi_Minh"
+    }
+  ]
+}

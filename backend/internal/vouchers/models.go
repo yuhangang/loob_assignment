@@ -1,10 +1,15 @@
 package vouchers
 
 type Wallet struct {
-	CountryCode string    `json:"country_code"`
-	Language    string    `json:"language_resolved"`
-	UserID      string    `json:"user_id,omitempty"`
-	Vouchers    []Voucher `json:"vouchers"`
+	CountryCode   string    `json:"country_code"`
+	Language      string    `json:"language_resolved"`
+	UserID        string    `json:"user_id,omitempty"`
+	CurrencyCode  string    `json:"currency_code"`
+	WalletBalance int       `json:"wallet_balance"`
+	LoyaltyPoints int       `json:"loyalty_points"`
+	LoyaltyTier   string    `json:"loyalty_tier"`
+	VoucherCount  int       `json:"voucher_count"`
+	Vouchers      []Voucher `json:"vouchers"`
 }
 
 type Voucher struct {

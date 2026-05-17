@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/loob/backend/internal/contextx"
@@ -22,8 +23,24 @@ func NewHandler(service *Service) *Handler {
 func Register(db *sql.DB, g *echo.Group, ps *payments.Service) {
 	h := NewHandler(NewService(NewRepository(db), ps))
 	orders := g.Group("/orders")
+	orders.GET("", h.list)
 	orders.POST("/checkout", h.checkout)
 	orders.GET("/:tracking_id/status", h.status)
+}
+
+func (h *Handler) list(c echo.Context) error {
+	if err := contextx.RequireCountryHeader(c); err != nil {
+		return err
+	}
+	rc := contextx.FromEcho(c)
+	orders, err := h.service.ListOrders(c.Request().Context(), rc.CountryCode, userID(c))
+	if err != nil {
+		if errors.Is(err, ErrUserRequired) {
+			return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "user_id is required"})
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": "failed to load orders"})
+	}
+	return c.JSON(http.StatusOK, orders)
 }
 
 func (h *Handler) checkout(c echo.Context) error {
@@ -78,6 +95,8 @@ func checkoutError(err error) error {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "unsupported country"})
 	case errors.Is(err, ErrStoreNotFound):
 		return echo.NewHTTPError(http.StatusNotFound, map[string]string{"error": "store not found"})
+	case errors.Is(err, ErrStoreClosed):
+		return echo.NewHTTPError(http.StatusConflict, map[string]string{"error": "selected store is closed"})
 	case errors.Is(err, ErrItemUnavailable):
 		return echo.NewHTTPError(http.StatusConflict, map[string]string{"error": "one or more cart items are unavailable"})
 	case errors.Is(err, ErrVoucherNotFound), errors.Is(err, ErrVoucherNotEligible):
@@ -87,4 +106,11 @@ func checkoutError(err error) error {
 	default:
 		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": "checkout failed"})
 	}
+}
+
+func userID(c echo.Context) string {
+	if userID := strings.TrimSpace(c.QueryParam("user_id")); userID != "" {
+		return userID
+	}
+	return strings.TrimSpace(c.Request().Header.Get("X-User-Id"))
 }

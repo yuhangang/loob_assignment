@@ -9,6 +9,7 @@ import (
 type mockRepository struct {
 	getCountry           func(ctx context.Context, countryID string) (Country, error)
 	listWallet           func(ctx context.Context, countryID, userID string, brandID int) ([]VoucherRow, error)
+	getWalletSummary     func(ctx context.Context, country Country, userID string) (WalletSummary, error)
 	assignActiveVouchers func(ctx context.Context, countryID, userID string) error
 }
 
@@ -17,6 +18,9 @@ func (m *mockRepository) GetCountry(ctx context.Context, countryID string) (Coun
 }
 func (m *mockRepository) ListWallet(ctx context.Context, countryID, userID string, brandID int) ([]VoucherRow, error) {
 	return m.listWallet(ctx, countryID, userID, brandID)
+}
+func (m *mockRepository) GetWalletSummary(ctx context.Context, country Country, userID string) (WalletSummary, error) {
+	return m.getWalletSummary(ctx, country, userID)
 }
 func (m *mockRepository) AssignActiveVouchers(ctx context.Context, countryID, userID string) error {
 	return m.assignActiveVouchers(ctx, countryID, userID)
@@ -63,7 +67,7 @@ func TestWallet(t *testing.T) {
 	repo := &mockRepository{
 		getCountry: func(ctx context.Context, countryID string) (Country, error) {
 			if countryID == "MY" {
-				return Country{ID: "MY", DefaultLanguage: "en-US"}, nil
+				return Country{ID: "MY", CurrencyCode: "MYR", DefaultLanguage: "en-US"}, nil
 			}
 			return Country{}, ErrNotFound
 		},
@@ -74,6 +78,9 @@ func TestWallet(t *testing.T) {
 			return []VoucherRow{
 				{ID: 1, Code: "PROMO1", DiscountType: "PERCENTAGE", DiscountValue: 10, MinSpend: 100},
 			}, nil
+		},
+		getWalletSummary: func(ctx context.Context, country Country, userID string) (WalletSummary, error) {
+			return WalletSummary{CurrencyCode: country.CurrencyCode, Balance: 1200, LoyaltyPoints: 450, LoyaltyTier: "GOLD"}, nil
 		},
 	}
 
@@ -90,6 +97,15 @@ func TestWallet(t *testing.T) {
 		}
 		if wallet.Vouchers[0].Code != "PROMO1" {
 			t.Errorf("expected PROMO1, got %s", wallet.Vouchers[0].Code)
+		}
+		if wallet.WalletBalance != 1200 {
+			t.Errorf("expected wallet balance 1200, got %d", wallet.WalletBalance)
+		}
+		if wallet.LoyaltyPoints != 450 {
+			t.Errorf("expected loyalty points 450, got %d", wallet.LoyaltyPoints)
+		}
+		if wallet.VoucherCount != 1 {
+			t.Errorf("expected voucher count 1, got %d", wallet.VoucherCount)
 		}
 	})
 

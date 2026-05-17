@@ -108,7 +108,8 @@ Useful smoke checks:
 
 ```bash
 curl -sS http://127.0.0.1:8080/health
-curl -sS -H 'X-Country-Code: MY' -H 'Accept-Language: ms-MY' 'http://127.0.0.1:8080/api/v1/catalog/menu?store_id=1'
+curl -sS -H 'X-Country-Code: MY' -H 'Accept-Language: ms-MY' 'http://127.0.0.1:8080/api/v1/catalog/categories?store_id=1'
+curl -sS -H 'X-Country-Code: MY' -H 'Accept-Language: ms-MY' 'http://127.0.0.1:8080/api/v1/catalog/categories/1/items?store_id=1'
 curl -sS -H 'X-Country-Code: MY' 'http://127.0.0.1:8080/api/v1/catalog/stores'
 curl -sS -H 'X-Country-Code: MY' 'http://127.0.0.1:8080/api/v1/campaigns/home'
 curl -sS -H 'X-Country-Code: MY' 'http://127.0.0.1:8080/api/v1/vouchers/wallet?user_id=demo-user'

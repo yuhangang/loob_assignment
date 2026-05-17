@@ -14,7 +14,7 @@ Rather than building a standard ordering template, I wanted to explore how we co
 |---------------|------------|---------------|
 | Frontend | Flutter | True cross-platform codebase with excellent support for dynamic, runtime theming (crucial for the Tealive/Baskbear UI switch). |
 | State Mgmt | Riverpod & BLoC | Riverpod for DI and simple states (Theme switching). BLoC for complex, event-driven concurrency (Checkout state machine). |
-| Backend | Go (Echo v5) | Strong DDD architectural boundaries. Easily supports the Modular Monolith pattern required for independent worker scaling. |
+| Backend | Go (Echo v4) | Strong domain boundaries. Supports the profiled modular monolith pattern required for independent API and worker scaling. |
 | Database | MySQL | Essential for relational integrity (Orders, Customizations, Vouchers). Uses native JSON columns for localized text. |
 | Caching | Redis & Isar | Redis (Backend) for queue rate-limiting and L2 Menu cache. Isar (Frontend) for highly reactive, NoSQL local cart storage. |
 | Cloud | AWS | Fargate (ECS) for serverless compute, SQS for queueing, Aurora Serverless for auto-scaling the DB during flash sales. |
@@ -74,4 +74,4 @@ We utilize an **Asynchronous Queue Architecture**. The API intercepts the checko
 - **L3 (DynamoDB):** Materialized Views for highly personalized, complex user home feeds to guarantee sub-100ms app launches without heavy SQL joins.
 
 **Q15. How would you manage image and media assets at scale across multiple countries?**
-The CMS uploads heavy assets (banners, app icons) to AWS S3. These are served globally via AWS CloudFront (CDN), ensuring users in Thailand and Malaysia experience low-latency image loads without hitting the backend API.ut hitting the backend API.
+The CMS uploads heavy assets (banners, app icons) to AWS S3. These are served globally via AWS CloudFront (CDN), ensuring users in Thailand and Malaysia experience low-latency image loads without hitting the backend API.

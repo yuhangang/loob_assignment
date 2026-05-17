@@ -8,12 +8,13 @@ import (
 
 type mockRepository struct {
 	CatalogRepository
-	getCountry              func(ctx context.Context, countryID string) (Country, error)
-	resolveStoreContext     func(ctx context.Context, countryID string, storeID int) (StoreContext, error)
-	listCategories          func(ctx context.Context, brandID int) ([]CategoryRow, error)
-	listProducts            func(ctx context.Context, zoneID string, brandID int) ([]ProductRow, error)
-	listCustomizationGroups func(ctx context.Context, menuItemIDs []int) ([]GroupRow, error)
-	listCustomizationOptions func(ctx context.Context, groupIDs []int) ([]OptionRow, error)
+	getCountry               func(ctx context.Context, countryID string) (Country, error)
+	resolveStoreContext      func(ctx context.Context, countryID string, storeID int) (StoreContext, error)
+	listCategories           func(ctx context.Context, brandID int) ([]CategoryRow, error)
+	listProducts             func(ctx context.Context, storeID int, zoneID string, brandID int, categoryID int) ([]ProductRow, error)
+	listCustomizationGroups  func(ctx context.Context, menuItemIDs []int) ([]GroupRow, error)
+	listCustomizationOptions func(ctx context.Context, storeID int, zoneID string, groupIDs []int) ([]OptionRow, error)
+	listStores               func(ctx context.Context, countryID string, brandID int, activeOnly bool) ([]StoreRow, error)
 }
 
 func (m *mockRepository) GetCountry(ctx context.Context, countryID string) (Country, error) {
@@ -25,14 +26,17 @@ func (m *mockRepository) ResolveStoreContext(ctx context.Context, countryID stri
 func (m *mockRepository) ListCategories(ctx context.Context, brandID int) ([]CategoryRow, error) {
 	return m.listCategories(ctx, brandID)
 }
-func (m *mockRepository) ListProducts(ctx context.Context, zoneID string, brandID int) ([]ProductRow, error) {
-	return m.listProducts(ctx, zoneID, brandID)
+func (m *mockRepository) ListProducts(ctx context.Context, storeID int, zoneID string, brandID int, categoryID int) ([]ProductRow, error) {
+	return m.listProducts(ctx, storeID, zoneID, brandID, categoryID)
 }
 func (m *mockRepository) ListCustomizationGroups(ctx context.Context, menuItemIDs []int) ([]GroupRow, error) {
 	return m.listCustomizationGroups(ctx, menuItemIDs)
 }
-func (m *mockRepository) ListCustomizationOptions(ctx context.Context, groupIDs []int) ([]OptionRow, error) {
-	return m.listCustomizationOptions(ctx, groupIDs)
+func (m *mockRepository) ListCustomizationOptions(ctx context.Context, storeID int, zoneID string, groupIDs []int) ([]OptionRow, error) {
+	return m.listCustomizationOptions(ctx, storeID, zoneID, groupIDs)
+}
+func (m *mockRepository) ListStores(ctx context.Context, countryID string, brandID int, activeOnly bool) ([]StoreRow, error) {
+	return m.listStores(ctx, countryID, brandID, activeOnly)
 }
 
 func TestResolveLanguage(t *testing.T) {
@@ -71,7 +75,6 @@ func TestLocalize(t *testing.T) {
 		{"dialect match", "en-US", "en", "Mineral Water"},
 		{"fallback to en", "fr", "en", "Water"},
 		{"fallback to global default", "fr", "de", "Mineral Water"},
-
 	}
 
 	for _, tt := range tests {
@@ -83,7 +86,7 @@ func TestLocalize(t *testing.T) {
 	}
 }
 
-func TestGetMenu(t *testing.T) {
+func TestListCategoriesAndCategoryItems(t *testing.T) {
 	repo := &mockRepository{
 		getCountry: func(ctx context.Context, countryID string) (Country, error) {
 			if countryID == "MY" {
@@ -100,23 +103,30 @@ func TestGetMenu(t *testing.T) {
 				{ID: 2, BrandSlug: "tealive", NameTranslations: map[string]string{"en": "Empty"}},
 			}, nil
 		},
-		listProducts: func(ctx context.Context, zoneID string, brandID int) ([]ProductRow, error) {
+		listProducts: func(ctx context.Context, storeID int, zoneID string, brandID int, categoryID int) ([]ProductRow, error) {
+			if categoryID != 1 {
+				return nil, nil
+			}
 			return []ProductRow{
-				{ID: 101, CategoryID: 1, SKUCode: "P1", NameTranslations: map[string]string{"en": "Tea"}, BasePrice: 500, TaxInclusive: true},
+				{ID: 101, CategoryID: 1, SKUCode: "P1", IsAvailable: true, NameTranslations: map[string]string{"en": "Tea"}, BasePrice: 500, TaxInclusive: true},
 			}, nil
 		},
 		listCustomizationGroups: func(ctx context.Context, menuItemIDs []int) ([]GroupRow, error) {
-			return nil, nil
+			return []GroupRow{
+				{ID: 10, MenuItemID: 101, GroupCode: "sugar", NameTranslations: map[string]string{"en": "Sugar Level"}, SelectionType: "SINGLE_SELECT", MinSelections: 1, IsRequired: true, MaxSelections: 1},
+			}, nil
 		},
-		listCustomizationOptions: func(ctx context.Context, groupIDs []int) ([]OptionRow, error) {
-			return nil, nil
+		listCustomizationOptions: func(ctx context.Context, storeID int, zoneID string, groupIDs []int) ([]OptionRow, error) {
+			return []OptionRow{
+				{ID: 1001, GroupID: 10, OptionCode: "sugar_100", NameTranslations: map[string]string{"en": "Regular Sugar"}, IsDefault: true, IsAvailable: true},
+			}, nil
 		},
 	}
 
 	svc := NewService(repo)
 
-	t.Run("success", func(t *testing.T) {
-		catalog, err := svc.GetMenu(context.Background(), MenuRequest{CountryCode: "MY"})
+	t.Run("list categories success", func(t *testing.T) {
+		catalog, err := svc.ListCategories(context.Background(), MenuRequest{CountryCode: "MY"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,17 +135,43 @@ func TestGetMenu(t *testing.T) {
 			t.Errorf("expected MY, got %s", catalog.CountryCode)
 		}
 
-		// Verify empty categories are filtered out
-		if len(catalog.Categories) != 1 {
-			t.Errorf("expected 1 category, got %d", len(catalog.Categories))
+		if len(catalog.Categories) != 2 {
+			t.Errorf("expected 2 categories, got %d", len(catalog.Categories))
 		}
 		if catalog.Categories[0].ID != 1 {
 			t.Errorf("expected category 1, got %d", catalog.Categories[0].ID)
 		}
+		if len(catalog.Categories[0].Products) != 0 {
+			t.Errorf("expected categories endpoint to omit products")
+		}
+	})
+
+	t.Run("list category items success", func(t *testing.T) {
+		items, err := svc.ListCategoryItems(context.Background(), CategoryItemsRequest{CountryCode: "MY", CategoryID: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if items.CountryCode != "MY" {
+			t.Errorf("expected MY, got %s", items.CountryCode)
+		}
+		if items.CategoryID != 1 {
+			t.Errorf("expected category 1, got %d", items.CategoryID)
+		}
+		if len(items.Products) != 1 {
+			t.Fatalf("expected 1 product, got %d", len(items.Products))
+		}
+		groups := items.Products[0].CustomizationGroups
+		if len(groups) != 1 {
+			t.Fatalf("expected 1 customization group, got %d", len(groups))
+		}
+		if groups[0].Code != "sugar" || groups[0].MinSelections != 1 {
+			t.Fatalf("unexpected group payload: %+v", groups[0])
+		}
 	})
 
 	t.Run("unsupported country", func(t *testing.T) {
-		_, err := svc.GetMenu(context.Background(), MenuRequest{CountryCode: "XX"})
+		_, err := svc.ListCategories(context.Background(), MenuRequest{CountryCode: "XX"})
 		if !errors.Is(err, ErrUnsupportedCountry) {
 			t.Errorf("expected ErrUnsupportedCountry, got %v", err)
 		}

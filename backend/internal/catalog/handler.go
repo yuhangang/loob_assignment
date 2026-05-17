@@ -21,12 +21,14 @@ func NewHandler(service *Service) *Handler {
 func Register(db *sql.DB, g *echo.Group) {
 	h := NewHandler(NewService(NewRepository(db)))
 	catalog := g.Group("/catalog")
-	catalog.GET("/menu", h.getMenu)
+	catalog.GET("/categories", h.listCategories)
+	catalog.GET("/categories/:category_id/items", h.listCategoryItems)
+	catalog.GET("/items/:item_id", h.getItem)
 	catalog.GET("/brands", h.listBrands)
 	catalog.GET("/stores", h.listStores)
 }
 
-func (h *Handler) getMenu(c echo.Context) error {
+func (h *Handler) listCategories(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 	storeID, err := intQuery(c, "store_id")
 	if err != nil {
@@ -37,24 +39,72 @@ func (h *Handler) getMenu(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "brand_id must be a number"})
 	}
 
-	menu, err := h.service.GetMenu(c.Request().Context(), MenuRequest{
+	categories, err := h.service.ListCategories(c.Request().Context(), MenuRequest{
 		CountryCode: rc.CountryCode,
 		Language:    rc.Language,
 		StoreID:     storeID,
 		BrandID:     brandID,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrUnsupportedCountry):
-			return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "unsupported country"})
-		case errors.Is(err, ErrStoreNotFound):
-			return echo.NewHTTPError(http.StatusNotFound, map[string]string{"error": "store not found"})
-		default:
-			return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": "failed to load menu"})
-		}
+		return catalogError(err, "failed to list categories")
 	}
 
-	return c.JSON(http.StatusOK, menu)
+	return c.JSON(http.StatusOK, categories)
+}
+
+func (h *Handler) listCategoryItems(c echo.Context) error {
+	rc := contextx.FromEcho(c)
+	categoryID, err := strconv.Atoi(c.Param("category_id"))
+	if err != nil || categoryID <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "category_id must be a positive number"})
+	}
+	storeID, err := intQuery(c, "store_id")
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "store_id must be a number"})
+	}
+	brandID, err := intQuery(c, "brand_id")
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "brand_id must be a number"})
+	}
+
+	items, err := h.service.ListCategoryItems(c.Request().Context(), CategoryItemsRequest{
+		CountryCode: rc.CountryCode,
+		Language:    rc.Language,
+		StoreID:     storeID,
+		BrandID:     brandID,
+		CategoryID:  categoryID,
+	})
+	if err != nil {
+		return catalogError(err, "failed to list category items")
+	}
+
+	return c.JSON(http.StatusOK, items)
+}
+
+func (h *Handler) getItem(c echo.Context) error {
+	rc := contextx.FromEcho(c)
+	itemID, err := strconv.Atoi(c.Param("item_id"))
+	if err != nil || itemID <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "item_id must be a positive number"})
+	}
+	storeID, err := intQuery(c, "store_id")
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "store_id must be a number"})
+	}
+
+	item, err := h.service.GetItem(c.Request().Context(), ItemRequest{
+		CountryCode: rc.CountryCode,
+		Language:    rc.Language,
+		StoreID:     storeID,
+		ItemID:      itemID,
+	})
+	if err != nil {
+		if errors.Is(err, ErrItemNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, map[string]string{"error": "item not found"})
+		}
+		return catalogError(err, "failed to get item")
+	}
+	return c.JSON(http.StatusOK, item)
 }
 
 func (h *Handler) listBrands(c echo.Context) error {
@@ -71,8 +121,13 @@ func (h *Handler) listStores(c echo.Context) error {
 	if countryID == "" {
 		countryID = rc.CountryCode
 	}
+	brandID, err := intQuery(c, "brand_id")
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "brand_id must be a number"})
+	}
+	activeOnly := c.QueryParam("active_only") != "false"
 
-	stores, err := h.service.ListStores(c.Request().Context(), countryID, rc.Language)
+	stores, err := h.service.ListStores(c.Request().Context(), countryID, rc.Language, brandID, activeOnly)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": "failed to list stores"})
 	}
@@ -85,4 +140,15 @@ func intQuery(c echo.Context, key string) (int, error) {
 		return 0, nil
 	}
 	return strconv.Atoi(raw)
+}
+
+func catalogError(err error, fallback string) error {
+	switch {
+	case errors.Is(err, ErrUnsupportedCountry):
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "unsupported country"})
+	case errors.Is(err, ErrStoreNotFound):
+		return echo.NewHTTPError(http.StatusNotFound, map[string]string{"error": "store not found"})
+	default:
+		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": fallback})
+	}
 }

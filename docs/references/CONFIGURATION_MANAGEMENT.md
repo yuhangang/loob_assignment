@@ -39,7 +39,7 @@ Efficiently managing a multi-country, multi-brand application requires decouplin
 | Asset/Config Type | Update Frequency | Storage/Delivery Mechanism | Managed By |
 | :--- | :--- | :--- | :--- |
 | Core Logic, Fallback Assets | Low (Monthly) | App Bundle / App Stores | Engineering |
-| Feature Flags, Tax, Store Hours | Medium (Weekly/Daily) | MySQL -> Redis -> NestJS API | Ops / Country Managers |
+| Feature Flags, Tax, Store Hours | Medium (Weekly/Daily) | MySQL -> Redis -> Go API | Ops / Country Managers |
 | UI Copywriting (Translations) | Medium (Weekly) | TMS API / Admin Portal | Content / Product Team |
 | Banners, Dynamic Icons | High (Hourly/Daily) | S3 -> CloudFront (CDN) | Marketing Teams |
 | Flash Sales, Real-time Inventory| Very High (Seconds/Mins) | Redis / WebSockets | Automated / Ops |

@@ -18,6 +18,7 @@ func NewRepository(db *sql.DB) *Repository {
 
 type Country struct {
 	ID              string
+	CurrencyCode    string
 	DefaultLanguage string
 }
 
@@ -36,13 +37,20 @@ type VoucherRow struct {
 	Status         sql.NullString
 }
 
+type WalletSummary struct {
+	CurrencyCode  string
+	Balance       int
+	LoyaltyPoints int
+	LoyaltyTier   string
+}
+
 func (r *Repository) GetCountry(ctx context.Context, countryID string) (Country, error) {
 	var country Country
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, default_language
+		SELECT id, currency_code, default_language
 		FROM countries
 		WHERE id = ? AND is_active = true
-	`, countryID).Scan(&country.ID, &country.DefaultLanguage)
+	`, countryID).Scan(&country.ID, &country.CurrencyCode, &country.DefaultLanguage)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Country{}, ErrNotFound
@@ -50,6 +58,38 @@ func (r *Repository) GetCountry(ctx context.Context, countryID string) (Country,
 		return Country{}, err
 	}
 	return country, nil
+}
+
+func (r *Repository) GetWalletSummary(ctx context.Context, country Country, userID string) (WalletSummary, error) {
+	if strings.TrimSpace(userID) == "" {
+		return WalletSummary{
+			CurrencyCode:  country.CurrencyCode,
+			Balance:       0,
+			LoyaltyPoints: 0,
+			LoyaltyTier:   "MEMBER",
+		}, nil
+	}
+
+	var summary WalletSummary
+	var tier sql.NullString
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COALESCE(wa.currency_code, c.currency_code),
+		       COALESCE(wa.balance, 0),
+		       COALESCE(la.points, 0),
+		       COALESCE(la.tier, 'MEMBER')
+		FROM countries c
+		LEFT JOIN wallet_accounts wa ON wa.country_id = c.id AND wa.user_id = ?
+		LEFT JOIN loyalty_accounts la ON la.country_id = c.id AND la.user_id = ?
+		WHERE c.id = ?
+	`, userID, userID, country.ID).Scan(&summary.CurrencyCode, &summary.Balance, &summary.LoyaltyPoints, &tier)
+	if err != nil {
+		return WalletSummary{}, err
+	}
+	summary.LoyaltyTier = tier.String
+	if summary.LoyaltyTier == "" {
+		summary.LoyaltyTier = "MEMBER"
+	}
+	return summary, nil
 }
 
 func (r *Repository) ListWallet(ctx context.Context, countryID, userID string, brandID int) ([]VoucherRow, error) {
@@ -90,9 +130,25 @@ func (r *Repository) AssignActiveVouchers(ctx context.Context, countryID, userID
 		return nil
 	}
 	if _, err := r.db.ExecContext(ctx, `
-		INSERT INTO users (id, registered_country_id)
-		VALUES (?, ?)
+		INSERT INTO users (id, registered_country_id, preferred_language)
+		SELECT ?, c.id, c.default_language
+		FROM countries c
+		WHERE c.id = ?
 		ON DUPLICATE KEY UPDATE registered_country_id = COALESCE(registered_country_id, VALUES(registered_country_id))
+	`, userID, countryID); err != nil {
+		return err
+	}
+	if _, err := r.db.ExecContext(ctx, `
+		INSERT IGNORE INTO wallet_accounts (user_id, country_id, balance, currency_code)
+		SELECT ?, id, 0, currency_code
+		FROM countries
+		WHERE id = ?
+	`, userID, countryID); err != nil {
+		return err
+	}
+	if _, err := r.db.ExecContext(ctx, `
+		INSERT IGNORE INTO loyalty_accounts (user_id, country_id, points, lifetime_points, tier)
+		VALUES (?, ?, 0, 0, 'MEMBER')
 	`, userID, countryID); err != nil {
 		return err
 	}

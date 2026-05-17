@@ -6,12 +6,14 @@ import (
 
 	"github.com/loob/backend/internal/appconfig"
 	"github.com/loob/backend/internal/campaigns"
+	"github.com/loob/backend/internal/cart"
 	"github.com/loob/backend/internal/catalog"
 	"github.com/loob/backend/internal/checkout"
 	"github.com/loob/backend/internal/contextx"
 	"github.com/loob/backend/internal/database"
 	"github.com/loob/backend/internal/payments"
 	"github.com/loob/backend/internal/platform"
+	"github.com/loob/backend/internal/users"
 	"github.com/loob/backend/internal/vouchers"
 
 	"github.com/labstack/echo/v4"
@@ -68,8 +70,10 @@ func main() {
 	payments.Register(v1, ps)
 	catalog.Register(db, v1)
 	checkout.Register(db, v1, ps)
+	cart.Register(db, v1)
 	campaigns.Register(db, v1)
 	vouchers.Register(db, v1)
+	users.Register(db, v1)
 	appconfig.Register(v1, cfg.PublicBaseURL)
 
 	log.Printf("starting Loob API on %s", cfg.HTTPAddr)

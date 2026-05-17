@@ -10,6 +10,7 @@ import (
 type VoucherRepository interface {
 	GetCountry(ctx context.Context, countryID string) (Country, error)
 	ListWallet(ctx context.Context, countryID, userID string, brandID int) ([]VoucherRow, error)
+	GetWalletSummary(ctx context.Context, country Country, userID string) (WalletSummary, error)
 	AssignActiveVouchers(ctx context.Context, countryID, userID string) error
 }
 
@@ -38,13 +39,21 @@ func (s *Service) Wallet(ctx context.Context, countryID, language, userID string
 	if err != nil {
 		return Wallet{}, err
 	}
+	summary, err := s.repo.GetWalletSummary(ctx, country, userID)
+	if err != nil {
+		return Wallet{}, err
+	}
 
 	resolved := resolveLanguage(language, country.DefaultLanguage)
 	wallet := Wallet{
-		CountryCode: country.ID,
-		Language:    resolved,
-		UserID:      userID,
-		Vouchers:    []Voucher{},
+		CountryCode:   country.ID,
+		Language:      resolved,
+		UserID:        userID,
+		CurrencyCode:  summary.CurrencyCode,
+		WalletBalance: summary.Balance,
+		LoyaltyPoints: summary.LoyaltyPoints,
+		LoyaltyTier:   summary.LoyaltyTier,
+		Vouchers:      []Voucher{},
 	}
 	for _, row := range rows {
 		status := row.Status.String
@@ -77,6 +86,7 @@ func (s *Service) Wallet(ctx context.Context, countryID, language, userID string
 		}
 		wallet.Vouchers = append(wallet.Vouchers, voucher)
 	}
+	wallet.VoucherCount = len(wallet.Vouchers)
 	return wallet, nil
 }
 

@@ -47,9 +47,11 @@ graph TD
   - `webview_flutter` for dynamic gamification/campaign landing pages.
   - `flutter_social_embed` to render Instagram/TikTok feeds inside the app seamlessly.
 
-### 2.2 Backend (Go + Node.js)
-- **Smart Region Detection:** If the client payload lacks GPS coordinates, the API middleware reads the `x-forwarded-for` IP address and queries a fast GeoIP service (or internal IP-to-Country database) to determine the user's region and serve localized content (currency, menus).
-- **Banner Delivery System:** A dedicated module serving dynamic campaign payloads (image URLs, deep links, active schedules, targeting criteria).
+### 2.2 Backend (Go Modular Monolith)
+- **Runtime Profiles:** The same Go codebase runs as an `api` profile for Echo HTTP routes and a `worker` profile for asynchronous order processing.
+- **Smart Region Detection:** If the client payload lacks GPS coordinates, API middleware can read the `x-forwarded-for` IP address and query a fast GeoIP service or internal IP-to-country database to determine the user's region and serve localized content.
+- **Banner Delivery System:** The campaigns module serves dynamic campaign payloads such as image URLs, deep links, active schedules, and targeting criteria.
+- **Async Checkout:** The checkout module accepts validated order intents into SQS FIFO, while the ordering worker owns durable order writes.
 
 ### 2.3 Database (MySQL RDS & DynamoDB)
 **MySQL RDS (Relational Core):**
@@ -111,4 +113,4 @@ To prevent the engineering team from becoming a bottleneck, a comprehensive **Lo
   - **Business Metrics Alerting:** CloudWatch Alarms are set not just for CPU/Memory, but for business anomalies (e.g., "Order volume in Thailand dropped 50% compared to the same hour last week", indicating a potential regional payment gateway failure).
 - **CI/CD Pipeline Separation:**
   - **Frontend:** GitHub Actions compiles the Flutter app, injecting region-agnostic environment variables, and pushes to TestFlight/Google Play Console.
-  - **Backend:** Code is built into Docker containers. Deployments use rolling updates (ECS/EKS) to ensure zero downtime. Database migrations (Flyway/TypeORM) are strictly backwards-compatible and run via automated jobs before the new app instances spin up.p instances spin up.
+  - **Backend:** Code is built into Docker containers. Deployments use rolling updates (ECS/EKS) to ensure zero downtime. Database migrations are strictly backwards-compatible and run via automated jobs before the new app instances start.

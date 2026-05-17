@@ -6,12 +6,11 @@ info:
   title: Loob Unified API
   version: "1.0"
 paths:
-  /catalog/menu:
+  /catalog/categories:
     get:
       consumes:
       - application/json
-      description: Fetches the menu catalog customized for the region specified in
-        the header
+      description: Lists localized menu categories without product payloads
       parameters:
       - default: MY
         description: Country Code (e.g., MY, TH)
@@ -31,7 +30,39 @@ paths:
           schema:
             additionalProperties: true
             type: object
-      summary: Get localized menu
+      summary: List localized menu categories
+      tags:
+      - catalog
+  /catalog/categories/{category_id}/items:
+    get:
+      consumes:
+      - application/json
+      description: Lists localized menu items for a single category
+      parameters:
+      - description: Category ID
+        in: path
+        name: category_id
+        required: true
+        type: integer
+      - default: MY
+        description: Country Code (e.g., MY, TH)
+        in: header
+        name: X-Country-Code
+        type: string
+      - default: en-US
+        description: Language (e.g., en-US, ms-MY)
+        in: header
+        name: Accept-Language
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get localized category items
       tags:
       - catalog
   /orders/checkout:

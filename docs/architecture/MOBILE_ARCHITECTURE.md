@@ -119,7 +119,7 @@ Never store JWTs, OAuth tokens, or Personally Identifiable Information (PII) in 
 During flash sales, automated scalper bots and users spoofing locations via VPNs pose a massive risk to campaign integrity.
 *   **Implementation (Bot Detection):** We implement **reCAPTCHA Enterprise** (or AWS WAF Captcha via a hidden webview/SDK) explicitly on high-risk endpoints like `/checkout` and `/auth/register`. We do *not* penalize normal browsing, but high-velocity automated checkouts are challenged or silently dropped.
 *   **Implementation (VPN/Proxy Detection):** We do not rely on the Flutter client to detect VPNs, as this is easily spoofed by advanced attackers. Instead, we handle this **Server-Side**. 
-    *   The NestJS API inspects the incoming IP against AWS WAF's managed "Anonymous IP List" (which flags known VPNs, Tor nodes, and hosting providers).
+    *   The Go API inspects the incoming IP against AWS WAF's managed "Anonymous IP List" (which flags known VPNs, Tor nodes, and hosting providers).
     *   If a user attempts to redeem a "Malaysia-only" flash sale voucher from an IP registered to DigitalOcean Singapore, the backend rejects it with a `403 Forbidden` rather than relying on the client's GPS.
 
 ---

@@ -18,9 +18,9 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/catalog/menu": {
+        "/catalog/categories": {
             "get": {
-                "description": "Fetches the menu catalog customized for the region specified in the header",
+                "description": "Lists localized menu categories without product payloads",
                 "consumes": [
                     "application/json"
                 ],
@@ -30,8 +30,55 @@ const docTemplate = `{
                 "tags": [
                     "catalog"
                 ],
-                "summary": "Get localized menu",
+                "summary": "List localized menu categories",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "default": "MY",
+                        "description": "Country Code (e.g., MY, TH)",
+                        "name": "X-Country-Code",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "default": "en-US",
+                        "description": "Language (e.g., en-US, ms-MY)",
+                        "name": "Accept-Language",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/catalog/categories/{category_id}/items": {
+            "get": {
+                "description": "Lists localized menu items for a single category",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "catalog"
+                ],
+                "summary": "Get localized category items",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Category ID",
+                        "name": "category_id",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "string",
                         "default": "MY",
