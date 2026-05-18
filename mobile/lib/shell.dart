@@ -1,48 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'core/localization/app_localizations.dart';
-import 'features/home/presentation/home_page.dart';
-import 'features/menu/presentation/menu_page.dart';
-import 'features/orders/presentation/orders_page.dart';
-import 'features/settings/presentation/settings_page.dart';
+import 'core/router/app_router.dart';
 
-/// Bottom navigation scaffold managing the 4 top-level tabs.
-class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+/// Bottom navigation scaffold managing the 4 top-level tabs using GoRouter.
+class AppShell extends StatelessWidget {
+  final StatefulNavigationShell navigationShell;
 
-  @override
-  State<AppShell> createState() => _AppShellState();
-}
-
-class _AppShellState extends State<AppShell> {
-  int _currentIndex = 0;
-  final ValueNotifier<int> _ordersRefreshSignal = ValueNotifier<int>(0);
-
-  // Preserve tab state across navigation using IndexedStack.
-  late final List<Widget> _pages = [
-    const HomePage(),
-    const MenuPage(),
-    OrdersPage(refreshSignal: _ordersRefreshSignal),
-    const SettingsPage(),
-  ];
-
-  @override
-  void dispose() {
-    _ordersRefreshSignal.dispose();
-    super.dispose();
-  }
+  const AppShell({
+    super.key,
+    required this.navigationShell,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _pages),
+      body: navigationShell,
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
+        currentIndex: navigationShell.currentIndex,
         onTap: (index) {
           if (index == 2) {
-            _ordersRefreshSignal.value++;
+            AppRouter.ordersRefreshSignal.value++;
           }
-          setState(() => _currentIndex = index);
+          navigationShell.goBranch(
+            index,
+            initialLocation: index == navigationShell.currentIndex,
+          );
         },
         type: BottomNavigationBarType.fixed,
         items: [

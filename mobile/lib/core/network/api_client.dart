@@ -1,7 +1,11 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
+import '../auth/auth_service.dart';
+import '../auth/bloc/auth_bloc.dart';
+import '../auth/bloc/auth_event.dart';
 import '../config/app_config.dart';
+import '../di/injection.dart';
 
 /// Configured Dio HTTP client with interceptors for auth, context, and logging.
 class ApiClient {
@@ -12,7 +16,6 @@ class ApiClient {
   String _countryCode;
   String _language;
   String? _authToken;
-  String? _userId;
 
   ApiClient({required this.config})
     : _countryCode = config.defaultCountryCode,
@@ -34,7 +37,7 @@ class ApiClient {
     dio.interceptors.addAll([
       _authInterceptor(),
       _contextInterceptor(),
-      if (kDebugMode) _loggingInterceptor(),
+      if (config.enableLogging) _loggingInterceptor(),
     ]);
   }
 
@@ -43,7 +46,7 @@ class ApiClient {
   void setCountryCode(String code) => _countryCode = code;
   void setLanguage(String lang) => _language = _normalizeLanguage(lang);
   void setAuthToken(String? token) => _authToken = token;
-  void setUserId(String? userId) => _userId = userId;
+  void setUserId(String? userId) {}
 
   static String _normalizeLanguage(String lang) {
     if (lang == 'ms') return 'ms-MY';
@@ -54,7 +57,8 @@ class ApiClient {
 
   // ── Interceptors ───────────────────────────────────────────────────────────
 
-  /// Injects Firebase JWT (or mock) token into the Authorization header.
+  /// Injects the Firebase ID token into the Authorization header,
+  /// handles auto-refresh on 401s, and handles session timeout.
   Interceptor _authInterceptor() {
     return InterceptorsWrapper(
       onRequest: (options, handler) {
@@ -62,6 +66,65 @@ class ApiClient {
           options.headers['Authorization'] = 'Bearer $_authToken';
         }
         handler.next(options);
+      },
+      onError: (DioException error, handler) async {
+        final response = error.response;
+        if (response != null && response.statusCode == 401) {
+          final responseData = response.data;
+          final isInvalidTokenError =
+              responseData is Map &&
+              (responseData['error'] == 'invalid bearer token' ||
+                  responseData['message'] == 'invalid bearer token');
+
+          if (isInvalidTokenError) {
+            debugPrint(
+              '[API] Captured 401 invalid bearer token error. Attempting auto token refresh...',
+            );
+
+            try {
+              final authService = sl<AuthService>();
+              // Try to refresh token
+              final newToken = await authService.getIdToken(forceRefresh: true);
+              if (newToken != null) {
+                // Update client token
+                setAuthToken(newToken);
+
+                // Clone request options and update headers
+                final options = error.requestOptions;
+                options.headers['Authorization'] = 'Bearer $newToken';
+
+                // Retry request
+                final cloneReq = await dio.request(
+                  options.path,
+                  options: Options(
+                    method: options.method,
+                    headers: options.headers,
+                    responseType: options.responseType,
+                    contentType: options.contentType,
+                  ),
+                  data: options.data,
+                  queryParameters: options.queryParameters,
+                );
+                return handler.resolve(cloneReq);
+              }
+            } catch (refreshError) {
+              debugPrint('[API] Automatic token refresh failed: $refreshError');
+            }
+
+            // Session Timeout!
+            // 1. Sign out on the service
+            try {
+              await sl<AuthService>().signOut();
+            } catch (_) {}
+
+            // 2. Clear token in client
+            setAuthToken(null);
+
+            // 3. Emit Session Expired state to AuthBloc so that it handles logging out and triggering UI
+            sl<AuthBloc>().add(const AuthSessionExpired());
+          }
+        }
+        handler.next(error);
       },
     );
   }
@@ -71,9 +134,6 @@ class ApiClient {
     return InterceptorsWrapper(
       onRequest: (options, handler) {
         options.headers['X-Country-Code'] = _countryCode;
-        if (_userId != null && _userId!.isNotEmpty) {
-          options.headers['X-User-Id'] = _userId;
-        }
         options.headers['X-Language'] = _language;
         options.headers['Accept-Language'] = _language;
         handler.next(options);

@@ -7,7 +7,7 @@ import '../../../core/di/injection.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
 import '../data/models/order_status_model.dart';
-import '../data/repositories/cart_repository.dart';
+import '../domain/repositories/cart_repository.dart';
 
 class OrderStatusPage extends StatefulWidget {
   final String trackingId;
@@ -20,7 +20,7 @@ class OrderStatusPage extends StatefulWidget {
 
 class _OrderStatusPageState extends State<OrderStatusPage>
     with SingleTickerProviderStateMixin {
-  final CartRepository _repository = sl<CartRepository>();
+  final ICartRepository _repository = sl<ICartRepository>();
   late Future<OrderStatusModel> _statusFuture;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;

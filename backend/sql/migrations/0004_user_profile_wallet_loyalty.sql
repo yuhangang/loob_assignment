@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS loyalty_accounts (
     country_id VARCHAR(2) NOT NULL,
     points INT NOT NULL DEFAULT 0,
     lifetime_points INT NOT NULL DEFAULT 0,
-    tier VARCHAR(32) NOT NULL DEFAULT 'MEMBER',
+    tier ENUM('MEMBER', 'SILVER', 'GOLD') NOT NULL DEFAULT 'MEMBER',
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, country_id),
     CONSTRAINT fk_loyalty_accounts_user FOREIGN KEY (user_id) REFERENCES users(id),

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import 'core/di/injection.dart';
+import 'core/auth/bloc/auth_bloc.dart';
+import 'core/auth/bloc/auth_state.dart';
+import 'core/auth/widgets/session_timeout_dialog.dart';
 import 'core/config/app_config.dart';
+import 'core/di/injection.dart';
 import 'core/localization/app_localizations.dart';
 import 'core/localization/language_cubit.dart';
 import 'core/router/app_router.dart';
@@ -18,7 +22,6 @@ import 'features/cart/presentation/bloc/cart_state.dart';
 import 'features/cart/presentation/widgets/cart_floating_bar.dart';
 import 'features/settings/presentation/user_profile_cubit.dart';
 import 'features/vouchers/presentation/voucher_wallet_page.dart';
-import 'shell.dart';
 
 /// Injects the [CartFloatingBar] directly into the Navigator's [Overlay] so it
 /// always renders above modal bottom sheets and dialogs.
@@ -102,58 +105,97 @@ class LoobApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final config = sl<AppConfig>();
+    final initialCountry =
+        sl<SharedPreferences>().getString('user_preferred_country') ??
+        config.defaultCountryCode;
 
     return MultiBlocProvider(
       providers: [
         BlocProvider(create: (_) => ThemeCubit()),
         BlocProvider(create: (_) => sl<LanguageCubit>()),
+        BlocProvider(create: (_) => sl<AuthBloc>()),
         BlocProvider(
-          create: (_) => CartBloc(
-            remoteDataSource: CartRemoteDataSource(client: sl()),
-            userId: 'mock_user_001',
-            countryCode: config.defaultCountryCode,
-          )
-            ..add(const CartLoadRequested()) // Hydrate from server on startup
-            ..add(const CartAvailabilityPollStarted()), // Start periodic polling
+          create: (_) =>
+              CartBloc(
+                  remoteDataSource: CartRemoteDataSource(client: sl()),
+                  countryCode: initialCountry,
+                )
+                ..add(
+                  const CartLoadRequested(),
+                ) // Hydrate from server on startup
+                ..add(
+                  const CartAvailabilityPollStarted(),
+                ), // Start periodic polling
         ),
         BlocProvider(create: (_) => sl<UserProfileCubit>()..loadProfile()),
         BlocProvider(create: (_) => VoucherCubit()..loadWallet()),
       ],
-      child: BlocBuilder<LanguageCubit, Locale>(
-        builder: (context, locale) {
-          return BlocBuilder<ThemeCubit, LoobBrand>(
-            builder: (context, brand) {
-              return AnimatedTheme(
-                data: AppTheme.fromBrand(brand),
-                duration: const Duration(milliseconds: 350),
-                curve: Curves.easeInOut,
-                child: MaterialApp(
-                  title: 'Loob',
-                  debugShowCheckedModeBanner: false,
-                  theme: AppTheme.fromBrand(brand),
-                  locale: locale,
-                  supportedLocales: const [
-                    Locale('en'),
-                    Locale('ms'),
-                  ],
-                  localizationsDelegates: const [
-                    AppLocalizations.delegate,
-                    GlobalMaterialLocalizations.delegate,
-                    GlobalWidgetsLocalizations.delegate,
-                    GlobalCupertinoLocalizations.delegate,
-                  ],
-                  navigatorKey: AppRouter.navigatorKey,
-                  navigatorObservers: [AppRouter.routeObserver],
-                  home: _CartOverlayManager(child: const AppShell()),
-                  onGenerateRoute: AppRouter.onGenerateRoute,
-                  // The CartFloatingBar is injected into the Navigator overlay
-                  // (via _CartOverlayManager) so it renders above bottom sheets.
-                  builder: (context, child) => child!,
-                ),
-              );
+      child: MultiBlocListener(
+        listeners: [
+          BlocListener<AuthBloc, AuthState>(
+            listener: (context, state) {
+              if (state is Unauthenticated) {
+                context.read<UserProfileCubit>().reset();
+                context.read<CartBloc>().add(const CartCleared());
+                if (state.sessionExpired) {
+                  showSessionTimeoutDialog(context);
+                }
+              } else if (state is Authenticated) {
+                context.read<UserProfileCubit>().loadProfile();
+                context.read<CartBloc>().add(const CartLoadRequested());
+              }
             },
-          );
-        },
+          ),
+          BlocListener<UserProfileCubit, UserProfileState>(
+            listener: (context, state) {
+              if (state is UserProfileLoaded) {
+                final profileCountry = state.profile.registeredCountryId;
+                final cartBloc = context.read<CartBloc>();
+                if (profileCountry.isNotEmpty &&
+                    profileCountry != cartBloc.state.countryCode) {
+                  final currency = profileCountry == 'TH' ? 'THB' : 'MYR';
+                  cartBloc.add(
+                    CartSwitchCountry(
+                      countryCode: profileCountry,
+                      currency: currency,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ],
+        child: BlocBuilder<LanguageCubit, Locale>(
+          builder: (context, locale) {
+            return BlocBuilder<ThemeCubit, LoobBrand>(
+              builder: (context, brand) {
+                return AnimatedTheme(
+                  data: AppTheme.fromBrand(brand),
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOut,
+                  child: MaterialApp.router(
+                    title: 'Loob',
+                    debugShowCheckedModeBanner: false,
+                    theme: AppTheme.fromBrand(brand),
+                    locale: locale,
+                    supportedLocales: const [Locale('en'), Locale('ms')],
+                    localizationsDelegates: const [
+                      AppLocalizations.delegate,
+                      GlobalMaterialLocalizations.delegate,
+                      GlobalWidgetsLocalizations.delegate,
+                      GlobalCupertinoLocalizations.delegate,
+                    ],
+                    routerConfig: AppRouter.router,
+                    // The CartFloatingBar is injected into the Navigator overlay
+                    // (via _CartOverlayManager) so it renders above bottom sheets.
+                    builder: (context, child) =>
+                        _CartOverlayManager(child: child!),
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

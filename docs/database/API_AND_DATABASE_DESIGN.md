@@ -65,6 +65,18 @@ The Go API intercepts these headers via a global middleware.
 *Why this is efficient:*
 *   **Tech Product (App):** The Flutter developers write zero logic for language fallback or currency math. They just bind `json['name']` to the Text widget. This drastically reduces mobile app bugs and QA testing time.
 
+### C. Voucher Discount Contract
+The checkout API accepts one `voucher_code` per order. Stacking is intentionally disabled.
+
+This keeps the assignment implementation defensible because percentage discounts, fixed-amount discounts, shipping vouchers, brand vouchers, promo items, and payment-method promotions otherwise need a policy engine that defines priority, mutual exclusion, liability owner, rounding, and max cap interactions. For this scope, a single best user-selected voucher gives clear customer behavior and predictable finance reporting.
+
+Voucher eligibility is still production-shaped:
+
+* Country availability is enforced by `vouchers.country_id`.
+* Expiry is enforced with `starts_at`, `expires_at`, and `voided_at`.
+* Minimum spend, max cap, max redemptions, max per-user redemptions, promo-item allowance, store/category/item scope, and payment-method scope are evaluated during checkout.
+* Redemption is finalized only after captured payment, when `user_vouchers.status` moves to `USED`.
+
 ---
 
 ## 3. Cloud Operations: The Multi-Dimensional Cache

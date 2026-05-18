@@ -15,6 +15,7 @@ type RequestContext struct {
 	TraceID     string
 	CountryCode string
 	Language    string
+	UserID      string
 }
 
 func Middleware() echo.MiddlewareFunc {
@@ -55,6 +56,22 @@ func FromEcho(c echo.Context) RequestContext {
 		}
 	}
 	return rc
+}
+
+func WithUser(c echo.Context, userID string) {
+	rc := FromEcho(c)
+	rc.UserID = strings.TrimSpace(userID)
+	c.Set(requestContextKey, rc)
+}
+
+func RequireUser(c echo.Context) (string, error) {
+	userID := strings.TrimSpace(FromEcho(c).UserID)
+	if userID == "" {
+		return "", echo.NewHTTPError(http.StatusUnauthorized, map[string]string{
+			"error": "authentication required",
+		})
+	}
+	return userID, nil
 }
 
 func RequireCountryHeader(c echo.Context) error {

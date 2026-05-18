@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/auth_guard.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/di/injection.dart';
 import '../../../core/localization/app_localizations.dart';
@@ -13,6 +15,7 @@ import '../../../core/theme/tokens/spacing.dart';
 import '../../cart/presentation/bloc/cart_bloc.dart';
 import '../../cart/presentation/bloc/cart_event.dart';
 import '../../cart/presentation/bloc/cart_state.dart';
+import '../../cart/presentation/bloc/cart_item.dart';
 import '../data/models/catalog_model.dart';
 import '../data/models/store_model.dart';
 import 'menu_bloc.dart';
@@ -29,13 +32,14 @@ class MenuPage extends StatefulWidget {
 
 class _MenuPageState extends State<MenuPage> {
   late final MenuBloc _menuBloc;
-  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _listViewKey = GlobalKey();
   final Map<int, GlobalKey> _categoryKeys = {};
 
   int? _selectedStoreId;
   int? _selectedCategoryId;
   int? _pendingStoreChangeWarningStoreId;
   bool _isPickup = true;
+  bool _isProgrammaticScroll = false;
 
   // Set to track user favourites dynamically in memory
   final Set<int> _favouritedIds = {};
@@ -53,10 +57,11 @@ class _MenuPageState extends State<MenuPage> {
     final brandId = brand.brandId ?? LoobBrand.tealive.brandId!;
     final lang = context.read<LanguageCubit>().state.languageCode;
     final resolvedStoreId = storeId ?? _selectedStoreId;
+    final country = context.read<CartBloc>().state.countryCode;
 
     _menuBloc.add(
       LoadMenu(
-        countryCode: 'MY',
+        countryCode: country,
         language: lang,
         storeId: resolvedStoreId,
         brandId: brandId,
@@ -66,9 +71,83 @@ class _MenuPageState extends State<MenuPage> {
 
   @override
   void dispose() {
-    _scrollController.dispose();
     _menuBloc.close();
     super.dispose();
+  }
+
+  bool _onScrollNotification(ScrollNotification notification) {
+    if (_isProgrammaticScroll) return false;
+
+    final context = this.context;
+    if (!context.mounted) return false;
+
+    final state = _menuBloc.state;
+    if (state is! MenuLoaded) return false;
+    final enhancedCategories = _buildEnhancedCategories(state.catalog);
+
+    final listViewBox = _listViewKey.currentContext?.findRenderObject() as RenderBox?;
+    final double viewportTop = listViewBox != null
+        ? listViewBox.localToGlobal(Offset.zero).dy
+        : 180.0;
+
+    int? activeId;
+
+    final pixels = notification.metrics.pixels;
+    final maxScrollExtent = notification.metrics.maxScrollExtent;
+
+    if (pixels >= maxScrollExtent - 40) {
+      activeId = enhancedCategories.lastOrNull?.id;
+    } else {
+      for (final category in enhancedCategories) {
+        final key = _categoryKeys[category.id];
+        if (key == null) continue;
+        final currentCtx = key.currentContext;
+        if (currentCtx == null) continue;
+
+        final renderBox = currentCtx.findRenderObject() as RenderBox?;
+        if (renderBox == null || !renderBox.hasSize) continue;
+
+        final position = renderBox.localToGlobal(Offset.zero);
+        final relativeY = position.dy - viewportTop;
+
+        if (relativeY <= 50.0) {
+          activeId = category.id;
+        }
+      }
+    }
+
+    if (activeId != null && activeId != _selectedCategoryId) {
+      setState(() {
+        _selectedCategoryId = activeId;
+      });
+    }
+
+    return false;
+  }
+
+  void _onCategoryTabTap(int categoryId) {
+    if (_selectedCategoryId == categoryId) return;
+
+    setState(() {
+      _selectedCategoryId = categoryId;
+    });
+
+    final key = _categoryKeys[categoryId];
+    final context = key?.currentContext;
+    if (context == null) return;
+
+    _isProgrammaticScroll = true;
+
+    Scrollable.ensureVisible(
+      context,
+      alignment: 0.0,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+    ).then((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _isProgrammaticScroll = false;
+      });
+    });
   }
 
   // Prepend dynamic Favourites Category to the Catalog
@@ -123,6 +202,15 @@ class _MenuPageState extends State<MenuPage> {
         ),
         BlocListener<LanguageCubit, Locale>(
           listener: (context, locale) => _loadMenu(),
+        ),
+        BlocListener<CartBloc, CartState>(
+          listenWhen: (previous, current) =>
+              previous.countryCode != current.countryCode,
+          listener: (context, cartState) {
+            _selectedStoreId = null;
+            _selectedCategoryId = null;
+            _loadMenu(storeId: null);
+          },
         ),
         BlocListener<MenuBloc, MenuState>(
           bloc: _menuBloc,
@@ -188,185 +276,165 @@ class _MenuPageState extends State<MenuPage> {
                 _categoryKeys.putIfAbsent(category.id, GlobalKey.new);
               }
 
-              // Selected Category
-              final activeCategory = enhancedCategories.firstWhere(
-                (c) => c.id == _selectedCategoryId,
-                orElse: () => enhancedCategories.first,
-              );
-
-              return Column(
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Full-width Header with fulfillment tabs and outlet bar
-                  _MenuHeader(
-                    brandName: catalog.brand,
-                    isPickup: _isPickup,
-                    selectedStore: state.selectedStore,
-                    primaryColor: primaryColor,
-                    onFulfillmentChanged: (isPickup) {
-                      setState(() => _isPickup = isPickup);
-                    },
-                    onChangeOutlet: () => _showStoreSelector(
-                      stores: state.stores,
-                      selectedStoreId: state.selectedStore.id,
+                  // Left Sidebar Navigation (Width 85) - Completely static & fixed!
+                  Container(
+                    width: 85,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      border: Border(
+                        right: BorderSide(
+                          color: Color(0xFFF3E7DC),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    child: ListView.builder(
+                      itemCount: enhancedCategories.length,
+                      itemBuilder: (context, index) {
+                        final category = enhancedCategories[index];
+                        final isSelected =
+                            category.id == _selectedCategoryId;
+
+                        return _SidebarCategoryTab(
+                          category: category,
+                          isSelected: isSelected,
+                          primaryColor: primaryColor,
+                          favouritedCount: _favouritedIds.length,
+                          onTap: () => _onCategoryTabTap(category.id),
+                        );
+                      },
                     ),
                   ),
 
-                  const Divider(height: 1, color: Color(0xFFF3E7DC)),
-
-                  // Main Split Section (Left Sidebar / Right Product Area)
+                  // Right side collapsible header and products
                   Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Left Sidebar Navigation (Width 85)
-                        Container(
-                          width: 85,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            border: Border(
-                              right: BorderSide(
-                                color: Color(0xFFF3E7DC),
-                                width: 1,
+                    child: NestedScrollView(
+                      headerSliverBuilder: (context, innerBoxIsScrolled) {
+                        return [
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _MenuHeaderDelegate(
+                              brandName: catalog.brand,
+                              isPickup: _isPickup,
+                              selectedStore: state.selectedStore,
+                              primaryColor: primaryColor,
+                              onFulfillmentChanged: (isPickup) {
+                                setState(() => _isPickup = isPickup);
+                              },
+                              onChangeOutlet: () => _showStoreSelector(
+                                stores: state.stores,
+                                selectedStoreId: state.selectedStore.id,
                               ),
                             ),
                           ),
-                          child: ListView.builder(
-                            itemCount: enhancedCategories.length,
-                            itemBuilder: (context, index) {
-                              final category = enhancedCategories[index];
-                              final isSelected =
-                                  category.id == _selectedCategoryId;
-
-                              return _SidebarCategoryTab(
-                                category: category,
-                                isSelected: isSelected,
-                                primaryColor: primaryColor,
-                                favouritedCount: _favouritedIds.length,
-                                onTap: () {
-                                  setState(() {
-                                    _selectedCategoryId = category.id;
-                                  });
-                                  // Wait for frame to rebuild to active category layout
-                                  WidgetsBinding.instance.addPostFrameCallback((
-                                    _,
-                                  ) {
-                                    if (_scrollController.hasClients) {
-                                      _scrollController.jumpTo(0);
-                                    }
-                                  });
-                                },
-                              );
-                            },
-                          ),
-                        ),
-
-                        // Right Product Content Grid
-                        Expanded(
-                          child: Container(
-                            color: const Color(
-                              0xFFFAF9F6,
-                            ), // Cozy light-beige background matching screenshots
-                            child:
-                                activeCategory.id == -99 &&
-                                    activeCategory.products.isEmpty
-                                ? _buildFavouritesEmptyState(primaryColor)
-                                : ListView(
-                                    controller: _scrollController,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: AppSpacing.md,
-                                      vertical: AppSpacing.lg,
-                                    ),
-                                    children: [
-                                      // Category Title Header
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              activeCategory.name,
-                                              style: theme
-                                                  .textTheme
-                                                  .headlineSmall
-                                                  ?.copyWith(
-                                                    color: primaryColor,
-                                                    fontWeight: FontWeight.w900,
-                                                    fontSize: 22,
-                                                  ),
-                                            ),
-                                          ),
-                                          if (activeCategory.id == -99)
-                                            Text(
-                                              '${_favouritedIds.length} / 6',
-                                              style: TextStyle(
-                                                color: primaryColor.withValues(
-                                                  alpha: 0.6,
-                                                ),
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 14,
+                        ];
+                      },
+                      body: Container(
+                        color: const Color(0xFFFAF9F6),
+                        child: NotificationListener<ScrollNotification>(
+                          onNotification: (notification) {
+                            if (notification.depth == 0) {
+                              _onScrollNotification(notification);
+                            }
+                            return false;
+                          },
+                          child: SingleChildScrollView(
+                            key: _listViewKey,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.md,
+                              vertical: AppSpacing.lg,
+                            ),
+                            child: Column(
+                              children: [
+                                for (final category in enhancedCategories) ...[
+                                  Container(
+                                    key: _categoryKeys[category.id],
+                                    padding: const EdgeInsets.only(top: AppSpacing.md),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Category Title Header
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                category.name,
+                                                style: theme
+                                                    .textTheme
+                                                    .headlineSmall
+                                                    ?.copyWith(
+                                                      color: primaryColor,
+                                                      fontWeight: FontWeight.w900,
+                                                      fontSize: 22,
+                                                    ),
                                               ),
                                             ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: AppSpacing.md),
-
-                                      // Product Grid (2 columns)
-                                      GridView.builder(
-                                        shrinkWrap: true,
-                                        physics:
-                                            const NeverScrollableScrollPhysics(),
-                                        gridDelegate:
-                                            const SliverGridDelegateWithFixedCrossAxisCount(
-                                              crossAxisCount: 2,
-                                              childAspectRatio: 0.65,
-                                              crossAxisSpacing: AppSpacing.md,
-                                              mainAxisSpacing: AppSpacing.md,
-                                            ),
-                                        itemCount:
-                                            activeCategory.products.length,
-                                        itemBuilder: (context, index) {
-                                          final product =
-                                              activeCategory.products[index];
-                                          final isFavourited = _favouritedIds
-                                              .contains(product.id);
-
-                                          return ProductCard(
-                                            product: product,
-                                            currency: catalog.currency,
-                                            isFavourited: isFavourited,
-                                            onFavouriteToggled: () {
-                                              setState(() {
-                                                if (isFavourited) {
-                                                  _favouritedIds.remove(
-                                                    product.id,
-                                                  );
-                                                } else {
-                                                  _favouritedIds.add(
-                                                    product.id,
-                                                  );
-                                                }
-                                              });
-                                            },
-                                            onTap: () => _showCustomization(
-                                              product,
-                                              catalog.currency,
-                                            ),
-                                            onCartPressed: () =>
-                                                _handleCartShortcut(
-                                                  product,
-                                                  catalog.currency,
+                                            if (category.id == -99)
+                                              Text(
+                                                '${_favouritedIds.length} / 6',
+                                                style: TextStyle(
+                                                  color: primaryColor.withValues(
+                                                    alpha: 0.6,
+                                                  ),
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 14,
                                                 ),
-                                          );
-                                        },
-                                      ),
-                                      const SizedBox(
-                                        height: 80,
-                                      ), // Padding for the floating cart
-                                    ],
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: AppSpacing.md),
+
+                                        // Product Grid (2 columns) or empty state for Favourites
+                                        category.id == -99 && category.products.isEmpty
+                                            ? _buildFavouritesEmptyState(primaryColor)
+                                            : GridView.builder(
+                                                shrinkWrap: true,
+                                                physics: const NeverScrollableScrollPhysics(),
+                                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                                  crossAxisCount: 2,
+                                                  childAspectRatio: 0.65,
+                                                  crossAxisSpacing: AppSpacing.md,
+                                                  mainAxisSpacing: AppSpacing.md,
+                                                ),
+                                                itemCount: category.products.length,
+                                                itemBuilder: (context, index) {
+                                                  final product = category.products[index];
+                                                  final isFavourited = _favouritedIds.contains(product.id);
+
+                                                  return ProductCard(
+                                                    product: product,
+                                                    currency: catalog.currency,
+                                                    isFavourited: isFavourited,
+                                                    onFavouriteToggled: () {
+                                                      setState(() {
+                                                        if (isFavourited) {
+                                                          _favouritedIds.remove(product.id);
+                                                        } else {
+                                                          _favouritedIds.add(product.id);
+                                                        }
+                                                      });
+                                                    },
+                                                    onTap: () => _showCustomization(product, catalog.currency),
+                                                    onCartPressed: () => _handleCartShortcut(product, catalog.currency),
+                                                  );
+                                                },
+                                              ),
+                                        const SizedBox(height: AppSpacing.xl),
+                                      ],
+                                    ),
                                   ),
+                                ],
+                                const SizedBox(height: 120), // Padding for the floating cart
+                              ],
+                            ),
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
@@ -492,7 +560,7 @@ class _MenuPageState extends State<MenuPage> {
           FilledButton(
             onPressed: () {
               Navigator.pop(dialogContext);
-              Navigator.pushNamed(context, AppRouter.cart);
+              context.push(AppRouter.cart);
             },
             child: Text(context.l10n.myCart),
           ),
@@ -502,10 +570,9 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   Future<void> _showCustomization(ProductModel product, String currency) async {
-    final result = await Navigator.pushNamed(
-      context,
+    final result = await context.push(
       AppRouter.productDetail,
-      arguments: {'product': product, 'currency': currency},
+      extra: {'product': product, 'currency': currency},
     );
 
     if (result != null && result is Map<String, dynamic> && mounted) {
@@ -527,21 +594,40 @@ class _MenuPageState extends State<MenuPage> {
           .where((o) => allOptionIds.contains(o.id))
           .toList();
 
-      context.read<CartBloc>().add(
-        CartItemAdded(
+      final action = result['action'] as String? ?? 'add';
+
+      if (action == 'buy_now') {
+        final buyNowItem = CartItem(
           product: product,
           selectedOptions: selectedOptions,
           customizationOptionIds: allOptionIds,
-          quantity: quantity,
-        ),
-      );
+          quantity: 1,
+        );
+        AuthGuard.run(context, () {
+          context.push(
+            AppRouter.checkout,
+            extra: {'buyNowItem': buyNowItem},
+          );
+        });
+      } else {
+        AuthGuard.run(context, () {
+          context.read<CartBloc>().add(
+            CartItemAdded(
+              product: product,
+              selectedOptions: selectedOptions,
+              customizationOptionIds: allOptionIds,
+              quantity: quantity,
+            ),
+          );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.addedToCartToast(quantity, product.name)),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.l10n.addedToCartToast(quantity, product.name)),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        });
+      }
     }
   }
 
@@ -551,22 +637,24 @@ class _MenuPageState extends State<MenuPage> {
       return;
     }
 
-    context.read<CartBloc>().add(
-      CartItemAdded(
-        product: product,
-        selectedOptions: const [],
-        customizationOptionIds: const [],
-        quantity: 1,
-      ),
-    );
+    AuthGuard.run(context, () {
+      context.read<CartBloc>().add(
+        CartItemAdded(
+          product: product,
+          selectedOptions: const [],
+          customizationOptionIds: const [],
+          quantity: 1,
+        ),
+      );
 
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(context.l10n.addedToCartToast(1, product.name)),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.addedToCartToast(1, product.name)),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    });
   }
 }
 
@@ -668,9 +756,12 @@ class _SidebarCategoryTab extends StatelessWidget {
           color: isSelected
               ? const Color(0xFFFEF7EE)
               : Colors.transparent, // Highlight color
-          border: isSelected
-              ? Border(left: BorderSide(color: primaryColor, width: 4))
-              : null,
+          border: Border(
+            left: BorderSide(
+              color: isSelected ? primaryColor : Colors.transparent,
+              width: 4,
+            ),
+          ),
         ),
         child: Column(
           children: [
@@ -959,6 +1050,188 @@ class _MenuHeader extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
                 borderSide: BorderSide(color: primaryColor, width: 1.5),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Custom delegate for collapsible premium sticky Menu Header
+class _MenuHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _MenuHeaderDelegate({
+    required this.brandName,
+    required this.isPickup,
+    required this.selectedStore,
+    required this.primaryColor,
+    required this.onFulfillmentChanged,
+    required this.onChangeOutlet,
+  });
+
+  final String brandName;
+  final bool isPickup;
+  final StoreModel selectedStore;
+  final Color primaryColor;
+  final ValueChanged<bool> onFulfillmentChanged;
+  final VoidCallback onChangeOutlet;
+
+  @override
+  double get minExtent => 82.0;
+
+  @override
+  double get maxExtent => 195.0;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final limit = maxExtent - minExtent;
+    final percent = limit > 0 ? (shrinkOffset / limit).clamp(0.0, 1.0) : 0.0;
+
+    return Container(
+      color: Colors.white,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Expanded Header Content
+          Opacity(
+            opacity: (1.0 - percent * 1.5).clamp(0.0, 1.0),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: _MenuHeader(
+                  brandName: brandName,
+                  isPickup: isPickup,
+                  selectedStore: selectedStore,
+                  primaryColor: primaryColor,
+                  onFulfillmentChanged: onFulfillmentChanged,
+                  onChangeOutlet: onChangeOutlet,
+                ),
+              ),
+            ),
+          ),
+
+          // Collapsed Sticky Header Content
+          Opacity(
+            opacity: (percent - 0.4).clamp(0.0, 1.0) * (1.0 / 0.6),
+            child: Align(
+              alignment: Alignment.center,
+              child: _CollapsedMenuHeader(
+                selectedStore: selectedStore,
+                primaryColor: primaryColor,
+                onChangeOutlet: onChangeOutlet,
+              ),
+            ),
+          ),
+
+          // Top/Bottom border/divider
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Divider(height: 1, color: Color(0xFFF3E7DC)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _MenuHeaderDelegate oldDelegate) {
+    return oldDelegate.brandName != brandName ||
+        oldDelegate.isPickup != isPickup ||
+        oldDelegate.selectedStore != selectedStore ||
+        oldDelegate.primaryColor != primaryColor;
+  }
+}
+
+/// Compact collapsed header for sticky behavior when scrolling products
+class _CollapsedMenuHeader extends StatelessWidget {
+  const _CollapsedMenuHeader({
+    required this.selectedStore,
+    required this.primaryColor,
+    required this.onChangeOutlet,
+  });
+
+  final StoreModel selectedStore;
+  final Color primaryColor;
+  final VoidCallback onChangeOutlet;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.pageHorizontal,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.storefront_rounded, color: primaryColor, size: 24),
+          const SizedBox(width: 8),
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+              onTap: onChangeOutlet,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          selectedStore.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.edit_outlined, color: primaryColor, size: 14),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.access_time_rounded,
+                        color: primaryColor,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                      const Text(
+                        'ASAP',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () {
+              // Action for search if needed
+            },
+            icon: Icon(Icons.search_rounded, color: primaryColor, size: 24),
+            style: IconButton.styleFrom(
+              backgroundColor: primaryColor.withValues(alpha: 0.1),
+              shape: const CircleBorder(),
             ),
           ),
         ],

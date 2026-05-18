@@ -1,0 +1,8 @@
+{
+  "APP_ENV": "devMY",
+  "BASE_URL": "http://localhost:8080",
+  "DEFAULT_COUNTRY_CODE": "MY",
+  "DEFAULT_LANGUAGE": "en",
+  "APP_NAME": "Loob Dev",
+  "ENABLE_LOGGING": true
+}

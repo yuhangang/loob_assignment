@@ -1,16 +1,11 @@
+import 'package:flutter/foundation.dart';
+
 /// App deployment flavor.
 ///
 /// Encodes both region (MY / TH) and environment tier (dev / staging / prod)
 /// so every part of the app — API base URL, country code, language — is
 /// derived from a single, explicit value passed at launch.
-enum AppEnv {
-  devMY,
-  devTH,
-  stagingMY,
-  stagingTH,
-  prodMY,
-  prodTH,
-}
+enum AppEnv { dev, staging }
 
 /// Application environment configuration.
 ///
@@ -23,6 +18,7 @@ class AppConfig {
   final String defaultCountryCode;
   final String defaultLanguage;
   final String appName;
+  final bool enableLogging;
 
   const AppConfig({
     required this.env,
@@ -30,52 +26,28 @@ class AppConfig {
     this.defaultCountryCode = 'MY',
     this.defaultLanguage = 'en',
     this.appName = 'Loob',
+    this.enableLogging = kDebugMode,
   });
 
   /// Constructs the correct [AppConfig] for the given [AppEnv] flavor.
-  factory AppConfig.fromEnv(AppEnv env) {
+  factory AppConfig.fromEnv(AppEnv env, {bool? enableLogging}) {
     switch (env) {
-      case AppEnv.devMY:
-        return const AppConfig(
-          env: AppEnv.devMY,
+      case AppEnv.dev:
+        return AppConfig(
+          env: AppEnv.dev,
           baseUrl: 'http://localhost:8080',
           defaultCountryCode: 'MY',
           defaultLanguage: 'en',
+          enableLogging: enableLogging ?? kDebugMode,
         );
-      case AppEnv.devTH:
-        return const AppConfig(
-          env: AppEnv.devTH,
-          baseUrl: 'http://localhost:8080',
-          defaultCountryCode: 'TH',
-          defaultLanguage: 'th',
-        );
-      case AppEnv.stagingMY:
-        return const AppConfig(
-          env: AppEnv.stagingMY,
+
+      case AppEnv.staging:
+        return AppConfig(
+          env: AppEnv.staging,
           baseUrl: 'https://staging-api.loob.com',
           defaultCountryCode: 'MY',
           defaultLanguage: 'en',
-        );
-      case AppEnv.stagingTH:
-        return const AppConfig(
-          env: AppEnv.stagingTH,
-          baseUrl: 'https://staging-api.loob.com',
-          defaultCountryCode: 'TH',
-          defaultLanguage: 'th',
-        );
-      case AppEnv.prodMY:
-        return const AppConfig(
-          env: AppEnv.prodMY,
-          baseUrl: 'https://api.loob.com',
-          defaultCountryCode: 'MY',
-          defaultLanguage: 'en',
-        );
-      case AppEnv.prodTH:
-        return const AppConfig(
-          env: AppEnv.prodTH,
-          baseUrl: 'https://api.loob.com',
-          defaultCountryCode: 'TH',
-          defaultLanguage: 'th',
+          enableLogging: enableLogging ?? kDebugMode,
         );
     }
   }
@@ -83,11 +55,57 @@ class AppConfig {
   // ── Convenience factories (kept for tests / legacy callers) ────────────────
 
   /// Local development — Malaysia region (default).
-  factory AppConfig.dev() => AppConfig.fromEnv(AppEnv.devMY);
+  factory AppConfig.dev({bool? enableLogging}) =>
+      AppConfig.fromEnv(AppEnv.dev, enableLogging: enableLogging);
 
   /// Staging — Malaysia region.
-  factory AppConfig.staging() => AppConfig.fromEnv(AppEnv.stagingMY);
+  factory AppConfig.staging({bool? enableLogging}) =>
+      AppConfig.fromEnv(AppEnv.staging, enableLogging: enableLogging);
 
-  /// Production — Malaysia region.
-  factory AppConfig.production() => AppConfig.fromEnv(AppEnv.prodMY);
+  /// Constructs [AppConfig] using Dart environment defines (`--dart-define` / `--dart-define-from-file`).
+  ///
+  /// Falls back to the default MY development configuration if no env variables are specified.
+  factory AppConfig.fromEnvironment() {
+    const envStr = String.fromEnvironment('APP_ENV');
+    const baseUrlDefine = String.fromEnvironment('BASE_URL');
+
+    if (envStr.isEmpty && baseUrlDefine.isEmpty) {
+      // Fallback to default MY dev flavor if neither APP_ENV nor BASE_URL are defined.
+      return AppConfig.fromEnv(AppEnv.dev);
+    }
+
+    final env = _parseEnv(envStr);
+
+    // Read individual values with fallbacks to the flavor-specific defaults
+    final flavorDefault = AppConfig.fromEnv(env);
+
+    const countryDefine = String.fromEnvironment('DEFAULT_COUNTRY_CODE');
+    const languageDefine = String.fromEnvironment('DEFAULT_LANGUAGE');
+    const appNameDefine = String.fromEnvironment('APP_NAME');
+
+    const hasLogging = bool.hasEnvironment('ENABLE_LOGGING');
+    const loggingVal = bool.fromEnvironment('ENABLE_LOGGING');
+
+    return AppConfig(
+      env: env,
+      baseUrl: baseUrlDefine.isNotEmpty ? baseUrlDefine : flavorDefault.baseUrl,
+      defaultCountryCode: countryDefine.isNotEmpty
+          ? countryDefine
+          : flavorDefault.defaultCountryCode,
+      defaultLanguage: languageDefine.isNotEmpty
+          ? languageDefine
+          : flavorDefault.defaultLanguage,
+      appName: appNameDefine.isNotEmpty ? appNameDefine : flavorDefault.appName,
+      enableLogging: hasLogging ? loggingVal : flavorDefault.enableLogging,
+    );
+  }
+
+  static AppEnv _parseEnv(String value) {
+    switch (value) {
+      case 'staging':
+        return AppEnv.staging;
+      default:
+        return AppEnv.dev;
+    }
+  }
 }

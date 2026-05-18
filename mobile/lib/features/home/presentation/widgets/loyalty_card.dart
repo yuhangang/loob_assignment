@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/router/app_router.dart';
@@ -172,8 +173,7 @@ class LoyaltyCard extends StatelessWidget {
           ),
           // Barcode scanner button
           GestureDetector(
-            onTap: () => Navigator.pushNamed(
-              context,
+            onTap: () => context.push(
               AppRouter.barcode,
             ),
             child: Container(

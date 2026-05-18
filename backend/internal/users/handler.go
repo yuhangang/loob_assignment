@@ -1,13 +1,25 @@
 package users
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/labstack/echo/v4"
+	"github.com/loob/backend/internal/apierrors"
 	"github.com/loob/backend/internal/contextx"
+)
+
+const (
+	CodeAuthRequired        = "USR_AUTH_REQUIRED"
+	CodeUnsupportedCountry  = "USR_UNSUPPORTED_COUNTRY"
+	CodeInvalidProfileBody  = "USR_INVALID_PROFILE_PAYLOAD"
+	CodeInvalidWalletTopUp  = "USR_INVALID_WALLET_TOPUP_PAYLOAD"
+	CodeInvalidTopUpAmount  = "USR_INVALID_TOPUP_AMOUNT"
+	CodeProfileLoadFailed   = "USR_PROFILE_LOAD_FAILED"
+	CodeWalletLoadFailed    = "USR_WALLET_LOAD_FAILED"
+	CodeLoyaltyLoadFailed   = "USR_LOYALTY_LOAD_FAILED"
+	CodeProfileUpdateFailed = "USR_PROFILE_UPDATE_FAILED"
+	CodeWalletTopUpFailed   = "USR_WALLET_TOPUP_FAILED"
 )
 
 type Handler struct {
@@ -18,86 +30,69 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func Register(db *sql.DB, g *echo.Group, publicBaseURL string) {
-	h := NewHandler(NewService(NewRepository(db), publicBaseURL))
-	users := g.Group("/users")
-	users.GET("/profile", h.profile)
-	users.PATCH("/profile", h.updateProfile)
-	users.GET("/wallet/history", h.walletHistory)
-	users.POST("/wallet/topups", h.topUpWallet)
-	users.GET("/loyalty/history", h.loyaltyHistory)
-}
-
-func (h *Handler) profile(c echo.Context) error {
+func (h *Handler) Profile(c echo.Context) error {
 	rc := contextx.FromEcho(c)
-	profile, err := h.service.Profile(c.Request().Context(), rc.CountryCode, userID(c))
+	profile, err := h.service.Profile(c.Request().Context(), rc.CountryCode, rc.UserID)
 	if err != nil {
-		return profileError(err)
+		return profileError(err, CodeProfileLoadFailed, "failed to load user profile")
 	}
 	return c.JSON(http.StatusOK, profile)
 }
 
-func (h *Handler) updateProfile(c echo.Context) error {
+func (h *Handler) UpdateProfile(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 	var req UpdateProfileRequest
 	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "invalid profile payload"})
+		return apierrors.New(http.StatusBadRequest, CodeInvalidProfileBody, "invalid profile payload")
 	}
 
-	profile, err := h.service.UpdateProfile(c.Request().Context(), rc.CountryCode, userID(c), req)
+	profile, err := h.service.UpdateProfile(c.Request().Context(), rc.CountryCode, rc.UserID, req)
 	if err != nil {
-		return profileError(err)
+		return profileError(err, CodeProfileUpdateFailed, "failed to update user profile")
 	}
 	return c.JSON(http.StatusOK, profile)
 }
 
-func (h *Handler) walletHistory(c echo.Context) error {
+func (h *Handler) WalletHistory(c echo.Context) error {
 	rc := contextx.FromEcho(c)
-	history, err := h.service.WalletHistory(c.Request().Context(), rc.CountryCode, userID(c))
+	history, err := h.service.WalletHistory(c.Request().Context(), rc.CountryCode, rc.UserID)
 	if err != nil {
-		return profileError(err)
+		return profileError(err, CodeWalletLoadFailed, "failed to load wallet history")
 	}
 	return c.JSON(http.StatusOK, history)
 }
 
-func (h *Handler) topUpWallet(c echo.Context) error {
+func (h *Handler) TopUpWallet(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 	var req WalletTopUpRequest
 	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "invalid wallet top-up payload"})
+		return apierrors.New(http.StatusBadRequest, CodeInvalidWalletTopUp, "invalid wallet top-up payload")
 	}
-	history, err := h.service.TopUpWallet(c.Request().Context(), rc.CountryCode, userID(c), req)
+	history, err := h.service.TopUpWallet(c.Request().Context(), rc.CountryCode, rc.UserID, req)
 	if err != nil {
-		return profileError(err)
+		return profileError(err, CodeWalletTopUpFailed, "failed to top up wallet")
 	}
 	return c.JSON(http.StatusOK, history)
 }
 
-func (h *Handler) loyaltyHistory(c echo.Context) error {
+func (h *Handler) LoyaltyHistory(c echo.Context) error {
 	rc := contextx.FromEcho(c)
-	history, err := h.service.LoyaltyHistory(c.Request().Context(), rc.CountryCode, userID(c))
+	history, err := h.service.LoyaltyHistory(c.Request().Context(), rc.CountryCode, rc.UserID)
 	if err != nil {
-		return profileError(err)
+		return profileError(err, CodeLoyaltyLoadFailed, "failed to load loyalty history")
 	}
 	return c.JSON(http.StatusOK, history)
 }
 
-func userID(c echo.Context) string {
-	if userID := strings.TrimSpace(c.QueryParam("user_id")); userID != "" {
-		return userID
-	}
-	return strings.TrimSpace(c.Request().Header.Get("X-User-Id"))
-}
-
-func profileError(err error) error {
+func profileError(err error, fallbackCode, fallbackMessage string) error {
 	switch {
 	case errors.Is(err, ErrUserIDRequired):
-		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "user_id is required"})
+		return apierrors.New(http.StatusUnauthorized, CodeAuthRequired, "authentication required")
 	case errors.Is(err, ErrUnsupportedCountry):
-		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "unsupported country"})
+		return apierrors.New(http.StatusBadRequest, CodeUnsupportedCountry, "unsupported country")
 	case errors.Is(err, ErrInvalidTopUpAmount):
-		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return apierrors.New(http.StatusBadRequest, CodeInvalidTopUpAmount, err.Error())
 	default:
-		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": "failed to load user profile"})
+		return apierrors.New(http.StatusInternalServerError, fallbackCode, fallbackMessage)
 	}
 }

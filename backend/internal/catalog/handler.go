@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
@@ -18,17 +17,7 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func Register(db *sql.DB, g *echo.Group, publicBaseURL string) {
-	h := NewHandler(NewService(NewRepository(db), publicBaseURL))
-	catalog := g.Group("/catalog")
-	catalog.GET("/categories", h.listCategories)
-	catalog.GET("/categories/:category_id/items", h.listCategoryItems)
-	catalog.GET("/items/:item_id", h.getItem)
-	catalog.GET("/brands", h.listBrands)
-	catalog.GET("/stores", h.listStores)
-}
-
-func (h *Handler) listCategories(c echo.Context) error {
+func (h *Handler) ListCategories(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 	storeID, err := intQuery(c, "store_id")
 	if err != nil {
@@ -52,7 +41,7 @@ func (h *Handler) listCategories(c echo.Context) error {
 	return c.JSON(http.StatusOK, categories)
 }
 
-func (h *Handler) listCategoryItems(c echo.Context) error {
+func (h *Handler) ListCategoryItems(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 	categoryID, err := strconv.Atoi(c.Param("category_id"))
 	if err != nil || categoryID <= 0 {
@@ -81,7 +70,7 @@ func (h *Handler) listCategoryItems(c echo.Context) error {
 	return c.JSON(http.StatusOK, items)
 }
 
-func (h *Handler) getItem(c echo.Context) error {
+func (h *Handler) GetItem(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 	itemID, err := strconv.Atoi(c.Param("item_id"))
 	if err != nil || itemID <= 0 {
@@ -107,7 +96,7 @@ func (h *Handler) getItem(c echo.Context) error {
 	return c.JSON(http.StatusOK, item)
 }
 
-func (h *Handler) listBrands(c echo.Context) error {
+func (h *Handler) ListBrands(c echo.Context) error {
 	brands, err := h.service.ListBrands(c.Request().Context())
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": "failed to list brands"})
@@ -115,7 +104,7 @@ func (h *Handler) listBrands(c echo.Context) error {
 	return c.JSON(http.StatusOK, brands)
 }
 
-func (h *Handler) listStores(c echo.Context) error {
+func (h *Handler) ListStores(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 	countryID := c.QueryParam("country_id")
 	if countryID == "" {

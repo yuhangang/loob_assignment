@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+
+import '../../cart/presentation/bloc/cart_bloc.dart';
+import '../../cart/presentation/bloc/cart_state.dart';
 
 import '../../../core/di/injection.dart';
 import '../../../core/localization/app_localizations.dart';
@@ -10,7 +14,7 @@ import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/status_message.dart';
 import '../data/models/wallet_model.dart';
 import '../data/models/voucher_model.dart';
-import '../data/repositories/voucher_repository.dart';
+import '../domain/repositories/voucher_repository.dart';
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -44,10 +48,10 @@ class VoucherError extends VoucherState {
 // ── Cubit ────────────────────────────────────────────────────────────────────
 
 class VoucherCubit extends Cubit<VoucherState> {
-  final VoucherRepository _repository;
+  final IVoucherRepository _repository;
 
-  VoucherCubit({VoucherRepository? repository})
-    : _repository = repository ?? sl<VoucherRepository>(),
+  VoucherCubit({IVoucherRepository? repository})
+    : _repository = repository ?? sl<IVoucherRepository>(),
       super(VoucherInitial());
 
   Future<void> loadWallet({
@@ -82,7 +86,8 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
   @override
   void initState() {
     super.initState();
-    context.read<VoucherCubit>().loadWallet();
+    final country = context.read<CartBloc>().state.countryCode;
+    context.read<VoucherCubit>().loadWallet(countryCode: country);
   }
 
   @override
@@ -92,9 +97,18 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
 
     return Scaffold(
       body: SafeArea(
+      child: BlocListener<CartBloc, CartState>(
+        listenWhen: (previous, current) =>
+            previous.countryCode != current.countryCode,
+        listener: (context, cartState) {
+          context.read<VoucherCubit>().loadWallet(
+                countryCode: cartState.countryCode,
+              );
+        },
         child: BlocListener<LanguageCubit, Locale>(
           listener: (context, locale) {
-            context.read<VoucherCubit>().loadWallet();
+            final country = context.read<CartBloc>().state.countryCode;
+            context.read<VoucherCubit>().loadWallet(countryCode: country);
           },
           child: BlocBuilder<VoucherCubit, VoucherState>(
             builder: (context, state) {
@@ -196,6 +210,7 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
             },
           ),
         ),
+      ),
       ),
     );
   }
@@ -354,11 +369,48 @@ class _VoucherCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      voucher.code,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.primary,
+                    GestureDetector(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: voucher.code));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(context.l10n.voucherCodeCopied),
+                            duration: const Duration(seconds: 2),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xxs,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                          border: Border.all(
+                            color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              voucher.code,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: theme.colorScheme.primary,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Icon(
+                              Icons.copy_rounded,
+                              size: 12,
+                              color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],

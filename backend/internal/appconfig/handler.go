@@ -16,14 +16,7 @@ func NewHandler(publicBaseURL string) *Handler {
 	return &Handler{publicBaseURL: strings.TrimRight(publicBaseURL, "/")}
 }
 
-func Register(g *echo.Group, publicBaseURL string) {
-	h := NewHandler(publicBaseURL)
-	app := g.Group("/app")
-	app.GET("/config", h.getConfig)
-	app.GET("/feed", h.getFeed)
-}
-
-func (h *Handler) getConfig(c echo.Context) error {
+func (h *Handler) GetConfig(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 	isMalay := strings.HasPrefix(rc.Language, "ms")
 
@@ -69,7 +62,7 @@ func (h *Handler) getConfig(c echo.Context) error {
 	return c.JSON(http.StatusOK, config)
 }
 
-func (h *Handler) getFeed(c echo.Context) error {
+func (h *Handler) GetFeed(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 	isMalay := strings.HasPrefix(rc.Language, "ms")
 

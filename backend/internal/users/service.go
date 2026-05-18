@@ -70,12 +70,13 @@ func (s *Service) UpdateProfile(ctx context.Context, countryID, userID string, r
 	}
 
 	update := ProfileUpdate{
-		DisplayName:       current.DisplayName,
-		Email:             current.Email,
-		PhoneNumber:       current.PhoneNumber,
-		AvatarURL:         current.AvatarURL,
-		PreferredLanguage: current.PreferredLanguage,
-		MarketingOptIn:    current.MarketingOptIn,
+		DisplayName:         current.DisplayName,
+		Email:               current.Email,
+		PhoneNumber:         current.PhoneNumber,
+		AvatarURL:           current.AvatarURL,
+		PreferredLanguage:   current.PreferredLanguage,
+		RegisteredCountryID: current.RegisteredCountryID,
+		MarketingOptIn:      current.MarketingOptIn,
 	}
 	if req.DisplayName != nil {
 		update.DisplayName = strings.TrimSpace(*req.DisplayName)
@@ -89,8 +90,8 @@ func (s *Service) UpdateProfile(ctx context.Context, countryID, userID string, r
 	if req.AvatarURL != nil {
 		// Strip public base url prefix if user sends full URL in update payload
 		val := strings.TrimSpace(*req.AvatarURL)
-		if strings.HasPrefix(val, s.publicBaseURL) {
-			val = strings.TrimPrefix(val, s.publicBaseURL)
+		if after, ok := strings.CutPrefix(val, s.publicBaseURL); ok {
+			val = after
 		}
 		update.AvatarURL = val
 	}
@@ -98,6 +99,23 @@ func (s *Service) UpdateProfile(ctx context.Context, countryID, userID string, r
 		update.PreferredLanguage = strings.TrimSpace(*req.PreferredLanguage)
 		if update.PreferredLanguage == "" {
 			update.PreferredLanguage = current.PreferredLanguage
+		}
+	}
+	if req.RegisteredCountryID != nil {
+		targetCountryID := strings.ToUpper(strings.TrimSpace(*req.RegisteredCountryID))
+		if targetCountryID != "" {
+			targetCountry, err := s.repo.GetCountry(ctx, targetCountryID)
+			if err != nil {
+				if errors.Is(err, ErrNotFound) {
+					return Profile{}, ErrUnsupportedCountry
+				}
+				return Profile{}, err
+			}
+			if err := s.repo.EnsureAccount(ctx, current.UserID, targetCountry); err != nil {
+				return Profile{}, err
+			}
+			update.RegisteredCountryID = targetCountry.ID
+			countryID = targetCountry.ID
 		}
 	}
 	if req.MarketingOptIn != nil {

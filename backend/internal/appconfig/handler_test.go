@@ -30,7 +30,7 @@ func TestGetConfig(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	h := NewHandler("https://cdn.example.com")
-	if err := h.getConfig(c); err != nil {
+	if err := h.GetConfig(c); err != nil {
 		t.Fatal(err)
 	}
 
@@ -58,7 +58,7 @@ func TestGetFeed(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	h := NewHandler("")
-	if err := h.getFeed(c); err != nil {
+	if err := h.GetFeed(c); err != nil {
 		t.Fatal(err)
 	}
 

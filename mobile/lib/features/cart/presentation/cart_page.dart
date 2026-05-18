@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/di/injection.dart';
 import '../../../core/localization/app_localizations.dart';
@@ -9,7 +10,7 @@ import '../../../core/theme/theme_cubit.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/widgets/status_message.dart';
 import '../../menu/data/models/catalog_model.dart';
-import '../../menu/data/repositories/menu_repository.dart';
+import '../../menu/domain/repositories/menu_repository.dart';
 import 'bloc/cart_bloc.dart';
 import 'bloc/cart_event.dart';
 import 'bloc/cart_item.dart';
@@ -149,7 +150,7 @@ class CartPage extends StatelessWidget {
 
     ProductModel enrichedProduct = item.product;
     try {
-      final catalog = await sl<MenuRepository>().loadCategoryBackedCatalog(
+      final catalog = await sl<IMenuRepository>().loadCategoryBackedCatalog(
         countryCode: countryCode,
         language: lang,
         storeId: storeId,
@@ -170,10 +171,9 @@ class CartPage extends StatelessWidget {
     }
 
     if (!context.mounted) return;
-    final result = await Navigator.pushNamed(
-      context,
+    final result = await context.push(
       AppRouter.productDetail,
-      arguments: {
+      extra: {
         'product': enrichedProduct,
         'currency': currency,
         'cartItem': item,
@@ -194,6 +194,20 @@ class CartPage extends StatelessWidget {
         .expand((group) => group.options)
         .where((option) => selectedIds.contains(option.id))
         .toList();
+
+    if (action == 'buy_now') {
+      final buyNowItem = CartItem(
+        product: enrichedProduct,
+        selectedOptions: selectedOptions,
+        customizationOptionIds: selectedIds,
+        quantity: 1,
+      );
+      context.push(
+        AppRouter.checkout,
+        extra: {'buyNowItem': buyNowItem},
+      );
+      return;
+    }
 
     if (action == 'add') {
       context.read<CartBloc>().add(CartItemAdded(

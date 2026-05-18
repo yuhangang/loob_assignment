@@ -4,7 +4,7 @@ import 'package:equatable/equatable.dart';
 import '../../../core/di/injection.dart';
 import '../data/models/catalog_model.dart';
 import '../data/models/store_model.dart';
-import '../data/repositories/menu_repository.dart';
+import '../domain/repositories/menu_repository.dart';
 
 // ── Events ───────────────────────────────────────────────────────────────────
 
@@ -74,10 +74,10 @@ class MenuError extends MenuState {
 /// Uses BLoC (not Cubit) because menu loading involves complex async flows
 /// that may need debouncing for search/filter in the future.
 class MenuBloc extends Bloc<MenuEvent, MenuState> {
-  final MenuRepository _repository;
+  final IMenuRepository _repository;
 
-  MenuBloc({MenuRepository? repository})
-    : _repository = repository ?? sl<MenuRepository>(),
+  MenuBloc({IMenuRepository? repository})
+    : _repository = repository ?? sl<IMenuRepository>(),
       super(MenuInitial()) {
     on<LoadMenu>(_onLoadMenu);
   }

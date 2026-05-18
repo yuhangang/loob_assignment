@@ -145,6 +145,7 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      splashFactory: InkSparkle.splashFactory,
       brightness: Brightness.light,
       colorScheme: colors,
       scaffoldBackgroundColor: AppColors.yamLightBackground,
@@ -206,6 +207,7 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      splashFactory: InkSparkle.splashFactory,
       brightness: Brightness.light,
       colorScheme: colors,
       scaffoldBackgroundColor: AppColors.tealiveBackground,
@@ -271,6 +273,7 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      splashFactory: InkSparkle.splashFactory,
       brightness: Brightness.dark,
       colorScheme: colors,
       scaffoldBackgroundColor: AppColors.baskbearBackground,

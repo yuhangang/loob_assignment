@@ -8,7 +8,7 @@ import '../../../core/localization/language_cubit.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../data/models/campaign_model.dart';
 import '../data/models/home_feed_model.dart';
-import '../data/repositories/campaign_repository.dart';
+import '../domain/repositories/campaign_repository.dart';
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -39,10 +39,10 @@ class CampaignsError extends CampaignsState {
 // ── Cubit ────────────────────────────────────────────────────────────────────
 
 class CampaignsCubit extends Cubit<CampaignsState> {
-  final CampaignRepository _repository;
+  final ICampaignRepository _repository;
 
-  CampaignsCubit({CampaignRepository? repository})
-      : _repository = repository ?? sl<CampaignRepository>(),
+  CampaignsCubit({ICampaignRepository? repository})
+      : _repository = repository ?? sl<ICampaignRepository>(),
         super(CampaignsInitial());
 
   Future<void> loadCampaigns({

@@ -113,9 +113,10 @@ func (r *Repository) UpdateProfile(ctx context.Context, userID string, update Pr
 		    phone_number = NULLIF(?, ''),
 		    avatar_url = NULLIF(?, ''),
 		    preferred_language = ?,
+		    registered_country_id = NULLIF(?, ''),
 		    marketing_opt_in = ?
 		WHERE id = ?
-	`, update.DisplayName, update.Email, update.PhoneNumber, update.AvatarURL, update.PreferredLanguage, update.MarketingOptIn, userID)
+	`, update.DisplayName, update.Email, update.PhoneNumber, update.AvatarURL, update.PreferredLanguage, update.RegisteredCountryID, update.MarketingOptIn, userID)
 	return err
 }
 

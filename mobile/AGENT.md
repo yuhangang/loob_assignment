@@ -187,7 +187,7 @@ Text('Title', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold));
 ### ApiClient
 
 - All HTTP calls go through `ApiClient` (wraps Dio).
-- The client auto-injects `Authorization`, `X-Country-Code`, `Accept-Language`, and `X-User-Id` headers via interceptors.
+- The client auto-injects `Authorization`, `X-Country-Code`, and `Accept-Language` headers via interceptors.
 - Endpoints are defined as static methods in `core/network/api_endpoints.dart`.
 
 ### API Call Pattern

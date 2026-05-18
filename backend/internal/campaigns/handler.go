@@ -1,7 +1,6 @@
 package campaigns
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
@@ -18,13 +17,7 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func Register(db *sql.DB, g *echo.Group, publicBaseURL string) {
-	h := NewHandler(NewService(NewRepository(db), publicBaseURL))
-	campaigns := g.Group("/campaigns")
-	campaigns.GET("/home", h.home)
-}
-
-func (h *Handler) home(c echo.Context) error {
+func (h *Handler) Home(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 	brandID, err := intQuery(c, "brand_id")
 	if err != nil {

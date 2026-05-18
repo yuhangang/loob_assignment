@@ -1,5 +1,6 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
@@ -89,7 +90,7 @@ class StickyCheckoutPanel extends StatelessWidget {
                             state.isSelectedStoreClosed
                         ? null
                         : () {
-                            Navigator.pushNamed(context, AppRouter.checkout);
+                            context.push(AppRouter.checkout);
                           },
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,

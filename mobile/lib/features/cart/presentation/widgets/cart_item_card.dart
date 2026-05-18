@@ -240,12 +240,16 @@ class CartItemCard extends StatelessWidget {
                             quantity: item.quantity,
                             style: QuantityStepperStyle.compact,
                             onDecrease: () {
-                              context.read<CartBloc>().add(
-                                    CartItemQuantityUpdated(
-                                      item: item,
-                                      quantity: item.quantity - 1,
-                                    ),
-                                  );
+                              if (item.quantity == 1) {
+                                _confirmRemoveItem(context, item);
+                              } else {
+                                context.read<CartBloc>().add(
+                                      CartItemQuantityUpdated(
+                                        item: item,
+                                        quantity: item.quantity - 1,
+                                      ),
+                                    );
+                              }
                             },
                             onIncrease: () {
                               context.read<CartBloc>().add(
@@ -278,6 +282,41 @@ class CartItemCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _confirmRemoveItem(BuildContext context, CartItem item) {
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.l10n.removeItemTitle),
+        content: Text(context.l10n.removeItemContent),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: theme.colorScheme.error,
+            ),
+            onPressed: () {
+              context.read<CartBloc>().add(
+                    CartItemQuantityUpdated(
+                      item: item,
+                      quantity: 0,
+                    ),
+                  );
+              Navigator.pop(dialogContext);
+            },
+            child: Text(context.l10n.itemUnavailableRemove),
+          ),
+        ],
       ),
     );
   }

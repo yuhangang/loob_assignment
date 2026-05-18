@@ -1,7 +1,6 @@
 package cart
 
 import (
-	"database/sql"
 	"errors"
 	"log"
 	"net/http"
@@ -20,26 +19,9 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-// Register mounts the cart routes on the given Echo group.
-func Register(db *sql.DB, g *echo.Group, publicBaseURL string) {
-	h := NewHandler(NewService(NewRepository(db), publicBaseURL))
-	cart := g.Group("/cart")
-	cart.GET("", h.getCart)
-	cart.POST("/update", h.updateCart) // consolidated mutation endpoint
-	// Legacy endpoints kept for backward compatibility:
-	cart.PUT("/items", h.upsertItem)
-	cart.PATCH("/items/:item_id", h.updateItem)
-	cart.DELETE("/items/:item_id", h.removeItem)
-	cart.DELETE("", h.clearCart)
-}
-
-// getCart handles GET /api/v1/cart?user_id=<id>&store_id=<id>
-func (h *Handler) getCart(c echo.Context) error {
+func (h *Handler) GetCart(c echo.Context) error {
 	rc := contextx.FromEcho(c)
-	userID := c.QueryParam("user_id")
-	if userID == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "user_id is required"})
-	}
+	userID := rc.UserID
 
 	// Optional: override the store used for availability checks.
 	var overrideStoreID int
@@ -57,14 +39,15 @@ func (h *Handler) getCart(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
-// upsertItem handles PUT /api/v1/cart/items
-func (h *Handler) upsertItem(c echo.Context) error {
+// UpsertItem handles PUT /api/v1/cart/items
+func (h *Handler) UpsertItem(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 
 	var req CartItemRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
+	req.UserID = rc.UserID
 
 	resp, err := h.service.UpsertItem(c.Request().Context(), rc.CountryCode, req)
 	if err != nil {
@@ -73,8 +56,8 @@ func (h *Handler) upsertItem(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
-// updateItem handles PATCH /api/v1/cart/items/:item_id
-func (h *Handler) updateItem(c echo.Context) error {
+// UpdateItem handles PATCH /api/v1/cart/items/:item_id
+func (h *Handler) UpdateItem(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 
 	itemID, err := strconv.ParseInt(c.Param("item_id"), 10, 64)
@@ -86,6 +69,7 @@ func (h *Handler) updateItem(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
+	req.UserID = rc.UserID
 
 	resp, err := h.service.UpdateItem(c.Request().Context(), rc.CountryCode, itemID, req)
 	if err != nil {
@@ -94,13 +78,10 @@ func (h *Handler) updateItem(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
-// removeItem handles DELETE /api/v1/cart/items/:item_id?user_id=<id>
-func (h *Handler) removeItem(c echo.Context) error {
+// RemoveItem handles DELETE /api/v1/cart/items/:item_id?user_id=<id>
+func (h *Handler) RemoveItem(c echo.Context) error {
 	rc := contextx.FromEcho(c)
-	userID := c.QueryParam("user_id")
-	if userID == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "user_id is required"})
-	}
+	userID := rc.UserID
 
 	itemID, err := strconv.ParseInt(c.Param("item_id"), 10, 64)
 	if err != nil || itemID <= 0 {
@@ -117,13 +98,10 @@ func (h *Handler) removeItem(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
-// clearCart handles DELETE /api/v1/cart?user_id=<id>
-func (h *Handler) clearCart(c echo.Context) error {
+// ClearCart handles DELETE /api/v1/cart?user_id=<id>
+func (h *Handler) ClearCart(c echo.Context) error {
 	rc := contextx.FromEcho(c)
-	userID := c.QueryParam("user_id")
-	if userID == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "user_id is required"})
-	}
+	userID := rc.UserID
 
 	if err := h.service.ClearCart(c.Request().Context(), rc.CountryCode, userID); err != nil {
 		if errors.Is(err, ErrUserRequired) {
@@ -151,7 +129,7 @@ func cartError(err error) error {
 
 // ── Consolidated mutation endpoint ──────────────────────────────────────────
 
-// updateCart handles POST /api/v1/cart/update
+// UpdateCart handles POST /api/v1/cart/update
 //
 // Accepts a single JSON body with a "method" discriminator:
 //   - "upsert"  – add or merge an item
@@ -160,13 +138,14 @@ func cartError(err error) error {
 //   - "clear"   – wipe the entire cart
 //
 // Always returns the full refreshed CartResponse.
-func (h *Handler) updateCart(c echo.Context) error {
+func (h *Handler) UpdateCart(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 
 	var req CartUpdateRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
+	req.UserID = rc.UserID
 
 	resp, err := h.service.UpdateCart(c.Request().Context(), rc.CountryCode, req)
 	if err != nil {

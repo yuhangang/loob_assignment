@@ -1,5 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/di/injection.dart';
 import '../../../core/localization/app_localizations.dart';
@@ -8,7 +11,9 @@ import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/status_message.dart';
 import '../../cart/data/models/order_status_model.dart';
-import '../data/repositories/order_repository.dart';
+import '../../cart/presentation/bloc/cart_bloc.dart';
+import '../../cart/presentation/bloc/cart_state.dart';
+import '../domain/repositories/order_repository.dart';
 
 class OrdersPage extends StatefulWidget {
   final ValueListenable<int>? refreshSignal;
@@ -20,13 +25,14 @@ class OrdersPage extends StatefulWidget {
 }
 
 class _OrdersPageState extends State<OrdersPage> {
-  final OrderRepository _repository = sl<OrderRepository>();
+  final IOrderRepository _repository = sl<IOrderRepository>();
   late Future<List<OrderStatusModel>> _ordersFuture;
 
   @override
   void initState() {
     super.initState();
-    _ordersFuture = _repository.loadOrders();
+    final country = context.read<CartBloc>().state.countryCode;
+    _ordersFuture = _repository.loadOrders(countryCode: country);
     widget.refreshSignal?.addListener(_handleRefreshSignal);
   }
 
@@ -47,13 +53,15 @@ class _OrdersPageState extends State<OrdersPage> {
   void _handleRefreshSignal() {
     if (!mounted) return;
     setState(() {
-      _ordersFuture = _repository.loadOrders();
+      final country = context.read<CartBloc>().state.countryCode;
+      _ordersFuture = _repository.loadOrders(countryCode: country);
     });
   }
 
   Future<void> _reload() async {
     setState(() {
-      _ordersFuture = _repository.loadOrders();
+      final country = context.read<CartBloc>().state.countryCode;
+      _ordersFuture = _repository.loadOrders(countryCode: country);
     });
     await _ordersFuture;
   }
@@ -63,44 +71,56 @@ class _OrdersPageState extends State<OrdersPage> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: Text(context.l10n.orders)),
-      body: FutureBuilder<List<OrderStatusModel>>(
-        future: _ordersFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return StatusMessage(
-              icon: Icons.cloud_off_rounded,
-              title: 'Unable to load orders',
-              subtitle: 'Pull to refresh and try again.',
-              iconColor: theme.colorScheme.error,
+      body: BlocListener<CartBloc, CartState>(
+        listenWhen: (previous, current) =>
+            previous.countryCode != current.countryCode,
+        listener: (context, cartState) {
+          setState(() {
+            _ordersFuture = _repository.loadOrders(
+              countryCode: cartState.countryCode,
             );
-          }
-
-          final orders = snapshot.data ?? const [];
-          if (orders.isEmpty) {
-            return StatusMessage(
-              icon: Icons.receipt_long_outlined,
-              title: 'No orders yet',
-              subtitle: 'Orders created from checkout will appear here.',
-              iconColor: theme.colorScheme.primary,
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: _reload,
-            child: ListView.separated(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
-              itemCount: orders.length,
-              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-              itemBuilder: (context, index) {
-                return _OrderCard(order: orders[index]);
-              },
-            ),
-          );
+          });
         },
+        child: FutureBuilder<List<OrderStatusModel>>(
+          future: _ordersFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return StatusMessage(
+                icon: Icons.cloud_off_rounded,
+                title: 'Unable to load orders',
+                subtitle: 'Pull to refresh and try again.',
+                iconColor: theme.colorScheme.error,
+              );
+            }
+
+            final orders = snapshot.data ?? const [];
+            if (orders.isEmpty) {
+              return StatusMessage(
+                icon: Icons.receipt_long_outlined,
+                title: 'No orders yet',
+                subtitle: 'Orders created from checkout will appear here.',
+                iconColor: theme.colorScheme.primary,
+              );
+            }
+
+            return RefreshIndicator(
+              onRefresh: _reload,
+              child: ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
+                itemCount: orders.length,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(height: AppSpacing.md),
+                itemBuilder: (context, index) {
+                  return _OrderCard(order: orders[index]);
+                },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -111,6 +131,13 @@ class _OrderCard extends StatelessWidget {
 
   const _OrderCard({required this.order});
 
+  String _formatTimestamp(String rawTimestamp) {
+    if (rawTimestamp.isEmpty) return '';
+    final parsed = DateTime.tryParse(rawTimestamp);
+    if (parsed == null) return rawTimestamp;
+    return DateFormat('dd MMM yyyy, hh:mm a').format(parsed.toLocal());
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -119,10 +146,9 @@ class _OrderCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
-          Navigator.pushNamed(
-            context,
+          context.push(
             AppRouter.orderStatus,
-            arguments: {'trackingId': order.orderTrackingId},
+            extra: {'trackingId': order.orderTrackingId},
           );
         },
         child: Padding(
@@ -165,6 +191,18 @@ class _OrderCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (order.createdAt.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        _formatTimestamp(order.createdAt),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.textTheme.bodySmall?.color?.withValues(
+                            alpha: 0.45,
+                          ),
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -194,7 +232,6 @@ class _OrderCard extends StatelessWidget {
     );
   }
 }
-
 
 extension on OrderStatusModel {
   String get statusLabel => status.isEmpty ? 'Order created' : status;

@@ -50,21 +50,6 @@ CREATE TABLE IF NOT EXISTS stores (
     CONSTRAINT fk_stores_zone FOREIGN KEY (zone_id) REFERENCES zones(id)
 );
 
-CREATE TABLE IF NOT EXISTS feature_flags (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    country_id VARCHAR(2) NOT NULL,
-    zone_id VARCHAR(50), -- NULL = Applies to whole country
-    brand_id INT, -- NULL = Applies to both brands
-    feature_key VARCHAR(100) NOT NULL,
-    is_enabled BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_feature_flags_country FOREIGN KEY (country_id) REFERENCES countries(id),
-    CONSTRAINT fk_feature_flags_zone FOREIGN KEY (zone_id) REFERENCES zones(id),
-    CONSTRAINT fk_feature_flags_brand FOREIGN KEY (brand_id) REFERENCES brands(id),
-    UNIQUE KEY ux_feature_flags_scope (country_id, zone_id, brand_id, feature_key)
-);
-
 -- ==========================================
 -- 2. MENU CATALOG & PRICING
 -- ==========================================
@@ -298,6 +283,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     is_active BOOLEAN NOT NULL DEFAULT true,
     metadata JSON,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_campaigns_country FOREIGN KEY (country_id) REFERENCES countries(id),
     CONSTRAINT fk_campaigns_brand FOREIGN KEY (brand_id) REFERENCES brands(id)
 );

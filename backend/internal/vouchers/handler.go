@@ -1,7 +1,6 @@
 package vouchers
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
@@ -20,22 +19,14 @@ func NewHandler(service *Service, checkoutService *checkout.Service) *Handler {
 	return &Handler{service: service, checkoutService: checkoutService}
 }
 
-func Register(db *sql.DB, g *echo.Group) {
-	h := NewHandler(NewService(NewRepository(db)), checkout.NewService(checkout.NewRepository(db), nil))
-	vouchers := g.Group("/vouchers")
-	vouchers.GET("/wallet", h.wallet)
-	vouchers.POST("/validate", h.validate)
-}
-
-func (h *Handler) wallet(c echo.Context) error {
+func (h *Handler) Wallet(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 	brandID, err := intQuery(c, "brand_id")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "brand_id must be a number"})
 	}
 
-	userID := c.QueryParam("user_id")
-	wallet, err := h.service.Wallet(c.Request().Context(), rc.CountryCode, rc.Language, userID, brandID)
+	wallet, err := h.service.Wallet(c.Request().Context(), rc.CountryCode, rc.Language, rc.UserID, brandID)
 	if err != nil {
 		if errors.Is(err, ErrUnsupportedCountry) {
 			return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "unsupported country"})
@@ -45,7 +36,7 @@ func (h *Handler) wallet(c echo.Context) error {
 	return c.JSON(http.StatusOK, wallet)
 }
 
-func (h *Handler) validate(c echo.Context) error {
+func (h *Handler) Validate(c echo.Context) error {
 	if err := contextx.RequireCountryHeader(c); err != nil {
 		return err
 	}
@@ -54,6 +45,7 @@ func (h *Handler) validate(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "invalid voucher validation payload"})
 	}
 	rc := contextx.FromEcho(c)
+	req.UserID = rc.UserID
 	result, err := h.checkoutService.ValidateVoucher(c.Request().Context(), checkout.CheckoutContext{
 		TraceID:     rc.TraceID,
 		CountryCode: rc.CountryCode,

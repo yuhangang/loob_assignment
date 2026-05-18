@@ -22,16 +22,7 @@ func Init(db *sql.DB, mockGatewaySecret string) *Service {
 	return NewService(NewRepository(db), mockGatewaySecret)
 }
 
-func Register(g *echo.Group, s *Service) {
-	h := NewHandler(s)
-	payments := g.Group("/payments")
-	payments.GET("/providers", h.listProviders)
-	payments.GET("/methods", h.listMethods)
-	payments.GET("/:transaction_id", h.get)
-	payments.POST("/mock-gateway/callback", h.mockGatewayCallback)
-}
-
-func (h *Handler) listProviders(c echo.Context) error {
+func (h *Handler) ListProviders(c echo.Context) error {
 	includeInactive := c.QueryParam("include_inactive") == "true"
 	providers, err := h.service.ListProviders(c.Request().Context(), includeInactive)
 	if err != nil {
@@ -40,7 +31,7 @@ func (h *Handler) listProviders(c echo.Context) error {
 	return c.JSON(http.StatusOK, providers)
 }
 
-func (h *Handler) listMethods(c echo.Context) error {
+func (h *Handler) ListMethods(c echo.Context) error {
 	rc := contextx.FromEcho(c)
 	brandID, err := intQuery(c, "brand_id")
 	if err != nil {
@@ -54,7 +45,7 @@ func (h *Handler) listMethods(c echo.Context) error {
 	return c.JSON(http.StatusOK, methods)
 }
 
-func (h *Handler) get(c echo.Context) error {
+func (h *Handler) Get(c echo.Context) error {
 	if err := contextx.RequireCountryHeader(c); err != nil {
 		return err
 	}
@@ -69,7 +60,7 @@ func (h *Handler) get(c echo.Context) error {
 	return c.JSON(http.StatusOK, transaction)
 }
 
-func (h *Handler) mockGatewayCallback(c echo.Context) error {
+func (h *Handler) MockGatewayCallback(c echo.Context) error {
 	if !h.service.AuthorizeMockGateway(c.Request().Header.Get("X-Mock-Gateway-Secret")) {
 		return echo.NewHTTPError(http.StatusUnauthorized, map[string]string{"error": "unauthorized payment callback"})
 	}

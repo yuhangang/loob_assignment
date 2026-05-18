@@ -24,6 +24,7 @@ type CheckoutRepository interface {
 	CreateIntentWithPayment(ctx context.Context, intent Intent, payment PaymentTransaction) error
 	CreatePaymentIfMissing(ctx context.Context, payment PaymentTransaction) (PaymentTransaction, error)
 	GetStatus(ctx context.Context, countryID, trackingID string) (Status, error)
+	GetStatusForUser(ctx context.Context, countryID, userID, trackingID string) (Status, error)
 	ListStatusesByUser(ctx context.Context, countryID, userID string) ([]Status, error)
 }
 
@@ -334,6 +335,20 @@ func calculateCharges(definitions []ChargeDefinition, req chargeCalculationReque
 
 func (s *Service) GetStatus(ctx context.Context, countryID, trackingID string) (OrderStatus, error) {
 	status, err := s.repo.GetStatus(ctx, countryID, trackingID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return OrderStatus{}, ErrOrderNotFound
+		}
+		return OrderStatus{}, err
+	}
+	return orderStatusFromRow(status), nil
+}
+
+func (s *Service) GetStatusForUser(ctx context.Context, countryID, userID, trackingID string) (OrderStatus, error) {
+	if strings.TrimSpace(userID) == "" {
+		return OrderStatus{}, ErrUserRequired
+	}
+	status, err := s.repo.GetStatusForUser(ctx, countryID, userID, trackingID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return OrderStatus{}, ErrOrderNotFound

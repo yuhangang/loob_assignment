@@ -23,11 +23,7 @@ class VoucherRemoteDataSource {
     try {
       final response = await _client.dio.get(
         ApiEndpoints.vouchersWallet,
-        queryParameters: {
-          'country_code': countryCode,
-          'user_id': userId,
-          'brand_id': brandId,
-        },
+        queryParameters: {'country_code': countryCode, 'brand_id': brandId},
       );
       return WalletModel.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {

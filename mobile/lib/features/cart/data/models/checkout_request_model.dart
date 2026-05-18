@@ -19,14 +19,13 @@ class CheckoutRequestModel {
   });
 
   Map<String, dynamic> toJson() => {
-        'user_id': userId,
-        'store_id': storeId,
-        'fulfillment_type': fulfillmentType,
-        if (voucherCode != null) 'voucher_code': voucherCode,
-        'payment_method': paymentMethod,
-        'idempotency_key': idempotencyKey,
-        'items': items.map((e) => e.toJson()).toList(),
-      };
+    'store_id': storeId,
+    'fulfillment_type': fulfillmentType,
+    if (voucherCode != null) 'voucher_code': voucherCode,
+    'payment_method': paymentMethod,
+    'idempotency_key': idempotencyKey,
+    'items': items.map((e) => e.toJson()).toList(),
+  };
 }
 
 /// Mapped from Go `checkout.CartItem`.
@@ -42,8 +41,8 @@ class CartItemModel {
   });
 
   Map<String, dynamic> toJson() => {
-        'menu_item_id': menuItemId,
-        'quantity': quantity,
-        'customization_option_ids': customizationOptionIds,
-      };
+    'menu_item_id': menuItemId,
+    'quantity': quantity,
+    'customization_option_ids': customizationOptionIds,
+  };
 }

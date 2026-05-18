@@ -594,8 +594,29 @@ func (r *Repository) GetStatus(ctx context.Context, countryID, trackingID string
 		       oi.created_at, oi.updated_at
 		FROM order_intents oi
 		LEFT JOIN payment_transactions pt ON pt.order_tracking_id = oi.tracking_id
-		WHERE oi.tracking_id = ?
-	`, trackingID).Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &chargesPayload, &status.CreatedAt, &status.UpdatedAt)
+		WHERE oi.country_id = ? AND oi.tracking_id = ?
+	`, countryID, trackingID).Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &chargesPayload, &status.CreatedAt, &status.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Status{}, ErrNotFound
+		}
+		return Status{}, err
+	}
+	status.Charges = decodeChargeLines(chargesPayload)
+	return status, nil
+}
+
+func (r *Repository) GetStatusForUser(ctx context.Context, countryID, userID, trackingID string) (Status, error) {
+	var status Status
+	var chargesPayload []byte
+	err := r.db.QueryRowContext(ctx, `
+		SELECT oi.tracking_id, oi.status, pt.status, oi.subtotal, oi.tax_amount,
+		       oi.discount_amount, oi.total_amount, COALESCE(oi.charges_payload, JSON_ARRAY()),
+		       oi.created_at, oi.updated_at
+		FROM order_intents oi
+		LEFT JOIN payment_transactions pt ON pt.order_tracking_id = oi.tracking_id
+		WHERE oi.country_id = ? AND oi.user_id = ? AND oi.tracking_id = ?
+	`, countryID, userID, trackingID).Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &chargesPayload, &status.CreatedAt, &status.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Status{}, ErrNotFound
@@ -613,10 +634,10 @@ func (r *Repository) ListStatusesByUser(ctx context.Context, countryID, userID s
 		       oi.created_at, oi.updated_at
 		FROM order_intents oi
 		LEFT JOIN payment_transactions pt ON pt.order_tracking_id = oi.tracking_id
-		WHERE oi.user_id = ?
+		WHERE oi.country_id = ? AND oi.user_id = ?
 		ORDER BY oi.created_at DESC
 		LIMIT 50
-	`, userID)
+	`, countryID, userID)
 	if err != nil {
 		return nil, err
 	}

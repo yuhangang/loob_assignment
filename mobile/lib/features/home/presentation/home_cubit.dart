@@ -3,13 +3,13 @@ import 'package:equatable/equatable.dart';
 
 import '../data/models/app_config_model.dart';
 import '../data/models/feed_item_model.dart';
-import '../data/repositories/home_repository.dart';
+import '../domain/repositories/home_repository.dart';
 import '../../campaigns/data/models/campaign_model.dart';
 import '../../campaigns/data/models/home_feed_model.dart';
-import '../../campaigns/data/repositories/campaign_repository.dart';
+import '../../campaigns/domain/repositories/campaign_repository.dart';
 import '../../menu/data/models/catalog_model.dart';
 import '../../orders/data/models/local_order_model.dart';
-import '../../orders/data/repositories/order_repository.dart';
+import '../../orders/domain/repositories/order_repository.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/di/injection.dart';
 
@@ -55,30 +55,30 @@ class HomeError extends HomeState {
 // ── Cubit ────────────────────────────────────────────────────────────────────
 
 class HomeCubit extends Cubit<HomeState> {
-  final HomeRepository _repository;
-  final CampaignRepository _campaignRepository;
-  final OrderRepository _orderRepository;
+  final IHomeRepository _repository;
+  final ICampaignRepository _campaignRepository;
+  final IOrderRepository _orderRepository;
   final AppConfig _appConfig;
 
   HomeCubit({
-    HomeRepository? repository,
-    CampaignRepository? campaignRepository,
-    OrderRepository? orderRepository,
+    IHomeRepository? repository,
+    ICampaignRepository? campaignRepository,
+    IOrderRepository? orderRepository,
     AppConfig? appConfig,
-  }) : _repository = repository ?? sl<HomeRepository>(),
-       _campaignRepository = campaignRepository ?? sl<CampaignRepository>(),
-       _orderRepository = orderRepository ?? sl<OrderRepository>(),
+  }) : _repository = repository ?? sl<IHomeRepository>(),
+       _campaignRepository = campaignRepository ?? sl<ICampaignRepository>(),
+       _orderRepository = orderRepository ?? sl<IOrderRepository>(),
        _appConfig = appConfig ?? sl<AppConfig>(),
        super(HomeInitial());
 
-  Future<void> loadHome({String? language, int? brandId}) async {
+  Future<void> loadHome({String? countryCode, String? language, int? brandId}) async {
     emit(HomeLoading());
     try {
       final results = await Future.wait([
         _repository.getAppConfig(),
         _repository.getFeed(),
         _campaignRepository.getHomeFeed(
-          countryCode: _appConfig.defaultCountryCode,
+          countryCode: countryCode ?? _appConfig.defaultCountryCode,
           language: language ?? _appConfig.defaultLanguage,
           brandId: brandId,
         ),

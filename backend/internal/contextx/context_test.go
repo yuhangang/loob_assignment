@@ -34,19 +34,19 @@ func TestNormalizeLanguage(t *testing.T) {
 
 func TestFromEcho(t *testing.T) {
 	e := echo.New()
-	
+
 	t.Run("existing context", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		
+
 		expected := RequestContext{
 			TraceID:     "test-trace",
 			CountryCode: "TH",
 			Language:    "th",
 		}
 		c.Set(requestContextKey, expected)
-		
+
 		got := FromEcho(c)
 		if got != expected {
 			t.Errorf("FromEcho() = %+v, want %+v", got, expected)
@@ -57,7 +57,7 @@ func TestFromEcho(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		
+
 		got := FromEcho(c)
 		if got.TraceID == "" {
 			t.Error("FromEcho() TraceID is empty")
@@ -78,7 +78,7 @@ func TestRequireCountryHeader(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		
+
 		err := RequireCountryHeader(c)
 		if err == nil {
 			t.Fatal("expected error, got nil")
@@ -97,7 +97,7 @@ func TestRequireCountryHeader(t *testing.T) {
 		req.Header.Set("X-Country-Code", "MY")
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
-		
+
 		err := RequireCountryHeader(c)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/auth/auth_guard.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/network/api_client.dart';
@@ -10,6 +12,7 @@ import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../cart/presentation/bloc/cart_bloc.dart';
 import '../../../cart/presentation/bloc/cart_event.dart';
+import '../../../cart/presentation/bloc/cart_item.dart';
 import '../../../menu/data/models/catalog_model.dart';
 import '../../../orders/data/models/local_order_model.dart';
 
@@ -30,86 +33,111 @@ class OrderAgainSection extends StatelessWidget {
     BuildContext context,
     LocalOrderItemModel orderItem,
   ) async {
-    ProductModel fullProduct = orderItem.toProduct();
-    try {
-      final cartState = context.read<CartBloc>().state;
-      final resolvedStoreId = storeId > 0 ? storeId : cartState.storeId;
-      final response = await sl<ApiClient>().dio.get(
-        ApiEndpoints.catalogItem(orderItem.menuItemId),
-        queryParameters: resolvedStoreId > 0
-            ? {'store_id': resolvedStoreId}
-            : null,
-      );
-      fullProduct = ProductModel.fromJson(
-        response.data as Map<String, dynamic>,
-      );
-    } catch (_) {
-      // Fall back to the local snapshot so previous-order quick add still works
-      // when the catalog call is unavailable.
-    }
+    AuthGuard.run(context, () async {
+      ProductModel fullProduct = orderItem.toProduct();
+      try {
+        final cartState = context.read<CartBloc>().state;
+        final resolvedStoreId = storeId > 0 ? storeId : cartState.storeId;
+        final response = await sl<ApiClient>().dio.get(
+          ApiEndpoints.catalogItem(orderItem.menuItemId),
+          queryParameters: resolvedStoreId > 0
+              ? {'store_id': resolvedStoreId}
+              : null,
+        );
+        fullProduct = ProductModel.fromJson(
+          response.data as Map<String, dynamic>,
+        );
+      } catch (_) {
+        // Fall back to the local snapshot so previous-order quick add still works
+        // when the catalog call is unavailable.
+      }
 
-    if (!context.mounted) return;
-    final savedOptionIds = orderItem.customizationOptionIds;
-    if (savedOptionIds.isNotEmpty) {
-      final selectedOptions = _resolveSelectedOptions(
-        fullProduct,
-        orderItem,
-        savedOptionIds,
+      if (!context.mounted) return;
+      final savedOptionIds = orderItem.customizationOptionIds;
+      if (savedOptionIds.isNotEmpty) {
+        final selectedOptions = _resolveSelectedOptions(
+          fullProduct,
+          orderItem,
+          savedOptionIds,
+        );
+        context.read<CartBloc>().add(
+          CartItemAdded(
+            product: fullProduct,
+            selectedOptions: selectedOptions,
+            customizationOptionIds: savedOptionIds,
+            quantity: orderItem.quantity < 1 ? 1 : orderItem.quantity,
+          ),
+        );
+        context.showSuccessSnackBar(
+          context.l10n.addedToCartReorderToast(orderItem.name),
+        );
+        return;
+      }
+
+      if (fullProduct.customizationGroups.isEmpty) {
+        context.read<CartBloc>().add(
+          CartItemAdded(
+            product: fullProduct,
+            selectedOptions: const [],
+            customizationOptionIds: const [],
+            quantity: orderItem.quantity < 1 ? 1 : orderItem.quantity,
+          ),
+        );
+        context.showSuccessSnackBar(
+          context.l10n.addedToCartReorderToast(orderItem.name),
+        );
+        return;
+      }
+
+      final result = await context.push(
+        AppRouter.productDetail,
+        extra: {'product': fullProduct, 'currency': currency},
       );
-      context.read<CartBloc>().add(CartItemAdded(
-        product: fullProduct,
-        selectedOptions: selectedOptions,
-        customizationOptionIds: savedOptionIds,
-        quantity: orderItem.quantity < 1 ? 1 : orderItem.quantity,
-      ));
-      context.showSuccessSnackBar(
-        context.l10n.addedToCartReorderToast(orderItem.name),
-      );
-      return;
-    }
+      if (result is! Map<String, dynamic>) return;
+      if (!context.mounted) return;
 
-    if (fullProduct.customizationGroups.isEmpty) {
-      context.read<CartBloc>().add(CartItemAdded(
-        product: fullProduct,
-        selectedOptions: const [],
-        customizationOptionIds: const [],
-        quantity: orderItem.quantity < 1 ? 1 : orderItem.quantity,
-      ));
-      context.showSuccessSnackBar(
-        context.l10n.addedToCartReorderToast(orderItem.name),
-      );
-      return;
-    }
+      final quantity = result['quantity'] as int? ?? 1;
+      final selectionsMap =
+          result['selections'] as Map<dynamic, dynamic>? ?? {};
+      final allOptionIds = <int>[];
+      for (final ids in selectionsMap.values) {
+        if (ids is List) allOptionIds.addAll(ids.whereType<int>());
+      }
+      final selectedOptions = fullProduct.customizationGroups
+          .expand((g) => g.options)
+          .where((o) => allOptionIds.contains(o.id))
+          .toList();
 
-    final result = await Navigator.pushNamed(
-      context,
-      AppRouter.productDetail,
-      arguments: {'product': fullProduct, 'currency': currency},
-    );
-    if (result is! Map<String, dynamic>) return;
-    if (!context.mounted) return;
+      final action = result['action'] as String? ?? 'add';
 
-    final quantity = result['quantity'] as int? ?? 1;
-    final selectionsMap = result['selections'] as Map<dynamic, dynamic>? ?? {};
-    final allOptionIds = <int>[];
-    for (final ids in selectionsMap.values) {
-      if (ids is List) allOptionIds.addAll(ids.whereType<int>());
-    }
-    final selectedOptions = fullProduct.customizationGroups
-        .expand((g) => g.options)
-        .where((o) => allOptionIds.contains(o.id))
-        .toList();
-
-    context.read<CartBloc>().add(CartItemAdded(
-      product: fullProduct,
-      selectedOptions: selectedOptions,
-      customizationOptionIds: allOptionIds,
-      quantity: quantity,
-    ));
-    if (!context.mounted) return;
-    context.showSuccessSnackBar(
-      context.l10n.addedToCartReorderToast(orderItem.name),
-    );
+      if (action == 'buy_now') {
+        final buyNowItem = CartItem(
+          product: fullProduct,
+          selectedOptions: selectedOptions,
+          customizationOptionIds: allOptionIds,
+          quantity: 1,
+        );
+        AuthGuard.run(context, () {
+          context.push(
+            AppRouter.checkout,
+            extra: {'buyNowItem': buyNowItem},
+          );
+        });
+      } else {
+        context.read<CartBloc>().add(
+          CartItemAdded(
+            product: fullProduct,
+            selectedOptions: selectedOptions,
+            customizationOptionIds: allOptionIds,
+            quantity: quantity,
+          ),
+        );
+        if (!context.mounted) return;
+        context.showSuccessSnackBar(
+          context.l10n.addedToCartReorderToast(orderItem.name),
+        );
+      }
+    });
   }
 
   List<CustomizationOptionModel> _resolveSelectedOptions(
@@ -241,32 +269,16 @@ class OrderAgainSection extends StatelessWidget {
                               alignment: Alignment.bottomRight,
                               child: FilledButton.tonal(
                                 style: FilledButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 4,
-                                  ),
+                                  padding: const EdgeInsets.all(8),
+                                  shape: CircleBorder(),
                                   minimumSize: Size.zero,
                                   tapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 onPressed: () => _reorder(context, product),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.add_shopping_cart_rounded,
-                                      size: 14,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      context.l10n.reorder,
-                                      style: theme.textTheme.labelSmall
-                                          ?.copyWith(
-                                            color: theme.colorScheme.primary,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ),
-                                  ],
+                                child: const Icon(
+                                  Icons.add_shopping_cart_rounded,
+                                  size: 14,
                                 ),
                               ),
                             ),

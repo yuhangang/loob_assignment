@@ -29,7 +29,7 @@ class CartRemoteDataSource {
     int? storeId,
   }) async {
     try {
-      final queryParams = <String, dynamic>{'user_id': userId};
+      final queryParams = <String, dynamic>{};
       if (storeId != null && storeId > 0) {
         queryParams['store_id'] = storeId;
       }
@@ -59,11 +59,7 @@ class CartRemoteDataSource {
     List<int>? customizationOptionIds,
   }) async {
     try {
-      final body = <String, dynamic>{
-        'method': method,
-        'user_id': userId,
-        'store_id': storeId,
-      };
+      final body = <String, dynamic>{'method': method, 'store_id': storeId};
       if (itemId != null) body['item_id'] = itemId;
       if (menuItemId != null) body['menu_item_id'] = menuItemId;
       if (quantity != null) body['quantity'] = quantity;
@@ -98,7 +94,6 @@ class CartRemoteDataSource {
       final response = await _client.dio.put(
         ApiEndpoints.cartItems,
         data: {
-          'user_id': userId,
           'store_id': storeId,
           'menu_item_id': menuItemId,
           'quantity': quantity,
@@ -126,7 +121,6 @@ class CartRemoteDataSource {
       final response = await _client.dio.patch(
         ApiEndpoints.cartItem(itemId),
         data: {
-          'user_id': userId,
           'store_id': storeId,
           'menu_item_id': menuItemId,
           'quantity': quantity,
@@ -151,7 +145,6 @@ class CartRemoteDataSource {
     try {
       final response = await _client.dio.delete(
         ApiEndpoints.cartItem(itemId),
-        queryParameters: {'user_id': userId},
         options: Options(headers: {'X-Country-Code': countryCode}),
       );
       return CartApiResponse.fromJson(response.data as Map<String, dynamic>);
@@ -168,7 +161,6 @@ class CartRemoteDataSource {
     try {
       await _client.dio.delete(
         ApiEndpoints.cart,
-        queryParameters: {'user_id': userId},
         options: Options(headers: {'X-Country-Code': countryCode}),
       );
     } on DioException catch (e) {
@@ -221,7 +213,6 @@ class CartRemoteDataSource {
     try {
       final response = await _client.dio.get(
         ApiEndpoints.orders,
-        queryParameters: {'user_id': userId},
         options: Options(headers: {'X-Country-Code': countryCode}),
       );
       final list = response.data as List<dynamic>;

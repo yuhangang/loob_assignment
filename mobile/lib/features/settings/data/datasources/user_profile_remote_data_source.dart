@@ -12,10 +12,7 @@ class UserProfileRemoteDataSource {
 
   Future<UserProfileModel> getProfile({required String userId}) async {
     try {
-      final response = await _client.dio.get(
-        ApiEndpoints.userProfile,
-        queryParameters: {'user_id': userId},
-      );
+      final response = await _client.dio.get(ApiEndpoints.userProfile);
       return UserProfileModel.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
@@ -24,10 +21,7 @@ class UserProfileRemoteDataSource {
 
   Future<WalletHistoryModel> getWalletHistory({required String userId}) async {
     try {
-      final response = await _client.dio.get(
-        ApiEndpoints.userWalletHistory,
-        queryParameters: {'user_id': userId},
-      );
+      final response = await _client.dio.get(ApiEndpoints.userWalletHistory);
       return WalletHistoryModel.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
@@ -41,7 +35,6 @@ class UserProfileRemoteDataSource {
     try {
       final response = await _client.dio.post(
         ApiEndpoints.userWalletTopups,
-        queryParameters: {'user_id': userId},
         data: {'amount': amount, 'description': 'Mobile wallet top-up'},
       );
       return WalletHistoryModel.fromJson(response.data as Map<String, dynamic>);
@@ -54,10 +47,7 @@ class UserProfileRemoteDataSource {
     required String userId,
   }) async {
     try {
-      final response = await _client.dio.get(
-        ApiEndpoints.userLoyaltyHistory,
-        queryParameters: {'user_id': userId},
-      );
+      final response = await _client.dio.get(ApiEndpoints.userLoyaltyHistory);
       return LoyaltyHistoryModel.fromJson(
         response.data as Map<String, dynamic>,
       );
@@ -70,17 +60,23 @@ class UserProfileRemoteDataSource {
     required String userId,
     String? displayName,
     String? preferredLanguage,
+    String? registeredCountryId,
     bool? marketingOptIn,
   }) async {
     try {
+      final body = <String, dynamic>{};
+      if (displayName != null) body['display_name'] = displayName;
+      if (preferredLanguage != null) {
+        body['preferred_language'] = preferredLanguage;
+      }
+      if (registeredCountryId != null) {
+        body['registered_country_id'] = registeredCountryId;
+      }
+      if (marketingOptIn != null) body['marketing_opt_in'] = marketingOptIn;
+
       final response = await _client.dio.patch(
         ApiEndpoints.userProfile,
-        queryParameters: {'user_id': userId},
-        data: {
-          'display_name': ?displayName,
-          'preferred_language': ?preferredLanguage,
-          'marketing_opt_in': ?marketingOptIn,
-        },
+        data: body,
       );
       return UserProfileModel.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {

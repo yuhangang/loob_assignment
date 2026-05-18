@@ -65,17 +65,60 @@ func (s *Service) ListCategories(ctx context.Context, req MenuRequest) (Category
 		return CategoryList{}, err
 	}
 
+	products, err := s.repo.ListProducts(ctx, store.StoreID, store.ZoneID, brandID, 0)
+	if err != nil {
+		return CategoryList{}, err
+	}
+
+	menuItemIDs := make([]int, 0, len(products))
+	for _, product := range products {
+		menuItemIDs = append(menuItemIDs, product.ID)
+	}
+
+	groups, err := s.repo.ListCustomizationGroups(ctx, menuItemIDs)
+	if err != nil {
+		return CategoryList{}, err
+	}
+
+	groupIDs := make([]int, 0, len(groups))
+	for _, group := range groups {
+		groupIDs = append(groupIDs, group.ID)
+	}
+
+	options, err := s.repo.ListCustomizationOptions(ctx, store.StoreID, store.ZoneID, groupIDs)
+	if err != nil {
+		return CategoryList{}, err
+	}
+
+	productsPayload, taxInclusive := buildProducts(products, groups, options, language, country.DefaultLanguage, s.publicBaseURL)
+
+	productIDToCategoryID := make(map[int]int)
+	for _, p := range products {
+		productIDToCategoryID[p.ID] = p.CategoryID
+	}
+
+	productsByCategory := make(map[int][]Product)
+	for _, p := range productsPayload {
+		catID := productIDToCategoryID[p.ID]
+		productsByCategory[catID] = append(productsByCategory[catID], p)
+	}
+
 	catalogCategories := make([]Category, 0, len(categories))
 	brand := "loob"
 	for _, category := range categories {
 		if brandID > 0 {
 			brand = category.BrandSlug
 		}
+		catProducts := productsByCategory[category.ID]
+		if len(catProducts) == 0 {
+			continue
+		}
 		catalogCategories = append(catalogCategories, Category{
 			ID:           category.ID,
 			DisplayOrder: category.DisplayOrder,
 			Name:         localize(category.NameTranslations, language, country.DefaultLanguage),
 			IconURL:      resolveAssetURL(s.publicBaseURL, category.IconURL.String),
+			Products:     catProducts,
 		})
 	}
 
@@ -84,7 +127,7 @@ func (s *Service) ListCategories(ctx context.Context, req MenuRequest) (Category
 		Brand:          brand,
 		CountryCode:    country.ID,
 		Currency:       country.CurrencyCode,
-		TaxInclusive:   true,
+		TaxInclusive:   taxInclusive,
 		Language:       language,
 		Categories:     catalogCategories,
 	}, nil

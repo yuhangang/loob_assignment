@@ -14,11 +14,14 @@ abstract class AuthService {
   /// Verify the OTP code.
   Future<AuthUser> verifyOtp(String verificationId, String code);
 
+  /// Initialize the authentication service and load persisted session from secure storage.
+  Future<void> init();
+
   /// Sign out the current user.
   Future<void> signOut();
 
   /// Get the current JWT token for API calls.
-  Future<String?> getIdToken();
+  Future<String?> getIdToken({bool forceRefresh = false});
 }
 
 /// Lightweight user model for the auth layer.

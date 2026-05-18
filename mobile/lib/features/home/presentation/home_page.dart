@@ -6,6 +6,8 @@ import '../../../core/localization/language_cubit.dart';
 import '../../../core/theme/brand.dart';
 import '../../../core/theme/theme_cubit.dart';
 import '../../../core/theme/tokens/spacing.dart';
+import '../../cart/presentation/bloc/cart_bloc.dart';
+import '../../cart/presentation/bloc/cart_state.dart';
 import '../../settings/data/models/user_profile_model.dart';
 import '../../settings/presentation/user_profile_cubit.dart';
 import '../data/models/app_config_model.dart';
@@ -47,7 +49,12 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       final lang = context.read<LanguageCubit>().state.languageCode;
       final brand = context.read<ThemeCubit>().state;
-      _homeCubit.loadHome(language: lang, brandId: brand.brandId);
+      final country = context.read<CartBloc>().state.countryCode;
+      _homeCubit.loadHome(
+        countryCode: country,
+        language: lang,
+        brandId: brand.brandId,
+      );
     });
   }
 
@@ -89,14 +96,34 @@ class _HomePageState extends State<HomePage> {
         BlocListener<ThemeCubit, LoobBrand>(
           listener: (context, brandState) {
             final lang = context.read<LanguageCubit>().state.languageCode;
-            _homeCubit.loadHome(language: lang, brandId: brandState.brandId);
+            final country = context.read<CartBloc>().state.countryCode;
+            _homeCubit.loadHome(
+              countryCode: country,
+              language: lang,
+              brandId: brandState.brandId,
+            );
           },
         ),
         BlocListener<LanguageCubit, Locale>(
           listener: (context, localeState) {
             final brandState = context.read<ThemeCubit>().state;
+            final country = context.read<CartBloc>().state.countryCode;
             _homeCubit.loadHome(
+              countryCode: country,
               language: localeState.languageCode,
+              brandId: brandState.brandId,
+            );
+          },
+        ),
+        BlocListener<CartBloc, CartState>(
+          listenWhen: (previous, current) =>
+              previous.countryCode != current.countryCode,
+          listener: (context, cartState) {
+            final lang = context.read<LanguageCubit>().state.languageCode;
+            final brandState = context.read<ThemeCubit>().state;
+            _homeCubit.loadHome(
+              countryCode: cartState.countryCode,
+              language: lang,
               brandId: brandState.brandId,
             );
           },

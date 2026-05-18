@@ -21,6 +21,7 @@ type mockRepository struct {
 	createIntentWithPayment func(ctx context.Context, intent Intent, payment PaymentTransaction) error
 	createPaymentIfMissing  func(ctx context.Context, payment PaymentTransaction) (PaymentTransaction, error)
 	getStatus               func(ctx context.Context, countryID, trackingID string) (Status, error)
+	getStatusForUser        func(ctx context.Context, countryID, userID, trackingID string) (Status, error)
 	listStatusesByUser      func(ctx context.Context, countryID, userID string) ([]Status, error)
 }
 
@@ -62,6 +63,9 @@ func (m *mockRepository) CreatePaymentIfMissing(ctx context.Context, payment Pay
 }
 func (m *mockRepository) GetStatus(ctx context.Context, countryID, trackingID string) (Status, error) {
 	return m.getStatus(ctx, countryID, trackingID)
+}
+func (m *mockRepository) GetStatusForUser(ctx context.Context, countryID, userID, trackingID string) (Status, error) {
+	return m.getStatusForUser(ctx, countryID, userID, trackingID)
 }
 func (m *mockRepository) ListStatusesByUser(ctx context.Context, countryID, userID string) ([]Status, error) {
 	return m.listStatusesByUser(ctx, countryID, userID)

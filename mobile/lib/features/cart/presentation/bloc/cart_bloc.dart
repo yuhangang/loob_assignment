@@ -2,7 +2,11 @@ import 'dart:async' show Timer, unawaited;
 import 'dart:developer' as developer;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/di/injection.dart';
+import '../../../../core/network/api_client.dart';
+import '../../../../core/auth/auth_service.dart';
 import '../../../menu/data/models/catalog_model.dart';
 import '../../data/datasources/cart_remote_data_source.dart';
 import '../../data/models/cart_api_model.dart';
@@ -21,8 +25,8 @@ import 'cart_state.dart';
 class CartBloc extends Bloc<CartEvent, CartState> {
   final CartRemoteDataSource? remoteDataSource;
 
-  /// The authenticated user ID — set this once the user logs in.
-  final String userId;
+  /// The authenticated user ID resolved dynamically from AuthService.
+  String get userId => sl<AuthService>().currentUser?.uid ?? '';
 
   /// Periodic availability refresh timer.
   Timer? _pollTimer;
@@ -30,7 +34,6 @@ class CartBloc extends Bloc<CartEvent, CartState> {
 
   CartBloc({
     this.remoteDataSource,
-    this.userId = 'mock_user_001',
     String countryCode = 'MY',
   }) : super(CartState(countryCode: countryCode)) {
     on<CartSwitchCountry>(_onSwitchCountry);
@@ -57,6 +60,9 @@ class CartBloc extends Bloc<CartEvent, CartState> {
   /// Switches the active country and reloads the cart for that country.
   /// Clears local state immediately so the UI doesn't show stale items.
   void _onSwitchCountry(CartSwitchCountry event, Emitter<CartState> emit) {
+    // Persist country selection for guest/authenticated users persistently
+    sl<SharedPreferences>().setString('user_preferred_country', event.countryCode);
+    sl<ApiClient>().setCountryCode(event.countryCode);
     emit(
       CartState(
         countryCode: event.countryCode,

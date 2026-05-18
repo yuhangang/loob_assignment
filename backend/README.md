@@ -104,6 +104,12 @@ The seed data is managed via JSON files in `cmd/seed/data/`.
 
 By default the API applies SQL migrations from `sql/migrations` at startup. Set `AUTO_MIGRATE=false` to disable this behavior.
 
+Authenticated user-owned APIs require `Authorization: Bearer <token>`.
+
+- Set `FIREBASE_PROJECT_ID`.
+- Send Firebase Auth ID tokens from the mobile app.
+- The backend derives `user_id` from the verified token subject. Client-supplied `user_id` query/body/header values are ignored on protected endpoints.
+
 Useful smoke checks:
 
 ```bash
@@ -112,7 +118,7 @@ curl -sS -H 'X-Country-Code: MY' -H 'Accept-Language: ms-MY' 'http://127.0.0.1:8
 curl -sS -H 'X-Country-Code: MY' -H 'Accept-Language: ms-MY' 'http://127.0.0.1:8080/api/v1/catalog/categories/1/items?store_id=1'
 curl -sS -H 'X-Country-Code: MY' 'http://127.0.0.1:8080/api/v1/catalog/stores'
 curl -sS -H 'X-Country-Code: MY' 'http://127.0.0.1:8080/api/v1/campaigns/home'
-curl -sS -H 'X-Country-Code: MY' 'http://127.0.0.1:8080/api/v1/vouchers/wallet?user_id=demo-user'
+curl -sS -H 'Authorization: Bearer <firebase-id-token>' -H 'X-Country-Code: MY' 'http://127.0.0.1:8080/api/v1/vouchers/wallet'
 ```
 
 Mock payment gateway callback:

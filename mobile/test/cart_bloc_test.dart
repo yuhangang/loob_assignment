@@ -163,7 +163,6 @@ void main() {
             ],
           ),
         ),
-        userId: 'u1',
       ),
       seed: () => CartState(
         storeId: 1,

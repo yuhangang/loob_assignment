@@ -104,12 +104,12 @@ func TestListCategoriesAndCategoryItems(t *testing.T) {
 			}, nil
 		},
 		listProducts: func(ctx context.Context, storeID int, zoneID string, brandID int, categoryID int) ([]ProductRow, error) {
-			if categoryID != 1 {
-				return nil, nil
+			if categoryID == 0 || categoryID == 1 {
+				return []ProductRow{
+					{ID: 101, CategoryID: 1, SKUCode: "P1", IsAvailable: true, NameTranslations: map[string]string{"en": "Tea"}, BasePrice: 500, TaxInclusive: true},
+				}, nil
 			}
-			return []ProductRow{
-				{ID: 101, CategoryID: 1, SKUCode: "P1", IsAvailable: true, NameTranslations: map[string]string{"en": "Tea"}, BasePrice: 500, TaxInclusive: true},
-			}, nil
+			return nil, nil
 		},
 		listCustomizationGroups: func(ctx context.Context, menuItemIDs []int) ([]GroupRow, error) {
 			return []GroupRow{
@@ -135,14 +135,15 @@ func TestListCategoriesAndCategoryItems(t *testing.T) {
 			t.Errorf("expected MY, got %s", catalog.CountryCode)
 		}
 
-		if len(catalog.Categories) != 2 {
-			t.Errorf("expected 2 categories, got %d", len(catalog.Categories))
+		// Empty categories (ID: 2) are now filtered out on the backend
+		if len(catalog.Categories) != 1 {
+			t.Errorf("expected 1 active category, got %d", len(catalog.Categories))
 		}
 		if catalog.Categories[0].ID != 1 {
 			t.Errorf("expected category 1, got %d", catalog.Categories[0].ID)
 		}
-		if len(catalog.Categories[0].Products) != 0 {
-			t.Errorf("expected categories endpoint to omit products")
+		if len(catalog.Categories[0].Products) != 1 {
+			t.Errorf("expected categories endpoint to prepopulate products, got %d", len(catalog.Categories[0].Products))
 		}
 	})
 

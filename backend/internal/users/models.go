@@ -55,12 +55,13 @@ type LoyaltyHistory struct {
 }
 
 type UpdateProfileRequest struct {
-	DisplayName       *string `json:"display_name"`
-	Email             *string `json:"email"`
-	PhoneNumber       *string `json:"phone_number"`
-	AvatarURL         *string `json:"avatar_url"`
-	PreferredLanguage *string `json:"preferred_language"`
-	MarketingOptIn    *bool   `json:"marketing_opt_in"`
+	DisplayName         *string `json:"display_name"`
+	Email               *string `json:"email"`
+	PhoneNumber         *string `json:"phone_number"`
+	AvatarURL           *string `json:"avatar_url"`
+	PreferredLanguage   *string `json:"preferred_language"`
+	RegisteredCountryID *string `json:"registered_country_id"`
+	MarketingOptIn      *bool   `json:"marketing_opt_in"`
 }
 
 type WalletTopUpRequest struct {
@@ -69,10 +70,11 @@ type WalletTopUpRequest struct {
 }
 
 type ProfileUpdate struct {
-	DisplayName       string
-	Email             string
-	PhoneNumber       string
-	AvatarURL         string
-	PreferredLanguage string
-	MarketingOptIn    bool
+	DisplayName         string
+	Email               string
+	PhoneNumber         string
+	AvatarURL           string
+	PreferredLanguage   string
+	RegisteredCountryID string
+	MarketingOptIn      bool
 }

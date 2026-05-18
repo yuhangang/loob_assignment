@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:loob_app/features/menu/data/models/catalog_model.dart';
 import 'dart:ui';
 import '../../../../core/localization/app_localizations.dart';
@@ -151,7 +152,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         for (final entry in _selections.entries)
           entry.key: entry.value.toList(),
       },
-      'quantity': _quantity,
+      'quantity': action == 'buy_now' ? 1 : _quantity,
     };
   }
 
@@ -548,9 +549,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                             elevation: 0,
                                           ),
                                           onPressed: () {
-                                            Navigator.of(context).pushReplacementNamed(
+                                            context.pushReplacement(
                                               AppRouter.productDetail,
-                                              arguments: {
+                                              extra: {
                                                 'product': widget.product,
                                                 'currency': widget.currency,
                                               },
@@ -608,38 +609,84 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                       ),
                                     ],
                                   )
-                                : FilledButton(
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor:
-                                          theme.colorScheme.primary,
-                                      foregroundColor:
-                                          theme.colorScheme.onPrimary,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          AppSpacing.radiusXl,
+                                : Row(
+                                    children: [
+                                      Expanded(
+                                        child: FilledButton.tonal(
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                    AppSpacing.radiusXl,
+                                                  ),
+                                            ),
+                                            elevation: 0,
+                                          ),
+                                          onPressed: _hasValidSelections
+                                              ? () {
+                                                  Navigator.of(
+                                                    context,
+                                                  ).pop(_result('buy_now'));
+                                                }
+                                              : null,
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Text(
+                                              context.l10n.buyNow,
+                                              maxLines: 1,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                      elevation: 0,
-                                    ),
-                                    onPressed: _hasValidSelections
-                                        ? () {
-                                            Navigator.of(
-                                              context,
-                                            ).pop(_result('add'));
-                                          }
-                                        : null,
-                                    child: Text(
-                                      context.l10n.addToCartBtn(
-                                        _totalPrice.toDisplayPrice(
-                                          widget.currency,
+                                      const SizedBox(width: AppSpacing.sm),
+                                      Expanded(
+                                        child: FilledButton(
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor:
+                                                theme.colorScheme.primary,
+                                            foregroundColor:
+                                                theme.colorScheme.onPrimary,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                    AppSpacing.radiusXl,
+                                                  ),
+                                            ),
+                                            elevation: 0,
+                                          ),
+                                          onPressed: _hasValidSelections
+                                              ? () {
+                                                  Navigator.of(
+                                                    context,
+                                                  ).pop(_result('add'));
+                                                }
+                                              : null,
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Text(
+                                              context.l10n.addToCartBtn(
+                                                _totalPrice.toDisplayPrice(
+                                                  widget.currency,
+                                                ),
+                                              ),
+                                              maxLines: 1,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
+                                    ],
                                   ),
                           ),
                         ),

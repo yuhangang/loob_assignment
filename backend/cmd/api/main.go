@@ -4,7 +4,9 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/loob/backend/internal/apierrors"
 	"github.com/loob/backend/internal/appconfig"
+	"github.com/loob/backend/internal/auth"
 	"github.com/loob/backend/internal/campaigns"
 	"github.com/loob/backend/internal/cart"
 	"github.com/loob/backend/internal/catalog"
@@ -38,6 +40,7 @@ func main() {
 
 	e := echo.New()
 	e.HideBanner = true
+	e.HTTPErrorHandler = apierrors.Handler
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
 	e.Use(contextx.Middleware())
@@ -53,28 +56,39 @@ func main() {
 		},
 	}))
 
-	e.GET("/health", func(c echo.Context) error {
-		return c.JSON(http.StatusOK, map[string]string{
-			"status":  "healthy",
-			"service": "loob-api",
-		})
+	// Initialize repositories, services, and handlers
+	authenticator := auth.New(auth.Config{
+		FirebaseProjectID: cfg.FirebaseProjectID,
 	})
-
-	e.Static("/cdn", "cdn")
-
-	v1 := e.Group("/api/v1")
-
-	// Initialize and register modules
+	requireAuth := authenticator.Required()
 	ps := payments.Init(db, cfg.MockGatewaySecret)
 
-	payments.Register(v1, ps)
-	catalog.Register(db, v1, cfg.PublicBaseURL)
-	checkout.Register(db, v1, ps)
-	cart.Register(db, v1, cfg.PublicBaseURL)
-	campaigns.Register(db, v1, cfg.PublicBaseURL)
-	vouchers.Register(db, v1)
-	users.Register(db, v1, cfg.PublicBaseURL)
-	appconfig.Register(v1, cfg.PublicBaseURL)
+	paymentHandler := payments.NewHandler(ps)
+	catalogHandler := catalog.NewHandler(catalog.NewService(catalog.NewRepository(db), cfg.PublicBaseURL))
+	
+	checkoutService := checkout.NewService(checkout.NewRepository(db), ps)
+	checkoutHandler := checkout.NewHandler(checkoutService)
+	
+	cartHandler := cart.NewHandler(cart.NewService(cart.NewRepository(db), cfg.PublicBaseURL))
+	campaignsHandler := campaigns.NewHandler(campaigns.NewService(campaigns.NewRepository(db), cfg.PublicBaseURL))
+	
+	voucherHandler := vouchers.NewHandler(vouchers.NewService(vouchers.NewRepository(db)), checkoutService)
+	usersHandler := users.NewHandler(users.NewService(users.NewRepository(db), cfg.PublicBaseURL))
+	appconfigHandler := appconfig.NewHandler(cfg.PublicBaseURL)
+
+	// Register routes
+	registerRoutes(routesConfig{
+		e:                e,
+		requireAuth:      requireAuth,
+		paymentHandler:   paymentHandler,
+		catalogHandler:   catalogHandler,
+		checkoutHandler:  checkoutHandler,
+		cartHandler:      cartHandler,
+		campaignsHandler: campaignsHandler,
+		voucherHandler:   voucherHandler,
+		usersHandler:     usersHandler,
+		appconfigHandler: appconfigHandler,
+	})
 
 	log.Printf("starting Loob API on %s", cfg.HTTPAddr)
 	if err := e.Start(cfg.HTTPAddr); err != nil && err != http.ErrServerClosed {

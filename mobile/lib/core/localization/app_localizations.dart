@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// Access localized copywriting for Loob mobile app in both English and Malay.
+///
+/// With potential for more languages and OTA updates from cdn
 class AppLocalizations {
   final Locale locale;
 
@@ -157,9 +159,12 @@ class AppLocalizations {
       'clear_cart_title': 'Clear Cart?',
       'clear_cart_content':
           'Are you sure you want to remove all items from your cart?',
+      'remove_item_title': 'Remove Item?',
+      'remove_item_content': 'Are you sure you want to remove this item?',
       'cancel': 'Cancel',
       'clear_all': 'Clear All',
       'order_id_copied': 'Order ID copied',
+      'voucher_code_copied': 'Voucher code copied',
       'order_status_title': 'Order Status',
       'show_to_staff': 'SHOW TO STAFF FOR COLLECTION',
       'collection_pin': 'COLLECTION PIN',
@@ -170,6 +175,26 @@ class AppLocalizations {
       'updated': 'Updated',
       'unable_load_order_status': 'Unable to load order status.',
       'retry': 'Retry',
+      'item_unavailable_remove': 'Remove',
+      'each': 'each',
+      'remove_unavailable_items': 'Remove Unavailable Items',
+      'selected_outlet_closed': 'Selected Outlet Closed',
+      'proceed_to_checkout': 'Proceed to Checkout',
+      'welcome_guest': 'Welcome, Guest!',
+      'guest_desc': 'Log in to earn loyalty points, claim discount vouchers, and order online.',
+      'login_signup': 'Login / Sign Up',
+      'welcome_loob': 'Welcome to Loob',
+      'login_sheet_desc': 'Log in with your phone number to earn loyalty points, claim exclusive vouchers, and place checkout orders.',
+      'enter_phone_hint': 'Enter phone number',
+      'continue_btn': 'Continue',
+      'verify_code_title': 'Verify Code',
+      'otp_sent_to': 'We have sent a 6-digit OTP code to {}',
+      'phone_required_err': 'Phone number is required',
+      'otp_required_err': 'Verification code is required',
+      'otp_incorrect_err': 'Incorrect code. Try "123456"',
+      'demo_otp_helper': 'Demo Mock Verification Code is "123456"',
+      'select_country_title': 'Select Country',
+      'buy_now': 'Buy Now',
     },
     'ms': {
       'home': 'Utama',
@@ -319,15 +344,38 @@ class AppLocalizations {
       'clear_cart_title': 'Kosongkan Troli?',
       'clear_cart_content':
           'Adakah anda pasti mahu mengalih keluar semua item daripada troli anda?',
+      'remove_item_title': 'Padam Item?',
+      'remove_item_content': 'Adakah anda pasti mahu padam item ini?',
       'cancel': 'Batal',
       'clear_all': 'Kosongkan Semua',
       'order_id_copied': 'ID Pesanan disalin',
+      'voucher_code_copied': 'Kod baucher disalin',
       'order_status_title': 'Status Pesanan',
       'show_to_staff': 'Tunjukkan ini kepada kakitangan di kaunter',
       'collection_pin': 'PIN',
       'your_collection_code': 'KOD KOLEKSI ANDA',
       'unable_load_order_status': 'Tidak dapat memuatkan status pesanan.',
       'retry': 'Cuba Semula',
+      'item_unavailable_remove': 'Padam',
+      'each': 'setiap satu',
+      'remove_unavailable_items': 'Padam Item Tidak Tersedia',
+      'selected_outlet_closed': 'Cawangan Terpilih Ditutup',
+      'proceed_to_checkout': 'Teruskan ke Daftar Keluar',
+      'welcome_guest': 'Selamat Datang, Pelawat!',
+      'guest_desc': 'Log masuk untuk mendapatkan mata ganjaran, menuntut baucher diskaun dan membuat pesanan atas talian.',
+      'login_signup': 'Log Masuk / Daftar',
+      'welcome_loob': 'Selamat Datang ke Loob',
+      'login_sheet_desc': 'Log masuk dengan nombor telefon anda untuk mendapatkan mata ganjaran, menuntut baucher eksklusif dan membuat pesanan.',
+      'enter_phone_hint': 'Masukkan nombor telefon',
+      'continue_btn': 'Teruskan',
+      'verify_code_title': 'Sahkan Kod',
+      'otp_sent_to': 'Kami telah menghantar 6-digit kod OTP ke {}',
+      'phone_required_err': 'Nombor telefon diperlukan',
+      'otp_required_err': 'Kod pengesahan diperlukan',
+      'otp_incorrect_err': 'Kod salah. Cuba "123456"',
+      'demo_otp_helper': 'Kod Pengesahan Demo adalah "123456"',
+      'select_country_title': 'Pilih Negara',
+      'buy_now': 'Beli Sekarang',
     },
   };
 
@@ -487,9 +535,12 @@ class AppLocalizations {
 
   String get clearCartTitle => _translate('clear_cart_title');
   String get clearCartContent => _translate('clear_cart_content');
+  String get removeItemTitle => _translate('remove_item_title');
+  String get removeItemContent => _translate('remove_item_content');
   String get cancel => _translate('cancel');
   String get clearAll => _translate('clear_all');
   String get orderIdCopied => _translate('order_id_copied');
+  String get voucherCodeCopied => _translate('voucher_code_copied');
   String get orderStatusTitle => _translate('order_status_title');
   String get showToStaff => _translate('show_to_staff');
   String get collectionPin => _translate('collection_pin');
@@ -500,6 +551,25 @@ class AppLocalizations {
   String get updatedLabel => _translate('updated');
   String get unableLoadOrderStatus => _translate('unable_load_order_status');
   String get retry => _translate('retry');
+
+  String get welcomeGuest => _translate('welcome_guest');
+  String get guestDesc => _translate('guest_desc');
+  String get loginSignup => _translate('login_signup');
+  String get welcomeLoob => _translate('welcome_loob');
+  String get loginSheetDesc => _translate('login_sheet_desc');
+  String get enterPhoneHint => _translate('enter_phone_hint');
+  String get continueBtn => _translate('continue_btn');
+  String get verifyCodeTitle => _translate('verify_code_title');
+  String get phoneRequiredErr => _translate('phone_required_err');
+  String get otpRequiredErr => _translate('otp_required_err');
+  String get otpIncorrectErr => _translate('otp_incorrect_err');
+  String get demoOtpHelper => _translate('demo_otp_helper');
+  String get selectCountryTitle => _translate('select_country_title');
+  String get buyNow => _translate('buy_now');
+
+  String otpSentTo(String phone) {
+    return _translate('otp_sent_to').replaceAll('{}', phone);
+  }
 
   String voucherWillBeValidated(String code) {
     return _translate('voucher_will_be_validated').replaceAll('{}', code);
