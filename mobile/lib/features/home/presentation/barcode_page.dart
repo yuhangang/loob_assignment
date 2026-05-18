@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../core/theme/theme_cubit.dart';
+import '../../../core/theme/tokens/colors.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../settings/presentation/user_profile_cubit.dart';
 import 'widgets/barcode_main_card.dart';
@@ -125,7 +125,7 @@ class _BarcodePageState extends State<BarcodePage>
           children: [
             const Icon(
               Icons.check_circle_rounded,
-              color: Colors.white,
+              color: AppColors.white,
               size: 20,
             ),
             const SizedBox(width: AppSpacing.sm),
@@ -136,7 +136,7 @@ class _BarcodePageState extends State<BarcodePage>
           ],
         ),
         behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.green.shade700,
+        backgroundColor: AppColors.success,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
         ),
@@ -152,19 +152,12 @@ class _BarcodePageState extends State<BarcodePage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final brand = context.watch<ThemeCubit>().state;
-    final isTealive = brand.brandId == 1;
+    final isTealive = true;
 
     // Elegant brand styling tokens
-    final primaryColor = isTealive
-        ? const Color(0xFF4C1D40)
-        : const Color(0xFF0A0A0A);
-    final accentColor = isTealive
-        ? const Color(0xFFF3C623)
-        : const Color(0xFFFFFF5A); // Fixed double prefix from original
-    final surfaceColor = isTealive
-        ? const Color(0xFFFDF8FB)
-        : const Color(0xFF171717);
+    const primaryColor = Color(0xFF4C1D40);
+    const accentColor = Color(0xFFF3C623);
+    const surfaceColor = Color(0xFFFDF8FB);
 
     return BlocBuilder<UserProfileCubit, UserProfileState>(
       builder: (context, profileState) {
@@ -209,17 +202,17 @@ class _BarcodePageState extends State<BarcodePage>
                     SliverAppBar(
                       pinned: true,
                       floating: false,
-                      backgroundColor: Colors.transparent,
+                      backgroundColor: AppColors.transparent,
                       elevation: 0,
                       leading: Padding(
                         padding: const EdgeInsets.all(AppSpacing.sm),
                         child: CircleAvatar(
-                          backgroundColor: Colors.white12,
+                          backgroundColor: AppColors.white12,
                           child: IconButton(
                             icon: const Icon(
                               Icons.arrow_back_ios_new_rounded,
                               size: 16,
-                              color: Colors.white,
+                              color: AppColors.white,
                             ),
                             onPressed: () => Navigator.pop(context),
                           ),
@@ -229,7 +222,7 @@ class _BarcodePageState extends State<BarcodePage>
                       title: Text(
                         'Loyalty Card',
                         style: theme.textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
+                          color: AppColors.white,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.5,
                         ),

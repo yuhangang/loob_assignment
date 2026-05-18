@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/quantity_stepper.dart';
@@ -44,7 +45,7 @@ class CartItemCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: AppColors.black.withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -75,7 +76,9 @@ class CartItemCard extends StatelessWidget {
                           height: 72,
                           errorBuilder: (context, error, stackTrace) => Icon(
                             Icons.local_cafe_rounded,
-                            color: theme.colorScheme.primary.withValues(alpha: 0.4),
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.4,
+                            ),
                             size: 32,
                           ),
                         ),
@@ -83,11 +86,11 @@ class CartItemCard extends StatelessWidget {
                           Container(
                             width: 72,
                             height: 72,
-                            color: Colors.black.withValues(alpha: 0.45),
+                            color: AppColors.black.withValues(alpha: 0.45),
                             child: const Center(
                               child: Icon(
                                 Icons.block_rounded,
-                                color: Colors.white,
+                                color: AppColors.white,
                                 size: 28,
                               ),
                             ),
@@ -133,8 +136,8 @@ class CartItemCard extends StatelessWidget {
                           text: context.l10n.someOptionsUnavailable,
                           theme: theme,
                           icon: Icons.warning_amber_rounded,
-                          color: Colors.orange.shade700,
-                          bgColor: Colors.orange.shade50,
+                          color: AppColors.textFulfillmentOrange,
+                          bgColor: AppColors.lightFulfillmentOrangeBg,
                         ),
                       ],
 
@@ -153,14 +156,19 @@ class CartItemCard extends StatelessWidget {
                               ),
                               decoration: BoxDecoration(
                                 color: isOptUnavailable
-                                    ? theme.colorScheme.error.withValues(alpha: 0.08)
-                                    : theme.colorScheme.primary.withValues(alpha: 0.06),
+                                    ? theme.colorScheme.error.withValues(
+                                        alpha: 0.08,
+                                      )
+                                    : theme.colorScheme.primary.withValues(
+                                        alpha: 0.06,
+                                      ),
                                 borderRadius: BorderRadius.circular(
                                   AppSpacing.radiusSm,
                                 ),
                                 border: isOptUnavailable
                                     ? Border.all(
-                                        color: theme.colorScheme.error.withValues(alpha: 0.3),
+                                        color: theme.colorScheme.error
+                                            .withValues(alpha: 0.3),
                                         width: 1,
                                       )
                                     : null,
@@ -179,20 +187,23 @@ class CartItemCard extends StatelessWidget {
                                   Flexible(
                                     child: Text(
                                       isOptUnavailable
-                                          ? context.l10n.optionUnavailableTag(opt.name)
+                                          ? context.l10n.optionUnavailableTag(
+                                              opt.name,
+                                            )
                                           : opt.priceAdjustment > 0
-                                              ? '${opt.name} (+${opt.priceAdjustment.toDisplayPrice(currency)})'
-                                              : opt.name,
-                                      style: theme.textTheme.labelSmall?.copyWith(
-                                        color: isOptUnavailable
-                                            ? theme.colorScheme.error
-                                            : theme.colorScheme.primary,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        decoration: isOptUnavailable
-                                            ? TextDecoration.lineThrough
-                                            : null,
-                                      ),
+                                          ? '${opt.name} (+${opt.priceAdjustment.toDisplayPrice(currency)})'
+                                          : opt.name,
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: isOptUnavailable
+                                                ? theme.colorScheme.error
+                                                : theme.colorScheme.primary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            decoration: isOptUnavailable
+                                                ? TextDecoration.lineThrough
+                                                : null,
+                                          ),
                                     ),
                                   ),
                                 ],
@@ -244,20 +255,20 @@ class CartItemCard extends StatelessWidget {
                                 _confirmRemoveItem(context, item);
                               } else {
                                 context.read<CartBloc>().add(
-                                      CartItemQuantityUpdated(
-                                        item: item,
-                                        quantity: item.quantity - 1,
-                                      ),
-                                    );
+                                  CartItemQuantityUpdated(
+                                    item: item,
+                                    quantity: item.quantity - 1,
+                                  ),
+                                );
                               }
                             },
                             onIncrease: () {
                               context.read<CartBloc>().add(
-                                    CartItemQuantityUpdated(
-                                      item: item,
-                                      quantity: item.quantity + 1,
-                                    ),
-                                  );
+                                CartItemQuantityUpdated(
+                                  item: item,
+                                  quantity: item.quantity + 1,
+                                ),
+                              );
                             },
                           ),
                         ],
@@ -307,11 +318,8 @@ class CartItemCard extends StatelessWidget {
             ),
             onPressed: () {
               context.read<CartBloc>().add(
-                    CartItemQuantityUpdated(
-                      item: item,
-                      quantity: 0,
-                    ),
-                  );
+                CartItemQuantityUpdated(item: item, quantity: 0),
+              );
               Navigator.pop(dialogContext);
             },
             child: Text(context.l10n.itemUnavailableRemove),
@@ -341,7 +349,8 @@ class _WarningBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveColor = color ?? theme.colorScheme.error;
-    final effectiveBg = bgColor ?? theme.colorScheme.error.withValues(alpha: 0.1);
+    final effectiveBg =
+        bgColor ?? theme.colorScheme.error.withValues(alpha: 0.1);
 
     return Container(
       padding: const EdgeInsets.symmetric(

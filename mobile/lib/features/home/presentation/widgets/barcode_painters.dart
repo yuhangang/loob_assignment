@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../../../core/theme/tokens/colors.dart';
 
 // ── Custom Barcode Vector Painter ─────────────────────────────────────────────
 class BarcodePainter extends CustomPainter {
@@ -9,7 +10,7 @@ class BarcodePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black
+      ..color = AppColors.black
       ..style = PaintingStyle.fill;
 
     // Use a robust deterministic mapping of the string characters
@@ -64,7 +65,7 @@ class QrCodePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black
+      ..color = AppColors.black
       ..style = PaintingStyle.fill;
 
     const int gridCount = 21; // standard QR Version 1 grid size
@@ -125,18 +126,18 @@ class QrCodePainter extends CustomPainter {
     double cellSize,
   ) {
     // Outer 7x7 square
-    paint.color = Colors.black;
+    paint.color = AppColors.black;
     canvas.drawRect(Rect.fromLTWH(x, y, cellSize * 7, cellSize * 7), paint);
 
     // Inner 5x5 white cutout
-    paint.color = Colors.white;
+    paint.color = AppColors.white;
     canvas.drawRect(
       Rect.fromLTWH(x + cellSize, y + cellSize, cellSize * 5, cellSize * 5),
       paint,
     );
 
     // Core 3x3 solid black square
-    paint.color = Colors.black;
+    paint.color = AppColors.black;
     canvas.drawRect(
       Rect.fromLTWH(
         x + cellSize * 2,

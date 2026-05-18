@@ -118,7 +118,7 @@ func TestListCategoriesAndCategoryItems(t *testing.T) {
 		},
 		listCustomizationOptions: func(ctx context.Context, storeID int, zoneID string, groupIDs []int) ([]OptionRow, error) {
 			return []OptionRow{
-				{ID: 1001, GroupID: 10, OptionCode: "sugar_100", NameTranslations: map[string]string{"en": "Regular Sugar"}, IsDefault: true, IsAvailable: true},
+				{ID: 1001, GroupID: 10, OptionCode: "sugar_50", NameTranslations: map[string]string{"en": "Half Sugar"}, IsDefault: true, IsAvailable: true},
 			}, nil
 		},
 	}

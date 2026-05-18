@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/config/app_config.dart';
-import '../../../../core/di/injection.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
+import '../../../../core/widgets/user_profile_avatar.dart';
 import '../../../settings/data/models/user_profile_model.dart';
 
 class BarcodeProfileHeader extends StatelessWidget {
@@ -25,24 +25,12 @@ class BarcodeProfileHeader extends StatelessWidget {
 
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.all(2.5),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: accentColor.withValues(alpha: 0.6),
-              width: 2,
-            ),
-          ),
-          child: CircleAvatar(
-            radius: 24,
-            backgroundColor: Colors.white12,
-            backgroundImage: profile != null && profile!.avatarUrl.isNotEmpty
-                ? NetworkImage(profile!.avatarUrl)
-                : NetworkImage(
-                    '${sl<AppConfig>().baseUrl}/cdn/cute_avatar.png',
-                  ),
-          ),
+        UserProfileAvatar(
+          avatarUrl: profile?.avatarUrl,
+          displayName: profile?.displayName ?? 'Dev User',
+          size: 44,
+          borderWidth: 2,
+          borderColor: accentColor.withValues(alpha: 0.6),
         ),
         const SizedBox(width: AppSpacing.md),
         Expanded(
@@ -54,7 +42,7 @@ class BarcodeProfileHeader extends StatelessWidget {
                     ? profile!.displayName
                     : 'Dev User',
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
+                  color: AppColors.white,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -74,7 +62,7 @@ class BarcodeProfileHeader extends StatelessWidget {
                     Icon(
                       Icons.stars_rounded,
                       size: 11,
-                      color: isTealive ? primaryColor : Colors.white,
+                      color: isTealive ? primaryColor : AppColors.white,
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -82,7 +70,7 @@ class BarcodeProfileHeader extends StatelessWidget {
                           ? '${profile!.loyaltyTier.toUpperCase()} MEMBER'
                           : 'GOLD MEMBER',
                       style: TextStyle(
-                        color: isTealive ? primaryColor : Colors.white,
+                        color: isTealive ? primaryColor : AppColors.white,
                         fontSize: 9,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.5,

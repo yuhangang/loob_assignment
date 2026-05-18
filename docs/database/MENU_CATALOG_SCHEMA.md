@@ -61,8 +61,8 @@ By using this flattened, expressive schema, the Business and Operations teams ca
               "name": "Tahap Gula",
               "options": [
                 { "id": "opt_sugar_0", "code": "sugar_0", "name": "Tiada Gula (0%)", "price_adjustment": 0 },
-                { "id": "opt_sugar_50", "code": "sugar_50", "name": "Separuh Gula (50%)", "price_adjustment": 0 },
-                { "id": "opt_sugar_100", "code": "sugar_100", "name": "Gula Biasa (100%)", "price_adjustment": 0, "is_default": true }
+                { "id": "opt_sugar_50", "code": "sugar_50", "name": "Separuh Gula (50%)", "price_adjustment": 0, "is_default": true },
+                { "id": "opt_sugar_100", "code": "sugar_100", "name": "Gula Biasa (100%)", "price_adjustment": 0 }
               ]
             },
             {

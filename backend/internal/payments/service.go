@@ -179,7 +179,7 @@ func (s *Service) ListMethods(ctx context.Context, countryID string, brandID int
 func mapGatewayStatus(status string) (paymentStatus string, orderStatus string, err error) {
 	switch strings.ToUpper(strings.TrimSpace(status)) {
 	case "SUCCESS", "SUCCEEDED", "CAPTURED", "PAID":
-		return "CAPTURED", "QUEUED", nil
+		return "CAPTURED", "READY_TO_COLLECT", nil
 	case "AUTHORIZED":
 		return "AUTHORIZED", "PAYMENT_PENDING", nil
 	case "FAILED", "DECLINED":

@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/router/app_router.dart';
@@ -27,7 +28,7 @@ class StickyCheckoutPanel extends StatelessWidget {
           decoration: BoxDecoration(
             color: theme.brightness == Brightness.dark
                 ? theme.scaffoldBackgroundColor.withValues(alpha: 0.85)
-                : Colors.white.withValues(alpha: 0.88),
+                : AppColors.white.withValues(alpha: 0.88),
             border: Border(
               top: BorderSide(
                 color: theme.dividerColor.withValues(alpha: 0.08),

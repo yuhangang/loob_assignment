@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/tokens/colors.dart';
 import '../login_bottom_sheet.dart';
 import '../../router/app_router.dart';
 
@@ -18,7 +19,7 @@ void showSessionTimeoutDialog(BuildContext context) {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24.0),
         ),
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : AppColors.white,
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -58,7 +59,7 @@ void showSessionTimeoutDialog(BuildContext context) {
                 'Your session has timed out. Please log in again to continue ordering.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  color: isDark ? AppColors.grey400 : AppColors.grey600,
                   height: 1.4,
                 ),
               ),
@@ -106,14 +107,14 @@ void showSessionTimeoutDialog(BuildContext context) {
                     ),
                     side: BorderSide(
                       color: isDark
-                          ? Colors.grey.shade800
-                          : Colors.grey.shade300,
+                          ? AppColors.grey800
+                          : AppColors.grey300,
                     ),
                   ),
                   child: Text(
                     'Dismiss',
                     style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black87,
+                      color: isDark ? AppColors.white : AppColors.black87,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),

@@ -234,4 +234,37 @@ class CartRemoteDataSource {
       throw ApiException.fromDioError(e);
     }
   }
+
+  Future<OrderStatusModel> collectOrder(String trackingId) async {
+    try {
+      final response = await _client.dio.post(
+        ApiEndpoints.collectOrder(trackingId),
+      );
+      return OrderStatusModel.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<void> confirmMockPayment({
+    required String transactionId,
+    required String secret,
+  }) async {
+    try {
+      await _client.dio.post(
+        ApiEndpoints.paymentMockCallback,
+        data: {
+          'transaction_id': transactionId,
+          'status': 'SUCCESS',
+        },
+        options: Options(
+          headers: {
+            'X-Mock-Gateway-Secret': secret,
+          },
+        ),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
 }

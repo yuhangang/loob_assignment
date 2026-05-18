@@ -4,6 +4,8 @@ import 'package:loob_app/core/localization/app_localizations.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/di/injection.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/theme/tokens/colors.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
 import '../data/models/order_status_model.dart';
@@ -47,57 +49,145 @@ class _OrderStatusPageState extends State<OrderStatusPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(context.l10n.orderStatusTitle)),
-      body: FutureBuilder<OrderStatusModel>(
-        future: _statusFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.cloud_off_rounded,
-                      size: 64,
-                      color: theme.colorScheme.error,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      context.l10n.unableLoadOrderStatus,
-                      style: theme.textTheme.titleMedium?.copyWith(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      },
+      child: Scaffold(
+        appBar: AppBar(title: Text(context.l10n.orderStatusTitle)),
+        body: FutureBuilder<OrderStatusModel>(
+          future: _statusFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.cloud_off_rounded,
+                        size: 64,
                         color: theme.colorScheme.error,
-                        fontWeight: FontWeight.w800,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        context.l10n.unableLoadOrderStatus,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.error,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              );
+            }
+            final status = snapshot.data!;
+            return _OrderStatusContent(
+              status: status,
+              pulseAnimation: _pulseAnimation,
+              isCollecting: _isCollecting,
+              onCollect: _collectOrder,
+              isRetryingPayment: _isRetryingPayment,
+              onRetryPayment: _retryPayment,
             );
-          }
-          final status = snapshot.data!;
-          return _OrderStatusContent(
-            status: status,
-            pulseAnimation: _pulseAnimation,
-          );
-        },
+          },
+        ),
       ),
     );
+  }
+
+  bool _isCollecting = false;
+  bool _isRetryingPayment = false;
+
+  void _collectOrder() async {
+    if (_isCollecting) return;
+    setState(() {
+      _isCollecting = true;
+    });
+    try {
+      final updatedStatus = await _repository.collectOrder(widget.trackingId);
+      setState(() {
+        _statusFuture = Future.value(updatedStatus);
+        _isCollecting = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isCollecting = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to collect order: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _retryPayment(String transactionId) async {
+    if (_isRetryingPayment) return;
+    setState(() {
+      _isRetryingPayment = true;
+    });
+    try {
+      final appConfig = sl<AppConfig>();
+      await _repository.confirmMockPayment(
+        transactionId: transactionId,
+        secret: appConfig.mockGatewaySecret,
+      );
+      await Future.delayed(const Duration(milliseconds: 500));
+      final updatedStatus = await _repository.getOrderStatus(widget.trackingId);
+      setState(() {
+        _statusFuture = Future.value(updatedStatus);
+        _isRetryingPayment = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment successfully confirmed!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isRetryingPayment = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to confirm payment: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
   }
 }
 
 class _OrderStatusContent extends StatelessWidget {
   final OrderStatusModel status;
   final Animation<double> pulseAnimation;
+  final bool isCollecting;
+  final VoidCallback onCollect;
+  final bool isRetryingPayment;
+  final Function(String) onRetryPayment;
 
   const _OrderStatusContent({
     required this.status,
     required this.pulseAnimation,
+    required this.isCollecting,
+    required this.onCollect,
+    required this.isRetryingPayment,
+    required this.onRetryPayment,
   });
 
   @override
@@ -117,7 +207,74 @@ class _OrderStatusContent extends StatelessWidget {
           pulseAnimation: pulseAnimation,
         ),
 
+        if (status.status.toUpperCase() == 'READY_TO_COLLECT') ...[
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton.icon(
+              onPressed: isCollecting ? null : onCollect,
+              icon: isCollecting
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.white,
+                      ),
+                    )
+                  : const Icon(Icons.check_circle_outline_rounded, size: 20),
+              label: Text(
+                isCollecting ? context.l10n.collectingBtn : context.l10n.collectBtn,
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                ),
+              ),
+            ),
+          ),
+        ],
+
+        if (status.paymentStatus.toUpperCase() == 'PENDING' &&
+            status.paymentTransactionId.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton.icon(
+              onPressed: isRetryingPayment
+                  ? null
+                  : () => onRetryPayment(status.paymentTransactionId),
+              icon: isRetryingPayment
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.white,
+                      ),
+                    )
+                  : const Icon(Icons.payment_rounded, size: 20),
+              label: Text(
+                isRetryingPayment ? context.l10n.processingPaymentBtn : context.l10n.retryPaymentBtn,
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                ),
+              ),
+            ),
+          ),
+        ],
+
         const SizedBox(height: AppSpacing.xl),
+
+        // ── Items Ordered Card ───────────────────────────────────────────
+        if (status.items.isNotEmpty) ...[
+          _ItemsOrderedCard(items: status.items, currency: currency),
+          const SizedBox(height: AppSpacing.lg),
+        ],
 
         // ── Status Details ───────────────────────────────────────────────
         _DetailCard(
@@ -162,7 +319,7 @@ class _OrderStatusContent extends StatelessWidget {
                 icon: Icons.shopping_bag_rounded,
                 label: charge.name.isEmpty ? charge.code : charge.name,
                 value: context.l10n.waivedLabel,
-                valueColor: Colors.green,
+                valueColor: AppColors.success,
               ),
             ],
             const Divider(height: 1, indent: 36),
@@ -177,7 +334,7 @@ class _OrderStatusContent extends StatelessWidget {
                 icon: Icons.local_offer_rounded,
                 label: context.l10n.discountLabel,
                 value: '-${status.discountAmount.toDisplayPrice(currency)}',
-                valueColor: Colors.green,
+                valueColor: AppColors.success,
               ),
             ],
             const Divider(height: 1, indent: 36),
@@ -217,12 +374,14 @@ class _OrderStatusContent extends StatelessWidget {
     final theme = Theme.of(context);
     switch (status.toUpperCase()) {
       case 'COMPLETED':
-        return Colors.green;
+        return AppColors.success;
       case 'FAILED':
       case 'PAYMENT_FAILED':
         return theme.colorScheme.error;
       case 'PROCESSING':
-        return Colors.orange;
+        return AppColors.warning;
+      case 'READY_TO_COLLECT':
+        return theme.colorScheme.primary;
       default:
         return null;
     }
@@ -307,11 +466,11 @@ class _CollectionCard extends StatelessWidget {
               scale: pulseAnimation,
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.white,
                   borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
+                      color: AppColors.black.withValues(alpha: 0.08),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -470,7 +629,7 @@ class _DetailCard extends StatelessWidget {
         border: Border.all(color: theme.dividerColor.withValues(alpha: 0.12)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: AppColors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -564,5 +723,150 @@ extension on String {
     } catch (_) {
       return this;
     }
+  }
+}
+
+class _ItemsOrderedCard extends StatelessWidget {
+  final List<OrderStatusItemModel> items;
+  final String currency;
+
+  const _ItemsOrderedCard({required this.items, required this.currency});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: 14,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.restaurant_menu_rounded,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  'Items Ordered',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: items.length,
+            separatorBuilder: (_, _) =>
+                const Divider(height: 1, indent: AppSpacing.md),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              if (item.customizationOptions.isNotEmpty) ...[
+                                const SizedBox(height: AppSpacing.xs),
+                                Text(
+                                  item.customizationOptions
+                                      .map((option) => option.name)
+                                      .join(', '),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.textTheme.bodySmall?.color
+                                        ?.withValues(alpha: 0.6),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Text(
+                          item.totalPrice.toDisplayPrice(currency),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Row(
+                      children: [
+                        Text(
+                          item.unitPrice.toDisplayPrice(currency),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.dividerColor.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(
+                              AppSpacing.radiusFull,
+                            ),
+                            border: Border.all(
+                              color: theme.dividerColor.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: Text(
+                            'Qty: ${item.quantity}',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 }

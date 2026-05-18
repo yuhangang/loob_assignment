@@ -110,7 +110,12 @@ class _OrdersPageState extends State<OrdersPage> {
               onRefresh: _reload,
               child: ListView.separated(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
+                padding: EdgeInsets.only(
+                  left: AppSpacing.pageHorizontal,
+                  right: AppSpacing.pageHorizontal,
+                  top: AppSpacing.pageHorizontal,
+                  bottom: AppSpacing.pageHorizontal + context.cartFloatingBarPadding,
+                ),
                 itemCount: orders.length,
                 separatorBuilder: (_, _) =>
                     const SizedBox(height: AppSpacing.md),

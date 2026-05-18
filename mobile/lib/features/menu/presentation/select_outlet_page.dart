@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../../core/theme/tokens/spacing.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/theme/tokens/colors.dart';
+import '../../../../core/theme/tokens/spacing.dart';
 import '../data/models/store_model.dart';
 
 /// Full-screen outlet selector featuring an interactive mock map and detailed store cards.
@@ -20,6 +23,7 @@ class SelectOutletPage extends StatefulWidget {
 
 class _SelectOutletPageState extends State<SelectOutletPage> {
   String _query = '';
+  int? _selectedBrandFilter;
   late List<StoreModel> _filteredStores;
 
   @override
@@ -31,39 +35,54 @@ class _SelectOutletPageState extends State<SelectOutletPage> {
   void _filterStores(String value) {
     setState(() {
       _query = value.trim().toLowerCase();
-      if (_query.isEmpty) {
-        _filteredStores = widget.stores;
-      } else {
-        _filteredStores = widget.stores.where((store) {
-          return store.name.toLowerCase().contains(_query) ||
-              store.address.toLowerCase().contains(_query) ||
-              store.storeCode.toLowerCase().contains(_query);
-        }).toList();
-      }
+      _applyFilters();
     });
+  }
+
+  void _setBrandFilter(int? brandId) {
+    setState(() {
+      _selectedBrandFilter = brandId;
+      _applyFilters();
+    });
+  }
+
+  void _applyFilters() {
+    List<StoreModel> result = widget.stores;
+    if (_query.isNotEmpty) {
+      result = result.where((store) {
+        return store.name.toLowerCase().contains(_query) ||
+            store.address.toLowerCase().contains(_query) ||
+            store.storeCode.toLowerCase().contains(_query);
+      }).toList();
+    }
+    if (_selectedBrandFilter != null) {
+      result = result
+          .where((store) => store.brandId == _selectedBrandFilter)
+          .toList();
+    }
+    _filteredStores = result;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isTealive = theme.colorScheme.primary.toARGB32() == 0xFF4C1D40;
-    final isDiscover = theme.colorScheme.primary.toARGB32() == 0xFFB2C9AB;
+    final isTealive = theme.colorScheme.primary == AppColors.tealivePrimary;
+    final isDiscover = theme.colorScheme.primary == AppColors.discoverPrimary;
 
     // Core brand color matching the screenshot
     final primaryColor = isTealive
-        ? const Color(0xFF4C1D40)
-        : (isDiscover ? const Color(0xFF2E4A1F) : theme.colorScheme.primary);
+        ? AppColors.tealivePrimary
+        : (isDiscover ? AppColors.discoverGreen : theme.colorScheme.primary);
 
     return Scaffold(
-      backgroundColor: const Color(
-        0xFFFAF9F6,
-      ), // Cozy warm light background matching the screenshot
+      backgroundColor: AppColors
+          .softWhiteBg, // Cozy warm light background matching the screenshot
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: primaryColor),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.pop(),
         ),
         centerTitle: true,
         title: Text(
@@ -77,8 +96,14 @@ class _SelectOutletPageState extends State<SelectOutletPage> {
       ),
       body: Column(
         children: [
-          // Google Map Mock Container
-          const SizedBox(height: 250, child: _MockMapWidget()),
+          SizedBox(
+            height: 250,
+            child: _MockMapWidget(
+              filteredStores: _filteredStores,
+              selectedBrandFilter: _selectedBrandFilter,
+              onBrandFilterChanged: _setBrandFilter,
+            ),
+          ),
 
           // Search & Store List Area
           Expanded(
@@ -86,20 +111,22 @@ class _SelectOutletPageState extends State<SelectOutletPage> {
               children: [
                 // In-list Search Bar
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.pageHorizontal,
-                    vertical: AppSpacing.md,
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.pageHorizontal,
+                    AppSpacing.md,
+                    AppSpacing.pageHorizontal,
+                    AppSpacing.xs,
                   ),
                   child: TextField(
                     onChanged: _filterStores,
                     decoration: InputDecoration(
                       hintText: context.l10n.searchOutletPlaceholder,
-                      hintStyle: TextStyle(color: Colors.grey.shade400),
+                      hintStyle: const TextStyle(color: AppColors.grey400),
                       prefixIcon: Icon(
                         Icons.search_rounded,
                         color: primaryColor,
                       ),
-                      fillColor: Colors.white,
+                      fillColor: AppColors.white,
                       filled: true,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.lg,
@@ -109,8 +136,8 @@ class _SelectOutletPageState extends State<SelectOutletPage> {
                         borderRadius: BorderRadius.circular(
                           AppSpacing.radiusFull,
                         ),
-                        borderSide: BorderSide(
-                          color: Colors.grey.shade200,
+                        borderSide: const BorderSide(
+                          color: AppColors.grey200,
                           width: 1.5,
                         ),
                       ),
@@ -127,6 +154,45 @@ class _SelectOutletPageState extends State<SelectOutletPage> {
                   ),
                 ),
 
+                // Brand Filter Chips Row
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.pageHorizontal,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        _BrandFilterChip(
+                          label: context.l10n.allBrands,
+                          isSelected: _selectedBrandFilter == null,
+                          icon: Icons.storefront_rounded,
+                          selectedColor: primaryColor,
+                          onTap: () => _setBrandFilter(null),
+                        ),
+                        const SizedBox(width: 8),
+                        _BrandFilterChip(
+                          label: 'Tealive',
+                          isSelected: _selectedBrandFilter == 1,
+                          icon: Icons.local_drink_rounded,
+                          selectedColor: AppColors.tealivePrimary,
+                          onTap: () => _setBrandFilter(1),
+                        ),
+                        const SizedBox(width: 8),
+                        _BrandFilterChip(
+                          label: 'Bask Bear',
+                          isSelected: _selectedBrandFilter == 2,
+                          icon: Icons.coffee_rounded,
+                          selectedColor: AppColors.tealivePrimary,
+                          onTap: () => _setBrandFilter(2),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
                 // Outlet Card List
                 Expanded(
                   child: _filteredStores.isEmpty
@@ -134,7 +200,7 @@ class _SelectOutletPageState extends State<SelectOutletPage> {
                           child: Text(
                             context.l10n.noOutletsMatch,
                             style: theme.textTheme.bodyLarge?.copyWith(
-                              color: Colors.grey.shade600,
+                              color: AppColors.grey600,
                             ),
                           ),
                         )
@@ -196,7 +262,7 @@ class _SelectOutletPageState extends State<SelectOutletPage> {
                                     ),
                                   );
                                 }
-                                Navigator.pop(context, store);
+                                context.pop(store);
                               },
                             );
                           },
@@ -213,60 +279,147 @@ class _SelectOutletPageState extends State<SelectOutletPage> {
 
 /// A highly polished, beautiful custom-painted Google Map mock.
 class _MockMapWidget extends StatelessWidget {
-  const _MockMapWidget();
+  const _MockMapWidget({
+    required this.filteredStores,
+    required this.selectedBrandFilter,
+    required this.onBrandFilterChanged,
+  });
+
+  final List<StoreModel> filteredStores;
+  final int? selectedBrandFilter;
+  final ValueChanged<int?> onBrandFilterChanged;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
         // Beautiful vector background map
-        Positioned.fill(child: CustomPaint(painter: _MapPainter())),
+        Positioned.fill(
+          child: CustomPaint(painter: _MapPainter(stores: filteredStores)),
+        ),
 
         // Brand Selector Capsule (Top-Left)
         Positioned(
           top: 16,
           left: 16,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+          child: Theme(
+            data: Theme.of(context).copyWith(cardColor: AppColors.white),
+            child: PopupMenuButton<int>(
+              initialValue: selectedBrandFilter ?? 0,
+              onSelected: (val) {
+                onBrandFilterChanged(val == 0 ? null : val);
+              },
+              offset: const Offset(0, 44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              itemBuilder: (context) => [
+                const PopupMenuItem<int>(
+                  value: 0,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.storefront_rounded,
+                        color: AppColors.grey500,
+                        size: 18,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'All Brands',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<int>(
+                  value: 1,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.local_drink_rounded,
+                        color: AppColors.tealivePrimary,
+                        size: 18,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Tealive',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<int>(
+                  value: 2,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.coffee_rounded,
+                        color: AppColors.tealivePrimary,
+                        size: 18,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Baskbear',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
                 ),
               ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4C1D40),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'tealive',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.black.withValues(alpha: 0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 6),
-                const Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: Color(0xFF4C1D40),
-                  size: 16,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selectedBrandFilter == null
+                            ? AppColors.grey700
+                            : AppColors.tealivePrimary,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        selectedBrandFilter == null
+                            ? 'all brands'
+                            : (selectedBrandFilter == 1
+                                  ? 'tealive'
+                                  : 'baskbear'),
+                        style: const TextStyle(
+                          color: AppColors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: selectedBrandFilter == null
+                          ? AppColors.grey700
+                          : AppColors.tealivePrimary,
+                      size: 16,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -279,19 +432,21 @@ class _MockMapWidget extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.white,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
+                  color: AppColors.black.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
               ],
             ),
-            child: const Icon(
+            child: Icon(
               Icons.search_rounded,
-              color: Color(0xFF4C1D40),
+              color: selectedBrandFilter == null
+                  ? AppColors.grey700
+                  : AppColors.tealivePrimary,
               size: 20,
             ),
           ),
@@ -305,19 +460,21 @@ class _MockMapWidget extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.white,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
+                  color: AppColors.black.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
               ],
             ),
-            child: const Icon(
+            child: Icon(
               Icons.fullscreen_rounded,
-              color: Color(0xFF4C1D40),
+              color: selectedBrandFilter == null
+                  ? AppColors.grey700
+                  : AppColors.tealivePrimary,
               size: 24,
             ),
           ),
@@ -329,14 +486,18 @@ class _MockMapWidget extends StatelessWidget {
 
 /// Custom painter to draw a highly stylized map layout with roads, parks, rivers, and location markers.
 class _MapPainter extends CustomPainter {
+  final List<StoreModel> stores;
+
+  _MapPainter({required this.stores});
+
   @override
   void paint(Canvas canvas, Size size) {
     final bgPaint = Paint()
-      ..color = const Color(0xFFE5F1F6); // Soft blue water background
+      ..color = AppColors.waterBlue; // Soft blue water background
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
 
     final landPaint = Paint()
-      ..color = const Color(0xFFF2F4F3); // Warm cream land area
+      ..color = AppColors.warmCream; // Warm cream land area
     final landPath = Path()
       ..moveTo(0, 0)
       ..lineTo(size.width * 0.8, 0)
@@ -352,8 +513,7 @@ class _MapPainter extends CustomPainter {
       ..close();
     canvas.drawPath(landPath, landPaint);
 
-    final parkPaint = Paint()
-      ..color = const Color(0xFFD5ECD4); // Green park area
+    final parkPaint = Paint()..color = AppColors.parkGreen; // Green park area
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(20, 20, size.width * 0.35, size.height * 0.4),
@@ -364,13 +524,13 @@ class _MapPainter extends CustomPainter {
 
     // Drawing roads
     final roadPaint = Paint()
-      ..color = Colors.white
+      ..color = AppColors.white
       ..strokeWidth = 10
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
     final roadBorderPaint = Paint()
-      ..color = const Color(0xFFD4DAD9)
+      ..color = AppColors.roadGrey
       ..strokeWidth = 12
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -402,7 +562,7 @@ class _MapPainter extends CustomPainter {
 
     // Road Label (Text)
     const textStyle = TextStyle(
-      color: Color(0xFF888888),
+      color: AppColors.grey500,
       fontSize: 8,
       fontWeight: FontWeight.bold,
     );
@@ -431,13 +591,13 @@ class _MapPainter extends CustomPainter {
 
     // User Current Location Blue Dot
     final bluePulsePaint = Paint()
-      ..color = const Color(0xFF2E86DE).withValues(alpha: 0.2)
+      ..color = AppColors.signalBlue.withValues(alpha: 0.2)
       ..style = PaintingStyle.fill;
     final blueDotPaint = Paint()
-      ..color = const Color(0xFF2E86DE)
+      ..color = AppColors.signalBlue
       ..style = PaintingStyle.fill;
     final whiteRingPaint = Paint()
-      ..color = Colors.white
+      ..color = AppColors.white
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
@@ -446,18 +606,18 @@ class _MapPainter extends CustomPainter {
     canvas.drawCircle(userLocation, 6, blueDotPaint);
     canvas.drawCircle(userLocation, 6, whiteRingPaint);
 
-    // Outlet pins
-    final pinPaint = Paint()
-      ..color = const Color(0xFF4C1D40)
-      ..style = PaintingStyle.fill;
+    // Dynamic Outlet pins
+    for (int i = 0; i < stores.length; i++) {
+      final store = stores[i];
+      // Generate deterministic offset based on store ID
+      final double dx = (0.15 + ((store.id * 37) % 70) / 100.0) * size.width;
+      final double dy = (0.15 + ((store.id * 53) % 70) / 100.0) * size.height;
+      final loc = Offset(dx, dy);
 
-    final List<Offset> pinLocations = [
-      Offset(size.width * 0.22, size.height * 0.22),
-      Offset(size.width * 0.65, size.height * 0.7),
-      Offset(size.width * 0.78, size.height * 0.15),
-    ];
+      final pinPaint = Paint()
+        ..color = AppColors.tealivePrimary
+        ..style = PaintingStyle.fill;
 
-    for (final loc in pinLocations) {
       // Draw a teardrop marker shape
       final path = Path()
         ..moveTo(loc.dx, loc.dy)
@@ -480,19 +640,23 @@ class _MapPainter extends CustomPainter {
         ..close();
       canvas.drawPath(path, pinPaint);
 
-      // Draw boba cup symbol inside pin
-      final innerCirclePaint = Paint()..color = Colors.white;
+      // Draw dynamic symbol inside pin based on brand
+      final innerCirclePaint = Paint()..color = AppColors.white;
       canvas.drawCircle(Offset(loc.dx, loc.dy - 14), 4, innerCirclePaint);
-      final teaColorPaint = Paint()..color = const Color(0xFFFFC107);
-      canvas.drawCircle(Offset(loc.dx, loc.dy - 14), 2.5, teaColorPaint);
+
+      final symbolColorPaint = Paint()
+        ..color = AppColors.warning;
+
+      canvas.drawCircle(Offset(loc.dx, loc.dy - 14), 2.5, symbolColorPaint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _MapPainter oldDelegate) =>
+      oldDelegate.stores != stores;
 }
 
-/// Outlet Card styled precisely like the screenshot with the tealive plus badge and ordered layout.
+/// Outlet Card styled precisely like the screenshot with the brand badge and ordered layout.
 class _OutletCard extends StatelessWidget {
   const _OutletCard({
     required this.store,
@@ -516,6 +680,10 @@ class _OutletCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final storeBrandColor = AppColors.tealivePrimary;
+
+    final storeBrandBg = AppColors.tealiveWarmCream;
+
     // Check if it is a Tealive PLUS store to apply a premium outline and badge
     final isPlusStore = store.name.toUpperCase().contains('PLUS');
     final isClosed = !store.acceptsOrders;
@@ -524,9 +692,6 @@ class _OutletCard extends StatelessWidget {
         ? context.l10n.storeTemporarilyClosed
         : context.l10n.storeClosed;
 
-    // Card background is warm peach/cream
-    const cardBgColor = Color(0xFFFEF7EE); // Soft cream matching the screenshot
-
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -534,19 +699,19 @@ class _OutletCard extends StatelessWidget {
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: cardBgColor,
+            color: storeBrandBg,
             borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
             border: Border.all(
               color: isClosed
                   ? theme.colorScheme.error.withValues(alpha: 0.35)
                   : isPlusStore
-                  ? primaryColor
-                  : Colors.orange.shade100.withValues(alpha: 0.5),
+                  ? storeBrandColor
+                  : AppColors.warmFulfillmentOrangeBg.withValues(alpha: 0.5),
               width: isPlusStore || isClosed ? 1.5 : 1.0,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
+                color: AppColors.black.withValues(alpha: 0.02),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -563,22 +728,49 @@ class _OutletCard extends StatelessWidget {
                   children: [
                     Icon(
                       Icons.storefront_rounded,
-                      color: primaryColor,
+                      color: storeBrandColor,
                       size: 24,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        store.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: isClosed
-                              ? theme.colorScheme.error
-                              : primaryColor,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 16,
-                        ),
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              store.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: isClosed
+                                    ? theme.colorScheme.error
+                                    : storeBrandColor,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: store.brandId == 1
+                                  ? AppColors.tealivePrimary
+                                  : AppColors.baskbearAccent,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              store.brandId == 1 ? 'Tealive' : 'Bask Bear',
+                              style: const TextStyle(
+                                color: AppColors.white,
+                                fontSize: 8,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -587,14 +779,14 @@ class _OutletCard extends StatelessWidget {
                       children: [
                         Icon(
                           Icons.location_on_rounded,
-                          color: primaryColor.withValues(alpha: 0.6),
+                          color: storeBrandColor.withValues(alpha: 0.6),
                           size: 14,
                         ),
                         const SizedBox(width: 2),
                         Text(
                           distance,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.grey.shade700,
+                            color: AppColors.grey700,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -612,7 +804,7 @@ class _OutletCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey.shade600,
+                      color: AppColors.grey600,
                       fontWeight: FontWeight.w500,
                       fontSize: 13,
                     ),
@@ -623,9 +815,8 @@ class _OutletCard extends StatelessWidget {
                   padding: EdgeInsets.only(left: 32.0, top: 12, bottom: 12),
                   child: Divider(
                     height: 1,
-                    color: Color(
-                      0xFFF3E7DC,
-                    ), // Warm divider matching the cream card
+                    color: AppColors
+                        .dividerBeige, // Warm divider matching the cream card
                   ),
                 ),
 
@@ -638,7 +829,9 @@ class _OutletCard extends StatelessWidget {
                       isClosed
                           ? Icons.warning_amber_rounded
                           : Icons.access_time_rounded,
-                      color: isClosed ? theme.colorScheme.error : primaryColor,
+                      color: isClosed
+                          ? theme.colorScheme.error
+                          : storeBrandColor,
                       size: 18,
                     ),
                     const SizedBox(width: 8),
@@ -651,7 +844,7 @@ class _OutletCard extends StatelessWidget {
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: isClosed
                                   ? theme.colorScheme.error
-                                  : primaryColor,
+                                  : storeBrandColor,
                               fontWeight: FontWeight.w800,
                               fontSize: 12,
                             ),
@@ -663,7 +856,7 @@ class _OutletCard extends StatelessWidget {
                                       : store.statusMessage)
                                 : '($lastOrder)',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: Colors.grey.shade600,
+                              color: AppColors.grey600,
                               fontWeight: FontWeight.w600,
                               fontSize: 11,
                             ),
@@ -678,8 +871,8 @@ class _OutletCard extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isClosed
                             ? theme.colorScheme.error.withValues(alpha: 0.75)
-                            : primaryColor,
-                        foregroundColor: Colors.white,
+                            : storeBrandColor,
+                        foregroundColor: AppColors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
@@ -712,13 +905,13 @@ class _OutletCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: primaryColor,
+                color: storeBrandColor,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: const Text(
                 'tealive plus',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.white,
                   fontSize: 10,
                   fontWeight: FontWeight.w900,
                 ),
@@ -726,6 +919,70 @@ class _OutletCard extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _BrandFilterChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final IconData icon;
+  final Color selectedColor;
+  final VoidCallback onTap;
+
+  const _BrandFilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.icon,
+    required this.selectedColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? selectedColor : AppColors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? selectedColor : AppColors.grey200,
+            width: 1.5,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: selectedColor.withValues(alpha: 0.15),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? AppColors.white : AppColors.grey600,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? AppColors.white : AppColors.grey800,
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

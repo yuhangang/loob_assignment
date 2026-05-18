@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../data/models/app_config_model.dart';
@@ -26,7 +27,7 @@ class MarketingPopupDialog extends StatelessWidget {
         width: 320,
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.white,
           borderRadius: BorderRadius.circular(24),
         ),
         child: Column(
@@ -69,7 +70,7 @@ class MarketingPopupDialog extends StatelessWidget {
               popup.description,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.black87,
+                color: AppColors.black87,
               ),
             ),
             const SizedBox(height: AppSpacing.lg),

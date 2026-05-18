@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../settings/data/models/user_profile_model.dart';
@@ -21,7 +22,7 @@ class LoyaltyCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.cardTheme.color ?? Colors.white,
+        color: theme.cardTheme.color ?? AppColors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: theme.colorScheme.primary.withValues(alpha: 0.08),
@@ -137,7 +138,7 @@ class LoyaltyCard extends StatelessWidget {
                         child: Text(
                           't',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: AppColors.white,
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                             height: 1.0,

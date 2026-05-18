@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../localization/app_localizations.dart';
+import '../theme/tokens/colors.dart';
 import '../theme/tokens/spacing.dart';
 import 'bloc/auth_bloc.dart';
 import 'bloc/auth_event.dart';
@@ -19,8 +20,8 @@ class LoginBottomSheet extends StatefulWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
+      backgroundColor: AppColors.transparent,
+      barrierColor: AppColors.black.withValues(alpha: 0.5),
       builder: (context) => LoginBottomSheet(onLoginSuccess: onLoginSuccess),
     );
   }
@@ -109,14 +110,14 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
           ),
           child: Container(
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              color: isDark ? const Color(0xFF1E1E1E) : AppColors.white,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(AppSpacing.radiusXl),
                 topRight: Radius.circular(AppSpacing.radiusXl),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
+                  color: AppColors.black.withValues(alpha: 0.15),
                   blurRadius: 20,
                   offset: const Offset(0, -5),
                 ),
@@ -137,8 +138,8 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
                     height: 4.5,
                     decoration: BoxDecoration(
                       color: isDark
-                          ? Colors.grey.shade800
-                          : Colors.grey.shade300,
+                          ? AppColors.grey800
+                          : AppColors.grey300,
                       borderRadius: BorderRadius.circular(2.5),
                     ),
                   ),
@@ -184,7 +185,7 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
                       : context.l10n.loginSheetDesc,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                    color: isDark ? AppColors.grey400 : AppColors.grey600,
                     height: 1.4,
                   ),
                 ),
@@ -240,14 +241,14 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
                         decoration: BoxDecoration(
                           color: isDark
                               ? const Color(0xFF2C2C2C)
-                              : Colors.grey.shade50,
+                              : AppColors.grey50,
                           borderRadius: BorderRadius.circular(
                             AppSpacing.radiusLg,
                           ),
                           border: Border.all(
                             color: isDark
-                                ? Colors.grey.shade800
-                                : Colors.grey.shade200,
+                                ? AppColors.grey800
+                                : AppColors.grey200,
                           ),
                         ),
                         child: DropdownButtonHideUnderline(
@@ -255,7 +256,7 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
                             value: _selectedPrefix,
                             dropdownColor: isDark
                                 ? const Color(0xFF2C2C2C)
-                                : Colors.white,
+                                : AppColors.white,
                             onChanged: (val) {
                               if (val != null) {
                                 setState(() => _selectedPrefix = val);
@@ -296,12 +297,12 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
                             decoration: InputDecoration(
                               hintText: context.l10n.enterPhoneHint,
                               hintStyle: TextStyle(
-                                color: Colors.grey.shade400,
+                                color: AppColors.grey400,
                                 fontWeight: FontWeight.w500,
                               ),
                               fillColor: isDark
                                   ? const Color(0xFF2C2C2C)
-                                  : Colors.grey.shade50,
+                                  : AppColors.grey50,
                               filled: true,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: AppSpacing.md,
@@ -313,8 +314,8 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
                                 ),
                                 borderSide: BorderSide(
                                   color: isDark
-                                      ? Colors.grey.shade800
-                                      : Colors.grey.shade200,
+                                      ? AppColors.grey800
+                                      : AppColors.grey200,
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -356,7 +357,7 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2.5,
                                 valueColor: AlwaysStoppedAnimation(
-                                  Colors.white,
+                                  AppColors.white,
                                 ),
                               ),
                             )
@@ -389,13 +390,13 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
                         counterText: '',
                         hintText: '• • • • • •',
                         hintStyle: TextStyle(
-                          color: Colors.grey.shade400,
+                          color: AppColors.grey400,
                           fontWeight: FontWeight.w500,
                           letterSpacing: 4,
                         ),
                         fillColor: isDark
                             ? const Color(0xFF2C2C2C)
-                            : Colors.grey.shade50,
+                            : AppColors.grey50,
                         filled: true,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.md,
@@ -407,8 +408,8 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
                           ),
                           borderSide: BorderSide(
                             color: isDark
-                                ? Colors.grey.shade800
-                                : Colors.grey.shade200,
+                                ? AppColors.grey800
+                                : AppColors.grey200,
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
@@ -462,13 +463,13 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
                               ),
                               side: BorderSide(
                                 color: isDark
-                                    ? Colors.grey.shade800
-                                    : Colors.grey.shade300,
+                                    ? AppColors.grey800
+                                    : AppColors.grey300,
                               ),
                             ),
                             child: Icon(
                               Icons.arrow_back_rounded,
-                              color: isDark ? Colors.white : Colors.black87,
+                              color: isDark ? AppColors.white : AppColors.black87,
                             ),
                           ),
                         ),
@@ -499,7 +500,7 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2.5,
                                       valueColor: AlwaysStoppedAnimation(
-                                        Colors.white,
+                                        AppColors.white,
                                       ),
                                     ),
                                   )

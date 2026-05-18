@@ -26,7 +26,7 @@ func Load() Config {
 		MigrationsDir:      getEnv("MIGRATIONS_DIR", "sql/migrations"),
 		AutoMigrate:        getBoolEnv("AUTO_MIGRATE", true),
 		PublicBaseURL:      strings.TrimRight(getEnv("PUBLIC_BASE_URL", "http://localhost:8080"), "/"),
-		MockGatewaySecret:  os.Getenv("MOCK_GATEWAY_SECRET"),
+		MockGatewaySecret:  getEnv("MOCK_GATEWAY_SECRET", "change-me-local-only"),
 		FirebaseProjectID:  getEnv("FIREBASE_PROJECT_ID", "mock-project-id"),
 		WorkerPollInterval: getDurationEnv("WORKER_POLL_INTERVAL", 2*time.Second),
 		WorkerBatchSize:    getIntEnv("WORKER_BATCH_SIZE", 25),

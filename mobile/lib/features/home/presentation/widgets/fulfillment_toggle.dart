@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../data/models/app_config_model.dart';
@@ -25,7 +26,7 @@ class FulfillmentToggle extends StatelessWidget {
       height: 40,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: theme.cardTheme.color ?? Colors.white,
+        color: theme.cardTheme.color ?? AppColors.white,
         borderRadius: BorderRadius.circular(100),
         border: Border.all(
           color: theme.colorScheme.primary.withValues(alpha: 0.08),
@@ -33,7 +34,7 @@ class FulfillmentToggle extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: AppColors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -59,18 +60,18 @@ class FulfillmentToggle extends StatelessWidget {
                     ? BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [
-                            Color(0xFFE2F0D9),
-                            Color(0xFFF2F9EE),
+                            AppColors.warmFulfillmentGreenBg,
+                            AppColors.lightFulfillmentGreenBg,
                           ],
                         ),
                         borderRadius: BorderRadius.circular(100),
                         border: Border.all(
-                          color: const Color(0xFFC5E0B4),
+                          color: AppColors.borderFulfillmentGreen,
                           width: 1.0,
                         ),
                       )
                     : BoxDecoration(
-                        color: Colors.transparent,
+                        color: AppColors.transparent,
                         borderRadius: BorderRadius.circular(100),
                       ),
                 alignment: Alignment.center,
@@ -80,7 +81,7 @@ class FulfillmentToggle extends StatelessWidget {
                     Icon(
                       Icons.delivery_dining_rounded,
                       color: isDeliverySelected && (config?.featureToggles.deliveryEnabled ?? true)
-                          ? const Color(0xFF385723)
+                          ? AppColors.textFulfillmentGreen
                           : theme.colorScheme.primary.withValues(
                               alpha: 0.5,
                             ),
@@ -93,7 +94,7 @@ class FulfillmentToggle extends StatelessWidget {
                           : context.l10n.deliveryOff,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: isDeliverySelected && (config?.featureToggles.deliveryEnabled ?? true)
-                            ? const Color(0xFF385723)
+                            ? AppColors.textFulfillmentGreen
                             : theme.colorScheme.primary.withValues(alpha: 0.6),
                         fontWeight: FontWeight.w900,
                         fontSize: 11,
@@ -122,18 +123,18 @@ class FulfillmentToggle extends StatelessWidget {
                     ? BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [
-                            Color(0xFFFFF2CC),
-                            Color(0xFFFFF9E6),
+                            AppColors.warmFulfillmentOrangeBg,
+                            AppColors.lightFulfillmentOrangeBg,
                           ],
                         ),
                         borderRadius: BorderRadius.circular(100),
                         border: Border.all(
-                          color: const Color(0xFFF8CBAD),
+                          color: AppColors.borderFulfillmentOrange,
                           width: 1.0,
                         ),
                       )
                     : BoxDecoration(
-                        color: Colors.transparent,
+                        color: AppColors.transparent,
                         borderRadius: BorderRadius.circular(100),
                       ),
                 alignment: Alignment.center,
@@ -143,7 +144,7 @@ class FulfillmentToggle extends StatelessWidget {
                     Icon(
                       Icons.local_drink_rounded,
                       color: !isDeliverySelected && (config?.featureToggles.pickupEnabled ?? true)
-                          ? const Color(0xFFC65911)
+                          ? AppColors.textFulfillmentOrange
                           : theme.colorScheme.primary.withValues(
                               alpha: 0.5,
                             ),
@@ -156,7 +157,7 @@ class FulfillmentToggle extends StatelessWidget {
                           : context.l10n.pickupOff,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: !isDeliverySelected && (config?.featureToggles.pickupEnabled ?? true)
-                            ? const Color(0xFFC65911)
+                            ? AppColors.textFulfillmentOrange
                             : theme.colorScheme.primary.withValues(alpha: 0.6),
                         fontWeight: FontWeight.w900,
                         fontSize: 11,

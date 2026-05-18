@@ -19,6 +19,7 @@ class AppConfig {
   final String defaultLanguage;
   final String appName;
   final bool enableLogging;
+  final String mockGatewaySecret;
 
   const AppConfig({
     required this.env,
@@ -27,6 +28,7 @@ class AppConfig {
     this.defaultLanguage = 'en',
     this.appName = 'Loob',
     this.enableLogging = kDebugMode,
+    this.mockGatewaySecret = 'change-me-local-only',
   });
 
   /// Constructs the correct [AppConfig] for the given [AppEnv] flavor.
@@ -39,6 +41,7 @@ class AppConfig {
           defaultCountryCode: 'MY',
           defaultLanguage: 'en',
           enableLogging: enableLogging ?? kDebugMode,
+          mockGatewaySecret: 'change-me-local-only',
         );
 
       case AppEnv.staging:
@@ -48,6 +51,7 @@ class AppConfig {
           defaultCountryCode: 'MY',
           defaultLanguage: 'en',
           enableLogging: enableLogging ?? kDebugMode,
+          mockGatewaySecret: 'change-me-local-only',
         );
     }
   }
@@ -82,6 +86,7 @@ class AppConfig {
     const countryDefine = String.fromEnvironment('DEFAULT_COUNTRY_CODE');
     const languageDefine = String.fromEnvironment('DEFAULT_LANGUAGE');
     const appNameDefine = String.fromEnvironment('APP_NAME');
+    const mockSecretDefine = String.fromEnvironment('MOCK_GATEWAY_SECRET');
 
     const hasLogging = bool.hasEnvironment('ENABLE_LOGGING');
     const loggingVal = bool.fromEnvironment('ENABLE_LOGGING');
@@ -97,6 +102,9 @@ class AppConfig {
           : flavorDefault.defaultLanguage,
       appName: appNameDefine.isNotEmpty ? appNameDefine : flavorDefault.appName,
       enableLogging: hasLogging ? loggingVal : flavorDefault.enableLogging,
+      mockGatewaySecret: mockSecretDefine.isNotEmpty
+          ? mockSecretDefine
+          : flavorDefault.mockGatewaySecret,
     );
   }
 

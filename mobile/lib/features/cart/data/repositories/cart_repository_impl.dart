@@ -7,16 +7,14 @@ import '../models/payment_method_model.dart';
 class CartRepositoryImpl implements ICartRepository {
   final CartRemoteDataSource _remote;
 
-  const CartRepositoryImpl({
-    required CartRemoteDataSource remote,
-  }) : _remote = remote;
+  const CartRepositoryImpl({required CartRemoteDataSource remote})
+    : _remote = remote;
 
   @override
   Future<List<PaymentMethodModel>> listPaymentMethods({
     required String countryCode,
     int? brandId,
-  }) =>
-      _remote.listPaymentMethods(countryCode: countryCode, brandId: brandId);
+  }) => _remote.listPaymentMethods(countryCode: countryCode, brandId: brandId);
 
   @override
   Future<CheckoutResponseModel> checkout(Map<String, dynamic> body) =>
@@ -26,10 +24,20 @@ class CartRepositoryImpl implements ICartRepository {
   Future<List<OrderStatusModel>> listOrders({
     required String userId,
     required String countryCode,
-  }) =>
-      _remote.listOrders(userId: userId, countryCode: countryCode);
+  }) => _remote.listOrders(userId: userId, countryCode: countryCode);
 
   @override
   Future<OrderStatusModel> getOrderStatus(String trackingId) =>
       _remote.getOrderStatus(trackingId);
+
+  @override
+  Future<OrderStatusModel> collectOrder(String trackingId) =>
+      _remote.collectOrder(trackingId);
+
+  @override
+  Future<void> confirmMockPayment({
+    required String transactionId,
+    required String secret,
+  }) =>
+      _remote.confirmMockPayment(transactionId: transactionId, secret: secret);
 }

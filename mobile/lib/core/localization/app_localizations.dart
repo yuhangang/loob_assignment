@@ -47,6 +47,8 @@ class AppLocalizations {
       'about': 'About',
       'sign_out': 'Sign Out',
       'required': 'Required',
+      'add_to_cart': 'Add to Cart',
+      'update': 'Update',
       'add_to_cart_btn': 'Add to Cart — {}',
       'added_to_cart_toast': 'Added {} × {} to cart',
       'select_language': 'Select Language',
@@ -80,6 +82,7 @@ class AppLocalizations {
       'added_to_cart_reorder_toast':
           '"{}" added to your cart for quick re-order!',
       'select_outlet_title': 'SELECT YOUR OUTLET',
+      'all_brands': 'All Brands',
       'search_outlet_placeholder': 'Search outlet or area',
       'no_outlets_match': 'No outlets match your search.',
       'open_daily': 'Open daily',
@@ -181,10 +184,12 @@ class AppLocalizations {
       'selected_outlet_closed': 'Selected Outlet Closed',
       'proceed_to_checkout': 'Proceed to Checkout',
       'welcome_guest': 'Welcome, Guest!',
-      'guest_desc': 'Log in to earn loyalty points, claim discount vouchers, and order online.',
+      'guest_desc':
+          'Log in to earn loyalty points, claim discount vouchers, and order online.',
       'login_signup': 'Login / Sign Up',
       'welcome_loob': 'Welcome to Loob',
-      'login_sheet_desc': 'Log in with your phone number to earn loyalty points, claim exclusive vouchers, and place checkout orders.',
+      'login_sheet_desc':
+          'Log in with your phone number to earn loyalty points, claim exclusive vouchers, and place checkout orders.',
       'enter_phone_hint': 'Enter phone number',
       'continue_btn': 'Continue',
       'verify_code_title': 'Verify Code',
@@ -195,6 +200,19 @@ class AppLocalizations {
       'demo_otp_helper': 'Demo Mock Verification Code is "123456"',
       'select_country_title': 'Select Country',
       'buy_now': 'Buy Now',
+      'unpaid_order': 'UNPAID ORDER',
+      'uncollected_order': 'UNCOLLECTED ORDER',
+      'ready_for_collection': 'Ready for Collection',
+      'awaiting_payment': 'Awaiting Payment',
+      'preparing_order': 'Preparing your order...',
+      'pay_now': 'Pay Now',
+      'track': 'Track',
+      'collect_btn': 'Collect',
+      'collecting_btn': 'Collecting...',
+      'retry_payment_btn': 'Retry Payment',
+      'processing_payment_btn': 'Processing Payment...',
+      'active_order_warning_title': 'Active Order Detected',
+      'active_order_warning_content': 'You already have an active order. Are you sure you want to place another separate order?',
     },
     'ms': {
       'home': 'Utama',
@@ -227,6 +245,8 @@ class AppLocalizations {
       'about': 'Tentang',
       'sign_out': 'Log Keluar',
       'required': 'Wajib',
+      'add_to_cart': 'Tambah ke Troli',
+      'update': 'Kemaskini',
       'add_to_cart_btn': 'Tambah ke Troli — {}',
       'added_to_cart_toast': 'Menambah {} × {} ke troli',
       'select_language': 'Pilih Bahasa',
@@ -261,6 +281,7 @@ class AppLocalizations {
       'added_to_cart_reorder_toast':
           '"{}" ditambahkan ke troli anda untuk pesanan pantas!',
       'select_outlet_title': 'PILIH CAWANGAN ANDA',
+      'all_brands': 'Semua Jenama',
       'search_outlet_placeholder': 'Cari cawangan atau kawasan',
       'no_outlets_match': 'Tiada cawangan yang sepadan dengan carian anda.',
       'open_daily': 'Buka setiap hari',
@@ -362,10 +383,12 @@ class AppLocalizations {
       'selected_outlet_closed': 'Cawangan Terpilih Ditutup',
       'proceed_to_checkout': 'Teruskan ke Daftar Keluar',
       'welcome_guest': 'Selamat Datang, Pelawat!',
-      'guest_desc': 'Log masuk untuk mendapatkan mata ganjaran, menuntut baucher diskaun dan membuat pesanan atas talian.',
+      'guest_desc':
+          'Log masuk untuk mendapatkan mata ganjaran, menuntut baucher diskaun dan membuat pesanan atas talian.',
       'login_signup': 'Log Masuk / Daftar',
       'welcome_loob': 'Selamat Datang ke Loob',
-      'login_sheet_desc': 'Log masuk dengan nombor telefon anda untuk mendapatkan mata ganjaran, menuntut baucher eksklusif dan membuat pesanan.',
+      'login_sheet_desc':
+          'Log masuk dengan nombor telefon anda untuk mendapatkan mata ganjaran, menuntut baucher eksklusif dan membuat pesanan.',
       'enter_phone_hint': 'Masukkan nombor telefon',
       'continue_btn': 'Teruskan',
       'verify_code_title': 'Sahkan Kod',
@@ -376,6 +399,19 @@ class AppLocalizations {
       'demo_otp_helper': 'Kod Pengesahan Demo adalah "123456"',
       'select_country_title': 'Pilih Negara',
       'buy_now': 'Beli Sekarang',
+      'unpaid_order': 'PESANAN BELUM DIBAYAR',
+      'uncollected_order': 'PESANAN BELUM DIAMBIL',
+      'ready_for_collection': 'Sedia untuk Diambil',
+      'awaiting_payment': 'Menunggu Pembayaran',
+      'preparing_order': 'Menyediakan pesanan anda...',
+      'pay_now': 'Bayar Sekarang',
+      'track': 'Jejak',
+      'collect_btn': 'Ambil',
+      'collecting_btn': 'Mengambil...',
+      'retry_payment_btn': 'Cuba Semula Pembayaran',
+      'processing_payment_btn': 'Memproses Pembayaran...',
+      'active_order_warning_title': 'Pesanan Aktif Dikesan',
+      'active_order_warning_content': 'Anda sudah mempunyai pesanan aktif. Adakah anda pasti mahu membuat satu lagi pesanan berasingan?',
     },
   };
 
@@ -435,6 +471,8 @@ class AppLocalizations {
 
   String get requiredText => _translate('required');
   String get selectLanguage => _translate('select_language');
+  String get addToCart => _translate('add_to_cart');
+  String get update => _translate('update');
 
   String get balance => _translate('balance');
   String get topUpInitiated => _translate('top_up_initiated');
@@ -454,6 +492,7 @@ class AppLocalizations {
   String get eventClaimedToast => _translate('event_claimed_toast');
 
   String get selectOutletTitle => _translate('select_outlet_title');
+  String get allBrands => _translate('all_brands');
   String get searchOutletPlaceholder => _translate('search_outlet_placeholder');
   String get noOutletsMatch => _translate('no_outlets_match');
   String get openDaily => _translate('open_daily');
@@ -566,6 +605,19 @@ class AppLocalizations {
   String get demoOtpHelper => _translate('demo_otp_helper');
   String get selectCountryTitle => _translate('select_country_title');
   String get buyNow => _translate('buy_now');
+  String get unpaidOrder => _translate('unpaid_order');
+  String get uncollectedOrder => _translate('uncollected_order');
+  String get readyForCollection => _translate('ready_for_collection');
+  String get awaitingPayment => _translate('awaiting_payment');
+  String get preparingOrder => _translate('preparing_order');
+  String get payNow => _translate('pay_now');
+  String get track => _translate('track');
+  String get collectBtn => _translate('collect_btn');
+  String get collectingBtn => _translate('collecting_btn');
+  String get retryPaymentBtn => _translate('retry_payment_btn');
+  String get processingPaymentBtn => _translate('processing_payment_btn');
+  String get activeOrderWarningTitle => _translate('active_order_warning_title');
+  String get activeOrderWarningContent => _translate('active_order_warning_content');
 
   String otpSentTo(String phone) {
     return _translate('otp_sent_to').replaceAll('{}', phone);

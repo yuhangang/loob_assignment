@@ -146,6 +146,7 @@ type Status struct {
 	TrackingID     string
 	Status         string
 	PaymentStatus  sql.NullString
+	TransactionID  sql.NullString
 	Subtotal       int
 	Charges        []ChargeLine
 	TaxAmount      int
@@ -153,6 +154,8 @@ type Status struct {
 	TotalAmount    int
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	CartPayload    []byte
+	StoreID        int
 }
 
 func (r *Repository) ListChargeDefinitions(ctx context.Context, countryID string, store Store, fulfillment string) ([]ChargeDefinition, error) {
@@ -255,14 +258,16 @@ func (r *Repository) GetPricedItems(ctx context.Context, storeID int, zoneID str
 		FROM menu_items mi
 		INNER JOIN menu_item_pricing mip ON mip.menu_item_id = mi.id AND mip.zone_id = ?
 		LEFT JOIN store_menu_item_status smis ON smis.store_id = ? AND smis.menu_item_id = mi.id
+		LEFT JOIN stores s ON s.id = ?
 		WHERE mi.id IN (%s)
 		  AND mi.item_type = 'MAIN'
 		  AND mi.is_active = true
 		  AND mi.deleted_at IS NULL
+		  AND mi.brand_id = s.brand_id
 		  AND COALESCE(smis.is_listed, true) = true
 		  AND COALESCE(smis.is_available, true) = true
 	`, itemIDs)
-	args = append([]any{zoneID, storeID}, args...)
+	args = append([]any{zoneID, storeID, storeID}, args...)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -289,10 +294,12 @@ func (r *Repository) GetOptionPrices(ctx context.Context, storeID int, zoneID st
 		SELECT co.id, cg.menu_item_id, cg.id, co.price_adjustment + COALESCE(mip.base_price, 0)
 		FROM customization_options co
 		INNER JOIN customization_groups cg ON cg.id = co.group_id
+		LEFT JOIN stores s ON s.id = ?
 		LEFT JOIN menu_items linked ON linked.id = co.linked_menu_item_id
 		     AND linked.is_active = true
 		     AND linked.deleted_at IS NULL
 		     AND linked.item_type = 'ADDON'
+		     AND linked.brand_id = s.brand_id
 		LEFT JOIN menu_item_pricing mip ON mip.menu_item_id = co.linked_menu_item_id AND mip.zone_id = ?
 		LEFT JOIN store_menu_item_status smis ON smis.store_id = ? AND smis.menu_item_id = co.linked_menu_item_id
 		WHERE co.id IN (%s)
@@ -305,7 +312,7 @@ func (r *Repository) GetOptionPrices(ctx context.Context, storeID int, zoneID st
 		    )
 		  )
 	`, optionIDs)
-	args = append([]any{zoneID, storeID}, args...)
+	args = append([]any{storeID, zoneID, storeID}, args...)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -395,13 +402,13 @@ func (r *Repository) GetVoucher(ctx context.Context, countryID, userID, code str
 		         SELECT COUNT(*)
 		         FROM order_intents oi
 		         WHERE oi.country_id = v.country_id AND oi.voucher_code = v.code
-		           AND oi.status IN ('QUEUED', 'PROCESSING', 'COMPLETED')
+		           AND oi.status IN ('QUEUED', 'PROCESSING', 'READY_TO_COLLECT', 'COMPLETED')
 		       ) AS total_redemptions,
 		       (
 		         SELECT COUNT(*)
 		         FROM order_intents user_oi
 		         WHERE user_oi.country_id = v.country_id AND user_oi.voucher_code = v.code
-		           AND user_oi.user_id = ? AND user_oi.status IN ('QUEUED', 'PROCESSING', 'COMPLETED')
+		           AND user_oi.user_id = ? AND user_oi.status IN ('QUEUED', 'PROCESSING', 'READY_TO_COLLECT', 'COMPLETED')
 		       ) AS user_redemptions
 		FROM vouchers v
 		LEFT JOIN user_vouchers uv ON uv.voucher_id = v.id AND uv.user_id = ?
@@ -591,11 +598,11 @@ func (r *Repository) GetStatus(ctx context.Context, countryID, trackingID string
 	err := r.db.QueryRowContext(ctx, `
 		SELECT oi.tracking_id, oi.status, pt.status, oi.subtotal, oi.tax_amount,
 		       oi.discount_amount, oi.total_amount, COALESCE(oi.charges_payload, JSON_ARRAY()),
-		       oi.created_at, oi.updated_at
+		       oi.created_at, oi.updated_at, oi.cart_payload, oi.store_id
 		FROM order_intents oi
 		LEFT JOIN payment_transactions pt ON pt.order_tracking_id = oi.tracking_id
 		WHERE oi.country_id = ? AND oi.tracking_id = ?
-	`, countryID, trackingID).Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &chargesPayload, &status.CreatedAt, &status.UpdatedAt)
+	`, countryID, trackingID).Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &chargesPayload, &status.CreatedAt, &status.UpdatedAt, &status.CartPayload, &status.StoreID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Status{}, ErrNotFound
@@ -612,11 +619,11 @@ func (r *Repository) GetStatusForUser(ctx context.Context, countryID, userID, tr
 	err := r.db.QueryRowContext(ctx, `
 		SELECT oi.tracking_id, oi.status, pt.status, oi.subtotal, oi.tax_amount,
 		       oi.discount_amount, oi.total_amount, COALESCE(oi.charges_payload, JSON_ARRAY()),
-		       oi.created_at, oi.updated_at
+		       oi.created_at, oi.updated_at, oi.cart_payload, oi.store_id, pt.id
 		FROM order_intents oi
 		LEFT JOIN payment_transactions pt ON pt.order_tracking_id = oi.tracking_id
 		WHERE oi.country_id = ? AND oi.user_id = ? AND oi.tracking_id = ?
-	`, countryID, userID, trackingID).Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &chargesPayload, &status.CreatedAt, &status.UpdatedAt)
+	`, countryID, userID, trackingID).Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &chargesPayload, &status.CreatedAt, &status.UpdatedAt, &status.CartPayload, &status.StoreID, &status.TransactionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Status{}, ErrNotFound
@@ -631,7 +638,7 @@ func (r *Repository) ListStatusesByUser(ctx context.Context, countryID, userID s
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT oi.tracking_id, oi.status, pt.status, oi.subtotal, oi.tax_amount,
 		       oi.discount_amount, oi.total_amount, COALESCE(oi.charges_payload, JSON_ARRAY()),
-		       oi.created_at, oi.updated_at
+		       oi.created_at, oi.updated_at, oi.cart_payload, oi.store_id, pt.id
 		FROM order_intents oi
 		LEFT JOIN payment_transactions pt ON pt.order_tracking_id = oi.tracking_id
 		WHERE oi.country_id = ? AND oi.user_id = ?
@@ -647,13 +654,108 @@ func (r *Repository) ListStatusesByUser(ctx context.Context, countryID, userID s
 	for rows.Next() {
 		var status Status
 		var chargesPayload []byte
-		if err := rows.Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &chargesPayload, &status.CreatedAt, &status.UpdatedAt); err != nil {
+		if err := rows.Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &chargesPayload, &status.CreatedAt, &status.UpdatedAt, &status.CartPayload, &status.StoreID, &status.TransactionID); err != nil {
 			return nil, err
 		}
 		status.Charges = decodeChargeLines(chargesPayload)
 		statuses = append(statuses, status)
 	}
 	return statuses, rows.Err()
+}
+
+func (r *Repository) MarkOrderCollected(ctx context.Context, countryID, userID, trackingID string) error {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE order_intents
+		SET status = 'COMPLETED', updated_at = NOW()
+		WHERE country_id = ? AND user_id = ? AND tracking_id = ? AND status = 'READY_TO_COLLECT'
+	`, countryID, userID, trackingID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *Repository) GetMenuItemNames(ctx context.Context, itemIDs []int) (map[int]string, error) {
+	if len(itemIDs) == 0 {
+		return map[int]string{}, nil
+	}
+	query, args := inQuery(`
+		SELECT id, name_translations
+		FROM menu_items
+		WHERE id IN (%s)
+	`, itemIDs)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	names := map[int]string{}
+	for rows.Next() {
+		var id int
+		var nameBytes []byte
+		if err := rows.Scan(&id, &nameBytes); err != nil {
+			return nil, err
+		}
+		translations := map[string]string{}
+		if err := json.Unmarshal(nameBytes, &translations); err == nil {
+			if name, ok := translations["en-US"]; ok {
+				names[id] = name
+			} else {
+				for _, v := range translations {
+					names[id] = v
+					break
+				}
+			}
+		}
+	}
+	return names, rows.Err()
+}
+
+func (r *Repository) GetOptionNames(ctx context.Context, optionIDs []int) (map[int]string, error) {
+	if len(optionIDs) == 0 {
+		return map[int]string{}, nil
+	}
+	query, args := inQuery(`
+		SELECT id, name_translations
+		FROM customization_options
+		WHERE id IN (%s)
+	`, optionIDs)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	names := map[int]string{}
+	for rows.Next() {
+		var id int
+		var nameBytes []byte
+		if err := rows.Scan(&id, &nameBytes); err != nil {
+			return nil, err
+		}
+		translations := map[string]string{}
+		if err := json.Unmarshal(nameBytes, &translations); err == nil {
+			if name, ok := translations["en-US"]; ok {
+				names[id] = name
+			} else {
+				for _, v := range translations {
+					names[id] = v
+					break
+				}
+			}
+		}
+	}
+	return names, rows.Err()
 }
 
 var ErrNotFound = errors.New("not found")

@@ -9,6 +9,7 @@ import '../../cart/presentation/bloc/cart_state.dart';
 import '../../../core/di/injection.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/localization/language_cubit.dart';
+import '../../../core/theme/tokens/colors.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/status_message.dart';
@@ -424,8 +425,8 @@ class _VoucherCard extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: isAvailable
-                      ? Colors.green.withValues(alpha: 0.1)
-                      : Colors.grey.withValues(alpha: 0.1),
+                      ? AppColors.success.withValues(alpha: 0.1)
+                      : AppColors.grey500.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
                 ),
                 child: Text(
@@ -433,7 +434,7 @@ class _VoucherCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: isAvailable ? Colors.green : Colors.grey,
+                    color: isAvailable ? AppColors.success : AppColors.grey500,
                   ),
                 ),
               ),

@@ -4,7 +4,7 @@
     "display_name": "Dev User",
     "email": "mock_user_001@loob.com.my",
     "phone_number": "+60123456789",
-    "avatar_url": "/cdn/avatars/dev_user.png",
+    "avatar_url": null,
     "preferred_language": "en-US",
     "registered_country_id": "MY",
     "marketing_opt_in": true

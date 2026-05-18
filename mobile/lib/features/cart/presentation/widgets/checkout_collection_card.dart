@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 
 class CheckoutCollectionCard extends StatelessWidget {
@@ -79,11 +80,11 @@ class CheckoutCollectionCard extends StatelessWidget {
                 // QR code
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.white,
                     borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
+                        color: AppColors.black.withValues(alpha: 0.08),
                         blurRadius: 8,
                         offset: const Offset(0, 3),
                       ),

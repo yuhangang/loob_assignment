@@ -24,6 +24,8 @@ class ApiEndpoints {
   static const String ordersCheckout = '/api/v1/orders/checkout';
   static String orderStatus(String trackingId) =>
       '/api/v1/orders/$trackingId/status';
+  static String collectOrder(String trackingId) =>
+      '/api/v1/orders/$trackingId/collect';
 
   // ── Campaigns ───────────────────────────────────────────────────────────────
   static const String campaignsHome = '/api/v1/campaigns/home';

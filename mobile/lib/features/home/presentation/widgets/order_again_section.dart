@@ -8,6 +8,7 @@ import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../cart/presentation/bloc/cart_bloc.dart';
@@ -200,11 +201,11 @@ class OrderAgainSection extends StatelessWidget {
                 width: 260,
                 margin: const EdgeInsets.only(right: AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: theme.cardTheme.color ?? Colors.white,
+                  color: theme.cardTheme.color ?? AppColors.white,
                   borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
+                      color: AppColors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),

@@ -222,7 +222,7 @@ func cleanDB(db *sql.DB, country string) {
 		tables := []string{
 			"loyalty_transactions", "wallet_transactions", "payment_events", "payment_transactions", "order_intents", "wallet_accounts", "loyalty_accounts", "loyalty_checkins", "user_vouchers", "vouchers", "store_menu_item_status", "customization_options", "customization_groups",
 			"menu_item_pricing", "menu_items", "categories", "stores", "zones",
-			"brands", "users", "countries", "campaigns",
+			"brands", "users", "countries", "campaigns", "payment_methods", "payment_providers",
 		}
 		for _, table := range tables {
 			_, _ = db.Exec(fmt.Sprintf("TRUNCATE TABLE %s", table))
@@ -242,6 +242,7 @@ func cleanDB(db *sql.DB, country string) {
 		_, _ = db.Exec("DELETE FROM stores WHERE country_id = ?", country)
 		_, _ = db.Exec("DELETE FROM zones WHERE country_id = ?", country)
 		_, _ = db.Exec("DELETE FROM campaigns WHERE country_id = ?", country)
+		_, _ = db.Exec("DELETE FROM payment_methods WHERE country_id = ?", country)
 	}
 	_, _ = db.Exec("SET FOREIGN_KEY_CHECKS = 1")
 }
@@ -316,6 +317,11 @@ func seedBase(db *sql.DB, data BaseData) {
 	`)
 
 	for _, c := range data.Countries {
+		_, _ = db.ExecContext(ctx, `
+			DELETE FROM payment_methods
+			WHERE provider_code = 'mock_gateway' AND country_id = ? AND brand_id IS NULL
+		`, c.ID)
+
 		methods := []struct {
 			code        string
 			name        string

@@ -8,8 +8,10 @@ import '../../../core/auth/bloc/auth_state.dart';
 import '../../../core/auth/login_bottom_sheet.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/localization/language_cubit.dart';
+import '../../../core/theme/tokens/colors.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
+import '../../../core/widgets/user_profile_avatar.dart';
 import '../../cart/presentation/bloc/cart_bloc.dart';
 import '../../cart/presentation/bloc/cart_event.dart';
 import '../data/models/user_profile_model.dart';
@@ -39,9 +41,11 @@ class _SettingsPageState extends State<SettingsPage> {
           final profile = loadedState?.profile;
 
           return ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.pageHorizontal,
-              vertical: AppSpacing.xl,
+            padding: EdgeInsets.only(
+              left: AppSpacing.pageHorizontal,
+              right: AppSpacing.pageHorizontal,
+              top: AppSpacing.xl,
+              bottom: AppSpacing.xl + context.cartFloatingBarPadding,
             ),
             children: [
               Text(context.l10n.profile, style: theme.textTheme.headlineMedium),
@@ -146,7 +150,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       builder: (_) {
         return Container(
           decoration: BoxDecoration(
@@ -214,7 +218,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.transparent,
       builder: (_) {
         return Container(
           decoration: BoxDecoration(
@@ -319,19 +323,10 @@ class _ProfileCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-              backgroundImage: profile.avatarUrl.isNotEmpty
-                  ? NetworkImage(profile.avatarUrl)
-                  : null,
-              child: profile.avatarUrl.isEmpty
-                  ? Icon(
-                      Icons.person_outline,
-                      size: 28,
-                      color: theme.colorScheme.primary,
-                    )
-                  : null,
+            UserProfileAvatar(
+              avatarUrl: profile.avatarUrl,
+              displayName: profile.displayName,
+              size: 56,
             ),
             const SizedBox(width: AppSpacing.lg),
             Expanded(

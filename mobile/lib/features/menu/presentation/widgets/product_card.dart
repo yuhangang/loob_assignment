@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../data/models/catalog_model.dart';
@@ -27,13 +28,13 @@ class ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isTealive = theme.colorScheme.primary.toARGB32() == 0xFF4C1D40;
-    final isDiscover = theme.colorScheme.primary.toARGB32() == 0xFFB2C9AB;
+    final isTealive = theme.colorScheme.primary == AppColors.tealivePrimary;
+    final isDiscover = theme.colorScheme.primary == AppColors.discoverPrimary;
 
     // Core brand purple color
     final brandPurple = isTealive
-        ? const Color(0xFF4C1D40)
-        : (isDiscover ? const Color(0xFF2E4A1F) : theme.colorScheme.primary);
+        ? AppColors.tealivePrimary
+        : (isDiscover ? AppColors.discoverGreen : theme.colorScheme.primary);
 
     // Calculate dynamic original price for mockup fidelity (e.g. +8% + RM1.00 / ฿1.00)
     final int currentPriceVal = product.basePrice;
@@ -45,7 +46,7 @@ class ProductCard extends StatelessWidget {
     return GestureDetector(
       onTap: product.isAvailable ? onTap : null,
       child: Container(
-        color: Colors.transparent, // Keeps card touch-responsive
+        color: AppColors.transparent, // Keeps card touch-responsive
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -69,7 +70,7 @@ class ProductCard extends StatelessWidget {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
+                          color: AppColors.black.withValues(alpha: 0.03),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -94,11 +95,11 @@ class ProductCard extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.9),
+                      color: AppColors.white.withValues(alpha: 0.9),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
+                          color: AppColors.black.withValues(alpha: 0.08),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
@@ -109,7 +110,7 @@ class ProductCard extends StatelessWidget {
                       child: Text(
                         context.l10n.newBadge,
                         style: const TextStyle(
-                          color: Colors.grey,
+                          color: AppColors.grey400,
                           fontSize: 8,
                           fontWeight: FontWeight.w900,
                         ),
@@ -127,11 +128,11 @@ class ProductCard extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: const BoxDecoration(
-                        color: Colors.white,
+                        color: AppColors.white,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black12,
+                            color: AppColors.black12,
                             blurRadius: 6,
                             offset: Offset(0, 2),
                           ),
@@ -141,7 +142,7 @@ class ProductCard extends StatelessWidget {
                         isFavourited
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
-                        color: isFavourited ? Colors.red : Colors.grey.shade400,
+                        color: isFavourited ? AppColors.error : AppColors.grey400,
                         size: 18,
                       ),
                     ),
@@ -158,11 +159,11 @@ class ProductCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: product.isAvailable
                             ? brandPurple
-                            : Colors.grey.shade300,
+                            : AppColors.grey300,
                         shape: BoxShape.circle,
                         boxShadow: const [
                           BoxShadow(
-                            color: Colors.black12,
+                            color: AppColors.black12,
                             blurRadius: 6,
                             offset: Offset(0, 2),
                           ),
@@ -172,7 +173,7 @@ class ProductCard extends StatelessWidget {
                         product.customizationGroups.isEmpty
                             ? Icons.add_shopping_cart_rounded
                             : Icons.tune_rounded,
-                        color: Colors.white,
+                        color: AppColors.white,
                         size: 18,
                       ),
                     ),
@@ -184,14 +185,14 @@ class ProductCard extends StatelessWidget {
                   Positioned.fill(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.4),
+                        color: AppColors.black.withValues(alpha: 0.4),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
                         child: Text(
                           context.l10n.unavailableText,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: AppColors.white,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -230,7 +231,7 @@ class ProductCard extends StatelessWidget {
                 Text(
                   originalPriceText,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey.shade400,
+                    color: AppColors.grey400,
                     decoration: TextDecoration.lineThrough,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -277,7 +278,7 @@ class _BobaArtWidget extends StatelessWidget {
                 angle: -0.4,
                 child: Icon(
                   Icons.spa_rounded,
-                  color: Colors.green.shade100,
+                  color: AppColors.parkGreen.withValues(alpha: 0.5),
                   size: w * 0.35,
                 ),
               ),
@@ -289,7 +290,7 @@ class _BobaArtWidget extends StatelessWidget {
                 angle: 0.5,
                 child: Icon(
                   Icons.spa_rounded,
-                  color: Colors.green.shade200,
+                  color: AppColors.parkGreen,
                   size: w * 0.25,
                 ),
               ),
@@ -308,17 +309,15 @@ class _BobaArtWidget extends StatelessWidget {
                 ),
                 gradient: LinearGradient(
                   colors: [
-                    Colors.orange.shade100,
-                    const Color(
-                      0xFFC48B47,
-                    ), // Caramelized brown sugar boba color
+                    AppColors.warmFulfillmentOrangeBg,
+                    AppColors.coffeeBrown.withValues(alpha: 0.7),
                   ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
                 boxShadow: const [
                   BoxShadow(
-                    color: Colors.black12,
+                    color: AppColors.black12,
                     blurRadius: 4,
                     offset: Offset(0, 4),
                   ),
@@ -333,7 +332,7 @@ class _BobaArtWidget extends StatelessWidget {
                       height: h * 0.14,
                       width: double.infinity,
                       decoration: const BoxDecoration(
-                        color: Colors.white,
+                        color: AppColors.white,
                         borderRadius: BorderRadius.only(
                           topLeft: Radius.circular(8),
                           topRight: Radius.circular(8),
@@ -393,13 +392,13 @@ class _BobaArtWidget extends StatelessWidget {
                 width: w * 0.52,
                 height: h * 0.1,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.6),
+                  color: AppColors.white.withValues(alpha: 0.6),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(20),
                     topRight: Radius.circular(20),
                   ),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.8),
+                    color: AppColors.white.withValues(alpha: 0.8),
                     width: 1.5,
                   ),
                 ),
@@ -418,7 +417,7 @@ class _BobaArtWidget extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: brandColor,
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.white30, width: 1),
+                    border: Border.all(color: AppColors.white.withValues(alpha: 0.3), width: 1),
                   ),
                 ),
               ),

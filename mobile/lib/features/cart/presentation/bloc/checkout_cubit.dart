@@ -110,12 +110,30 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     );
   }
 
-  void confirmMockPayment(String orderTrackingId, VoidCallback onCartCleared) {
-    final updatedPaidOrders = Set<String>.from(state.mockPaidOrders)
-      ..add(orderTrackingId);
-    emit(state.copyWith(mockPaidOrders: updatedPaidOrders));
-    if (state.buyNowItem == null) {
-      onCartCleared();
+  Future<void> confirmMockPayment({
+    required String orderTrackingId,
+    required String transactionId,
+    required String mockSecret,
+    required VoidCallback onCartCleared,
+  }) async {
+    emit(state.copyWith(isCheckingOut: true, error: () => null));
+    try {
+      await _cartRepository.confirmMockPayment(
+        transactionId: transactionId,
+        secret: mockSecret,
+      );
+      final updatedPaidOrders = Set<String>.from(state.mockPaidOrders)
+        ..add(orderTrackingId);
+      emit(state.copyWith(
+        mockPaidOrders: updatedPaidOrders,
+        isCheckingOut: false,
+      ));
+      if (state.buyNowItem == null) {
+        onCartCleared();
+      }
+    } catch (e) {
+      final message = e is ApiException ? e.message : 'Failed to confirm payment';
+      emit(state.copyWith(isCheckingOut: false, error: () => message));
     }
   }
 

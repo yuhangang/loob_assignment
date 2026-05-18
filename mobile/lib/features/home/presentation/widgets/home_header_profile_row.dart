@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/config/app_config.dart';
-import '../../../../core/di/injection.dart';
 import '../../../../core/localization/language_cubit.dart';
 import '../../../../core/theme/tokens/spacing.dart';
+import '../../../../core/widgets/user_profile_avatar.dart';
 import '../../../settings/data/models/user_profile_model.dart';
 
 class HomeHeaderProfileRow extends StatelessWidget {
@@ -26,27 +25,12 @@ class HomeHeaderProfileRow extends StatelessWidget {
       children: [
         Row(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.25),
-                  width: 2,
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(1.5),
-                child: CircleAvatar(
-                  backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.05),
-                  backgroundImage: profile != null && profile!.avatarUrl.isNotEmpty
-                      ? NetworkImage(profile!.avatarUrl)
-                      : NetworkImage(
-                          '${sl<AppConfig>().baseUrl}/cdn/cute_avatar.png',
-                        ),
-                ),
-              ),
+            UserProfileAvatar(
+              avatarUrl: profile?.avatarUrl,
+              displayName: profile?.displayName ?? 'Dev User',
+              size: 36,
+              borderWidth: 2,
+              borderColor: theme.colorScheme.primary.withValues(alpha: 0.25),
             ),
             const SizedBox(width: AppSpacing.md),
             Column(

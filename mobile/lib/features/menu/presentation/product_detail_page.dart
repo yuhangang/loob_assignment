@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:loob_app/features/menu/data/models/catalog_model.dart';
 import 'dart:ui';
 import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/router/app_router.dart';
@@ -243,7 +244,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  Colors.transparent,
+                                  AppColors.transparent,
                                   theme.scaffoldBackgroundColor.withValues(
                                     alpha: 0.6,
                                   ),
@@ -370,7 +371,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.02),
+                              color: AppColors.black.withValues(alpha: 0.02),
                               blurRadius: 15,
                               offset: const Offset(0, 8),
                             ),
@@ -469,14 +470,14 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   height: 40,
                   decoration: BoxDecoration(
                     color: theme.brightness == Brightness.dark
-                        ? Colors.white.withValues(alpha: 0.1)
-                        : Colors.black.withValues(alpha: 0.2),
+                        ? AppColors.white.withValues(alpha: 0.1)
+                        : AppColors.black.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
                     icon: const Icon(
                       Icons.arrow_back_ios_new_rounded,
-                      color: Colors.white,
+                      color: AppColors.white,
                       size: 18,
                     ),
                     onPressed: () => Navigator.of(context).pop(),
@@ -498,7 +499,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   decoration: BoxDecoration(
                     color: theme.brightness == Brightness.dark
                         ? theme.scaffoldBackgroundColor.withValues(alpha: 0.82)
-                        : Colors.white.withValues(alpha: 0.85),
+                        : AppColors.white.withValues(alpha: 0.85),
                     border: Border(
                       top: BorderSide(
                         color: theme.dividerColor.withValues(alpha: 0.1),
@@ -514,181 +515,199 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   ),
                   child: SafeArea(
                     top: false,
-                    child: Row(
+                    child: Column(
                       children: [
-                        QuantityStepper(
-                          quantity: _quantity,
-                          style: QuantityStepperStyle.standard,
-                          compactButtonSize: widget.isEditingCartItem,
-                          onDecrease: _quantity > 1
-                              ? () => setState(() => _quantity--)
-                              : null,
-                          onIncrease: () => setState(() => _quantity++),
+                        // Top Row: Total Price and Quantity Stepper
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  context.l10n.totalLabel,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.textTheme.bodySmall?.color
+                                        ?.withValues(alpha: 0.5),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _totalPrice.toDisplayPrice(widget.currency),
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            QuantityStepper(
+                              quantity: _quantity,
+                              style: QuantityStepperStyle.standard,
+                              compactButtonSize: widget.isEditingCartItem,
+                              onDecrease: _quantity > 1
+                                  ? () => setState(() => _quantity--)
+                                  : null,
+                              onIncrease: () => setState(() => _quantity++),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: AppSpacing.md),
+                        const SizedBox(height: AppSpacing.md),
 
                         // Action Button
-                        Expanded(
-                          child: SizedBox(
-                            height: 52,
-                            child: widget.isEditingCartItem
-                                ? Row(
-                                    children: [
-                                      Expanded(
-                                        child: FilledButton.tonal(
-                                          style: FilledButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                    AppSpacing.radiusXl,
-                                                  ),
-                                            ),
-                                            elevation: 0,
+                        SizedBox(
+                          height: 52,
+                          child: widget.isEditingCartItem
+                              ? Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton.tonal(
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
                                           ),
-                                          onPressed: () {
-                                            context.pushReplacement(
-                                              AppRouter.productDetail,
-                                              extra: {
-                                                'product': widget.product,
-                                                'currency': widget.currency,
-                                              },
-                                            );
-                                          },
-                                          child: const FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            child: Text(
-                                              'Order other',
-                                              maxLines: 1,
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                              ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              AppSpacing.radiusXl,
+                                            ),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                        onPressed: () {
+                                          context.pushReplacement(
+                                            AppRouter.productDetail,
+                                            extra: {
+                                              'product': widget.product,
+                                              'currency': widget.currency,
+                                            },
+                                          );
+                                        },
+                                        child: const FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            'Order other',
+                                            maxLines: 1,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w800,
                                             ),
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: AppSpacing.sm),
-                                      Expanded(
-                                        child: FilledButton(
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor:
-                                                theme.colorScheme.primary,
-                                            foregroundColor:
-                                                theme.colorScheme.onPrimary,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                    AppSpacing.radiusXl,
-                                                  ),
-                                            ),
-                                            elevation: 0,
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Expanded(
+                                      child: FilledButton(
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor:
+                                              theme.colorScheme.primary,
+                                          foregroundColor:
+                                              theme.colorScheme.onPrimary,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
                                           ),
-                                          onPressed: _hasValidSelections
-                                              ? () {
-                                                  Navigator.of(
-                                                    context,
-                                                  ).pop(_result('update'));
-                                                }
-                                              : null,
-                                          child: FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            child: Text(
-                                              'Update ${_totalPrice.toDisplayPrice(widget.currency)}',
-                                              maxLines: 1,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                              ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              AppSpacing.radiusXl,
+                                            ),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                        onPressed: _hasValidSelections
+                                            ? () {
+                                                Navigator.of(
+                                                  context,
+                                                ).pop(_result('update'));
+                                              }
+                                            : null,
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            context.l10n.update,
+                                            maxLines: 1,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w800,
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ],
-                                  )
-                                : Row(
-                                    children: [
-                                      Expanded(
-                                        child: FilledButton.tonal(
-                                          style: FilledButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                    AppSpacing.radiusXl,
-                                                  ),
-                                            ),
-                                            elevation: 0,
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton.tonal(
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
                                           ),
-                                          onPressed: _hasValidSelections
-                                              ? () {
-                                                  Navigator.of(
-                                                    context,
-                                                  ).pop(_result('buy_now'));
-                                                }
-                                              : null,
-                                          child: FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            child: Text(
-                                              context.l10n.buyNow,
-                                              maxLines: 1,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                              ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              AppSpacing.radiusXl,
+                                            ),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                        onPressed: _hasValidSelections
+                                            ? () {
+                                                Navigator.of(
+                                                  context,
+                                                ).pop(_result('buy_now'));
+                                              }
+                                            : null,
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            context.l10n.buyNow,
+                                            maxLines: 1,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w800,
                                             ),
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: AppSpacing.sm),
-                                      Expanded(
-                                        child: FilledButton(
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor:
-                                                theme.colorScheme.primary,
-                                            foregroundColor:
-                                                theme.colorScheme.onPrimary,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                    AppSpacing.radiusXl,
-                                                  ),
-                                            ),
-                                            elevation: 0,
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Expanded(
+                                      child: FilledButton(
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor:
+                                              theme.colorScheme.primary,
+                                          foregroundColor:
+                                              theme.colorScheme.onPrimary,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
                                           ),
-                                          onPressed: _hasValidSelections
-                                              ? () {
-                                                  Navigator.of(
-                                                    context,
-                                                  ).pop(_result('add'));
-                                                }
-                                              : null,
-                                          child: FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            child: Text(
-                                              context.l10n.addToCartBtn(
-                                                _totalPrice.toDisplayPrice(
-                                                  widget.currency,
-                                                ),
-                                              ),
-                                              maxLines: 1,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                              ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              AppSpacing.radiusXl,
+                                            ),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                        onPressed: _hasValidSelections
+                                            ? () {
+                                                Navigator.of(
+                                                  context,
+                                                ).pop(_result('add'));
+                                              }
+                                            : null,
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            context.l10n.addToCart,
+                                            maxLines: 1,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w800,
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ],
-                                  ),
-                          ),
+                                    ),
+                                  ],
+                                ),
                         ),
                       ],
                     ),

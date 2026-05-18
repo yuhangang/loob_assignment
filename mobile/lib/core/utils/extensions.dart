@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../../features/cart/presentation/bloc/cart_bloc.dart';
+import '../router/app_router.dart';
 
 /// Useful Dart/Flutter extensions.
 
@@ -71,4 +75,32 @@ extension ContextExtensions on BuildContext {
       ),
     );
   }
+
+  /// Returns the dynamic bottom padding needed to clear the floating cart bar.
+  /// Returns 0.0 if the cart bar is hidden on the current route or if the cart is empty.
+  /// Otherwise, returns 140.0 + bottom safe area to clear the floating cart bar comfortably.
+  double get cartFloatingBarPadding {
+    // 1. Check if the current route is one that hides the floating cart bar.
+    final currentRoute = AppRouter.currentRouteNotifier.value;
+    if (currentRoute == AppRouter.cart ||
+        currentRoute == AppRouter.checkout ||
+        currentRoute == AppRouter.orderStatus ||
+        currentRoute == AppRouter.barcode ||
+        currentRoute == AppRouter.productDetail) {
+      return 0.0;
+    }
+
+    // 2. Check if the cart has items. Watches the CartBloc state reactively.
+    final cartState = watch<CartBloc>().state;
+    if (cartState.totalQuantity == 0) {
+      return 0.0;
+    }
+
+    // 3. Floating cart bar is visible.
+    // Base overlap height is 140.0. Add bottom safe area (e.g. notch height)
+    // to guarantee sufficient clearance on all device screen sizes.
+    final bottomSafeArea = MediaQuery.of(this).padding.bottom;
+    return 140.0 + bottomSafeArea;
+  }
 }
+

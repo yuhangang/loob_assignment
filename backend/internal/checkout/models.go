@@ -68,15 +68,32 @@ type ChargeLineResponse struct {
 	WaiverReason  string `json:"waiver_reason,omitempty"`
 }
 
+type OrderStatusItemOption struct {
+	ID              int    `json:"id"`
+	GroupID         int    `json:"group_id"`
+	Name            string `json:"name"`
+	PriceAdjustment int    `json:"price_adjustment"`
+}
+
+type OrderStatusItem struct {
+	MenuItemID int                     `json:"menu_item_id"`
+	Name       string                  `json:"name"`
+	Quantity   int                     `json:"quantity"`
+	BasePrice  int                     `json:"base_price"`
+	Options    []OrderStatusItemOption `json:"customization_options"`
+}
+
 type OrderStatus struct {
-	TrackingID     string               `json:"order_tracking_id"`
-	Status         string               `json:"status"`
-	PaymentStatus  string               `json:"payment_status"`
-	Subtotal       int                  `json:"subtotal"`
+	TrackingID           string               `json:"order_tracking_id"`
+	Status               string               `json:"status"`
+	PaymentStatus        string               `json:"payment_status"`
+	PaymentTransactionID string               `json:"payment_transaction_id"`
+	Subtotal             int                  `json:"subtotal"`
 	Charges        []ChargeLineResponse `json:"charges"`
 	TaxAmount      int                  `json:"tax_amount"`
 	DiscountAmount int                  `json:"discount_amount"`
 	TotalAmount    int                  `json:"total_amount"`
 	CreatedAt      string               `json:"created_at"`
 	UpdatedAt      string               `json:"updated_at"`
+	Items          []OrderStatusItem    `json:"items"`
 }

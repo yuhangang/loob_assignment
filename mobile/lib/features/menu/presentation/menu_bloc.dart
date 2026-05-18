@@ -87,15 +87,17 @@ class MenuBloc extends Bloc<MenuEvent, MenuState> {
     try {
       final stores = await _repository.listStores(
         countryId: event.countryCode,
-        brandId: event.brandId,
       );
       if (stores.isEmpty) {
-        emit(const MenuError('No active outlets found for this brand.'));
+        emit(const MenuError('No active outlets found.'));
         return;
       }
       final selectedStore = stores.firstWhere(
         (store) => store.id == event.storeId,
-        orElse: () => stores.first,
+        orElse: () => stores.firstWhere(
+          (store) => store.brandId == event.brandId,
+          orElse: () => stores.first,
+        ),
       );
       final catalog = await _repository.loadCategoryBackedCatalog(
         countryCode: event.countryCode,

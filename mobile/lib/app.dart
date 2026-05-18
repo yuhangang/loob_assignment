@@ -1,99 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'core/auth/bloc/auth_bloc.dart';
 import 'core/auth/bloc/auth_state.dart';
 import 'core/auth/widgets/session_timeout_dialog.dart';
-import 'core/config/app_config.dart';
 import 'core/di/injection.dart';
 import 'core/localization/app_localizations.dart';
 import 'core/localization/language_cubit.dart';
+import 'core/providers/app_providers.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/brand.dart';
 import 'core/theme/theme_cubit.dart';
-import 'core/theme/tokens/spacing.dart';
-import 'features/cart/data/datasources/cart_remote_data_source.dart';
 import 'features/cart/presentation/bloc/cart_bloc.dart';
 import 'features/cart/presentation/bloc/cart_event.dart';
-import 'features/cart/presentation/bloc/cart_state.dart';
-import 'features/cart/presentation/widgets/cart_floating_bar.dart';
+import 'features/cart/presentation/overlay/active_overlay_manager.dart';
+import 'features/menu/domain/repositories/menu_repository.dart';
 import 'features/settings/presentation/user_profile_cubit.dart';
-import 'features/vouchers/presentation/voucher_wallet_page.dart';
-
-/// Injects the [CartFloatingBar] directly into the Navigator's [Overlay] so it
-/// always renders above modal bottom sheets and dialogs.
-class _CartOverlayManager extends StatefulWidget {
-  const _CartOverlayManager({required this.child});
-  final Widget child;
-
-  @override
-  State<_CartOverlayManager> createState() => _CartOverlayManagerState();
-}
-
-class _CartOverlayManagerState extends State<_CartOverlayManager> {
-  OverlayEntry? _overlayEntry;
-
-  @override
-  void initState() {
-    super.initState();
-    // Insert after the first frame so the Overlay is ready.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _insertOverlay());
-  }
-
-  void _insertOverlay() {
-    _removeOverlay();
-    _overlayEntry = OverlayEntry(
-      builder: (overlayContext) => _CartFloatingBarPositioned(
-        // Forward the BLoC context from the tree above this widget.
-        cartCubitContext: context,
-      ),
-    );
-    // Insert at the top of the navigator overlay so it floats above sheets.
-    Overlay.of(context).insert(_overlayEntry!);
-  }
-
-  void _removeOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-  }
-
-  @override
-  void dispose() {
-    _removeOverlay();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.child;
-}
-
-/// The actual positioned cart bar, reads state from the ancestor BLoC context.
-class _CartFloatingBarPositioned extends StatelessWidget {
-  const _CartFloatingBarPositioned({required this.cartCubitContext});
-  final BuildContext cartCubitContext;
-
-  @override
-  Widget build(BuildContext context) {
-    // Use the ancestor context to read cart state — the overlay context is
-    // outside the BlocProvider tree.
-    return BlocBuilder<CartBloc, CartState>(
-      bloc: cartCubitContext.read<CartBloc>(),
-      builder: (_, cartState) {
-        if (cartState.totalQuantity == 0) return const SizedBox.shrink();
-        final mq = MediaQuery.of(cartCubitContext);
-        return Positioned(
-          left: AppSpacing.pageHorizontal,
-          right: AppSpacing.pageHorizontal,
-          bottom: mq.padding.bottom + 76.0, // Above bottom nav
-          child: CartFloatingBar(cartState: cartState),
-        );
-      },
-    );
-  }
-}
 
 /// Root application widget.
 ///
@@ -104,32 +27,7 @@ class LoobApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final config = sl<AppConfig>();
-    final initialCountry =
-        sl<SharedPreferences>().getString('user_preferred_country') ??
-        config.defaultCountryCode;
-
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(create: (_) => ThemeCubit()),
-        BlocProvider(create: (_) => sl<LanguageCubit>()),
-        BlocProvider(create: (_) => sl<AuthBloc>()),
-        BlocProvider(
-          create: (_) =>
-              CartBloc(
-                  remoteDataSource: CartRemoteDataSource(client: sl()),
-                  countryCode: initialCountry,
-                )
-                ..add(
-                  const CartLoadRequested(),
-                ) // Hydrate from server on startup
-                ..add(
-                  const CartAvailabilityPollStarted(),
-                ), // Start periodic polling
-        ),
-        BlocProvider(create: (_) => sl<UserProfileCubit>()..loadProfile()),
-        BlocProvider(create: (_) => VoucherCubit()..loadWallet()),
-      ],
+    return AppProviders(
       child: MultiBlocListener(
         listeners: [
           BlocListener<AuthBloc, AuthState>(
@@ -142,7 +40,8 @@ class LoobApp extends StatelessWidget {
                 }
               } else if (state is Authenticated) {
                 context.read<UserProfileCubit>().loadProfile();
-                context.read<CartBloc>().add(const CartLoadRequested());
+                final cartBloc = context.read<CartBloc>();
+                initCartStore(context, cartBloc, cartBloc.state.countryCode);
               }
             },
           ),
@@ -160,7 +59,36 @@ class LoobApp extends StatelessWidget {
                       currency: currency,
                     ),
                   );
+                  initCartStore(context, cartBloc, profileCountry);
                 }
+              }
+            },
+          ),
+          BlocListener<ThemeCubit, LoobBrand>(
+            listener: (context, brand) async {
+              final cartBloc = context.read<CartBloc>();
+              final currentStore = cartBloc.state.selectedStore;
+              final targetBrandId =
+                  brand.brandId ?? 1; // Default to Tealive if discover
+
+              // Only auto-resolve store if the cart's selected store is null
+              // or its brand doesn't match the new brand theme.
+              if (currentStore == null ||
+                  currentStore.brandId != targetBrandId) {
+                try {
+                  final stores = await sl<IMenuRepository>().listStores(
+                    countryId: cartBloc.state.countryCode,
+                    brandId: targetBrandId,
+                  );
+                  if (stores.isNotEmpty && context.mounted) {
+                    final latestStore = cartBloc.state.selectedStore;
+                    if (latestStore == null ||
+                        latestStore.brandId != targetBrandId) {
+                      cartBloc.add(CartSetStore(stores.first));
+                      cartBloc.add(const CartLoadRequested());
+                    }
+                  }
+                } catch (_) {}
               }
             },
           ),
@@ -186,10 +114,10 @@ class LoobApp extends StatelessWidget {
                       GlobalCupertinoLocalizations.delegate,
                     ],
                     routerConfig: AppRouter.router,
-                    // The CartFloatingBar is injected into the Navigator overlay
-                    // (via _CartOverlayManager) so it renders above bottom sheets.
+                    // The ActiveOverlayBar is injected into the Navigator overlay
+                    // (via ActiveOverlayManager) so it renders above bottom sheets.
                     builder: (context, child) =>
-                        _CartOverlayManager(child: child!),
+                        ActiveOverlayManager(child: child!),
                   ),
                 );
               },

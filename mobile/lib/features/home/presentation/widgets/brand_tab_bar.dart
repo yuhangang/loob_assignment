@@ -43,7 +43,7 @@ class BrandTabBar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isActive
                       ? _activeColor(brand)
-                      : Colors.transparent,
+                      : AppColors.transparent,
                   borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
                 ),
                 child: Text(
@@ -77,6 +77,6 @@ class BrandTabBar extends StatelessWidget {
   }
 
   Color _activeTextColor(LoobBrand brand) {
-    return Colors.white;
+    return AppColors.white;
   }
 }

@@ -40,7 +40,7 @@ func TestMapGatewayStatus(t *testing.T) {
 		wantOrd string
 		wantErr bool
 	}{
-		{"SUCCESS", "CAPTURED", "QUEUED", false},
+		{"SUCCESS", "CAPTURED", "READY_TO_COLLECT", false},
 		{"FAILED", "FAILED", "PAYMENT_FAILED", false},
 		{"UNKNOWN", "", "", true},
 	}

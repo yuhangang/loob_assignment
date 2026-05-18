@@ -26,6 +26,9 @@ type CheckoutRepository interface {
 	GetStatus(ctx context.Context, countryID, trackingID string) (Status, error)
 	GetStatusForUser(ctx context.Context, countryID, userID, trackingID string) (Status, error)
 	ListStatusesByUser(ctx context.Context, countryID, userID string) ([]Status, error)
+	GetMenuItemNames(ctx context.Context, itemIDs []int) (map[int]string, error)
+	GetOptionNames(ctx context.Context, optionIDs []int) (map[int]string, error)
+	MarkOrderCollected(ctx context.Context, countryID, userID, trackingID string) error
 }
 
 type Service struct {
@@ -333,6 +336,101 @@ func calculateCharges(definitions []ChargeDefinition, req chargeCalculationReque
 	return lines
 }
 
+func (s *Service) populateItems(ctx context.Context, countryID string, status Status) ([]OrderStatusItem, error) {
+	if len(status.CartPayload) == 0 {
+		return []OrderStatusItem{}, nil
+	}
+	var cartItems []CartItem
+	if err := json.Unmarshal(status.CartPayload, &cartItems); err != nil {
+		return []OrderStatusItem{}, nil
+	}
+	if len(cartItems) == 0 {
+		return []OrderStatusItem{}, nil
+	}
+
+	store, err := s.repo.GetStore(ctx, countryID, status.StoreID)
+	if err != nil {
+		return nil, err
+	}
+
+	itemIDs := make([]int, len(cartItems))
+	for i, item := range cartItems {
+		itemIDs[i] = item.MenuItemID
+	}
+
+	// 1. Fetch menu item names
+	names, err := s.repo.GetMenuItemNames(ctx, itemIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Fetch menu item base prices
+	pricedItems, err := s.repo.GetPricedItems(ctx, store.ID, store.ZoneID, itemIDs)
+	if err != nil {
+		pricedItems = map[int]PricedItem{}
+	}
+
+	// 3. Collect option IDs
+	optionIDs := []int{}
+	for _, item := range cartItems {
+		optionIDs = append(optionIDs, item.CustomizationIDs...)
+	}
+
+	// 4. Fetch option prices & names
+	optionPrices := map[int]OptionPrice{}
+	optionNames := map[int]string{}
+	if len(optionIDs) > 0 {
+		if prices, err := s.repo.GetOptionPrices(ctx, store.ID, store.ZoneID, optionIDs); err == nil {
+			optionPrices = prices
+		}
+		if nms, err := s.repo.GetOptionNames(ctx, optionIDs); err == nil {
+			optionNames = nms
+		}
+	}
+
+	// 5. Construct OrderStatusItems
+	statusItems := make([]OrderStatusItem, len(cartItems))
+	for i, item := range cartItems {
+		name := names[item.MenuItemID]
+		if name == "" {
+			name = "Unknown Item"
+		}
+		basePrice := 0
+		if pi, ok := pricedItems[item.MenuItemID]; ok {
+			basePrice = pi.BasePrice
+		}
+
+		options := make([]OrderStatusItemOption, 0, len(item.CustomizationIDs))
+		for _, optID := range item.CustomizationIDs {
+			optName := optionNames[optID]
+			if optName == "" {
+				optName = "Unknown Option"
+			}
+			priceAdj := 0
+			groupID := 0
+			if optPrice, ok := optionPrices[optID]; ok {
+				priceAdj = optPrice.PriceAdjustment
+				groupID = optPrice.GroupID
+			}
+			options = append(options, OrderStatusItemOption{
+				ID:              optID,
+				GroupID:         groupID,
+				Name:            optName,
+				PriceAdjustment: priceAdj,
+			})
+		}
+
+		statusItems[i] = OrderStatusItem{
+			MenuItemID: item.MenuItemID,
+			Name:       name,
+			Quantity:   item.Quantity,
+			BasePrice:  basePrice,
+			Options:    options,
+		}
+	}
+	return statusItems, nil
+}
+
 func (s *Service) GetStatus(ctx context.Context, countryID, trackingID string) (OrderStatus, error) {
 	status, err := s.repo.GetStatus(ctx, countryID, trackingID)
 	if err != nil {
@@ -341,7 +439,12 @@ func (s *Service) GetStatus(ctx context.Context, countryID, trackingID string) (
 		}
 		return OrderStatus{}, err
 	}
-	return orderStatusFromRow(status), nil
+	res := orderStatusFromRow(status)
+	items, err := s.populateItems(ctx, countryID, status)
+	if err == nil {
+		res.Items = items
+	}
+	return res, nil
 }
 
 func (s *Service) GetStatusForUser(ctx context.Context, countryID, userID, trackingID string) (OrderStatus, error) {
@@ -355,7 +458,29 @@ func (s *Service) GetStatusForUser(ctx context.Context, countryID, userID, track
 		}
 		return OrderStatus{}, err
 	}
-	return orderStatusFromRow(status), nil
+	res := orderStatusFromRow(status)
+	items, err := s.populateItems(ctx, countryID, status)
+	if err == nil {
+		res.Items = items
+	}
+	return res, nil
+}
+
+func (s *Service) MarkOrderCollected(ctx context.Context, countryID, userID, trackingID string) (OrderStatus, error) {
+	if strings.TrimSpace(userID) == "" {
+		return OrderStatus{}, ErrUserRequired
+	}
+	if strings.TrimSpace(trackingID) == "" {
+		return OrderStatus{}, errors.New("tracking_id is required")
+	}
+	err := s.repo.MarkOrderCollected(ctx, countryID, userID, trackingID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return OrderStatus{}, ErrOrderNotFound
+		}
+		return OrderStatus{}, err
+	}
+	return s.GetStatusForUser(ctx, countryID, userID, trackingID)
 }
 
 func (s *Service) ListOrders(ctx context.Context, countryID, userID string) ([]OrderStatus, error) {
@@ -368,7 +493,12 @@ func (s *Service) ListOrders(ctx context.Context, countryID, userID string) ([]O
 	}
 	orders := make([]OrderStatus, 0, len(statuses))
 	for _, status := range statuses {
-		orders = append(orders, orderStatusFromRow(status))
+		res := orderStatusFromRow(status)
+		items, err := s.populateItems(ctx, countryID, status)
+		if err == nil {
+			res.Items = items
+		}
+		orders = append(orders, res)
 	}
 	return orders, nil
 }
@@ -600,16 +730,18 @@ func containsStringFold(values []string, want string) bool {
 
 func orderStatusFromRow(status Status) OrderStatus {
 	return OrderStatus{
-		TrackingID:     status.TrackingID,
-		Status:         status.Status,
-		PaymentStatus:  status.PaymentStatus.String,
-		Subtotal:       status.Subtotal,
+		TrackingID:           status.TrackingID,
+		Status:               status.Status,
+		PaymentStatus:        status.PaymentStatus.String,
+		PaymentTransactionID: status.TransactionID.String,
+		Subtotal:             status.Subtotal,
 		Charges:        chargeLineResponses(status.Charges),
 		TaxAmount:      status.TaxAmount,
 		DiscountAmount: status.DiscountAmount,
 		TotalAmount:    status.TotalAmount,
 		CreatedAt:      status.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:      status.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		Items:          []OrderStatusItem{},
 	}
 }
 

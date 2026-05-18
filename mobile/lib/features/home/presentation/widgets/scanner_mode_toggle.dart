@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 
 class ScannerModeToggle extends StatelessWidget {
@@ -20,10 +21,10 @@ class ScannerModeToggle extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: AppColors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: AppColors.white.withValues(alpha: 0.08),
           width: 1.0,
         ),
       ),
@@ -33,12 +34,12 @@ class ScannerModeToggle extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isScannerMode ? accentColor : Colors.white12,
+              color: isScannerMode ? accentColor : AppColors.white12,
             ),
             child: Icon(
               Icons.wb_sunny_rounded,
               size: 18,
-              color: isScannerMode ? Colors.white : Colors.white70,
+              color: isScannerMode ? AppColors.white : AppColors.white70,
             ),
           ),
           const SizedBox(width: AppSpacing.md),
@@ -49,7 +50,7 @@ class ScannerModeToggle extends StatelessWidget {
                 Text(
                   'Scanner Mode',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppColors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
                   ),
@@ -57,7 +58,7 @@ class ScannerModeToggle extends StatelessWidget {
                 SizedBox(height: 2),
                 Text(
                   'Enhances screen contrast for instant scanning.',
-                  style: TextStyle(color: Colors.white60, fontSize: 10),
+                  style: TextStyle(color: AppColors.white60, fontSize: 10),
                 ),
               ],
             ),
@@ -70,8 +71,8 @@ class ScannerModeToggle extends StatelessWidget {
             },
             activeThumbColor: accentColor,
             activeTrackColor: accentColor.withValues(alpha: 0.35),
-            inactiveThumbColor: Colors.grey.shade400,
-            inactiveTrackColor: Colors.white10,
+            inactiveThumbColor: AppColors.grey400,
+            inactiveTrackColor: AppColors.white10,
           ),
         ],
       ),

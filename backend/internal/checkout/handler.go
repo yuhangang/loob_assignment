@@ -71,6 +71,22 @@ func (h *Handler) Status(c echo.Context) error {
 	return c.JSON(http.StatusOK, status)
 }
 
+func (h *Handler) Collect(c echo.Context) error {
+	if err := contextx.RequireCountryHeader(c); err != nil {
+		return err
+	}
+	rc := contextx.FromEcho(c)
+	trackingID := c.Param("tracking_id")
+	status, err := h.service.MarkOrderCollected(c.Request().Context(), rc.CountryCode, rc.UserID, trackingID)
+	if err != nil {
+		if errors.Is(err, ErrOrderNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, map[string]string{"error": "order not found"})
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": "failed to collect order"})
+	}
+	return c.JSON(http.StatusOK, status)
+}
+
 func checkoutError(err error) error {
 	switch {
 	case errors.Is(err, ErrUserRequired),

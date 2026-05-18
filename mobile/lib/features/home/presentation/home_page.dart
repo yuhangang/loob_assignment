@@ -5,7 +5,9 @@ import '../../../core/localization/app_localizations.dart';
 import '../../../core/localization/language_cubit.dart';
 import '../../../core/theme/brand.dart';
 import '../../../core/theme/theme_cubit.dart';
+import '../../../core/theme/tokens/colors.dart';
 import '../../../core/theme/tokens/spacing.dart';
+import '../../../core/utils/extensions.dart';
 import '../../cart/presentation/bloc/cart_bloc.dart';
 import '../../cart/presentation/bloc/cart_state.dart';
 import '../../settings/data/models/user_profile_model.dart';
@@ -165,7 +167,7 @@ class _HomePageState extends State<HomePage> {
                       expandedHeight: 210,
                       toolbarHeight: 66,
                       backgroundColor: theme.scaffoldBackgroundColor,
-                      surfaceTintColor: Colors.transparent,
+                      surfaceTintColor: AppColors.transparent,
                       elevation: 0,
                       automaticallyImplyLeading: false,
                       titleSpacing: 0,
@@ -213,8 +215,9 @@ class _HomePageState extends State<HomePage> {
                   child: state is HomeLoaded && state.recentOrders.isNotEmpty
                       ? Builder(
                           builder: (context) {
-                            final profileState =
-                                context.watch<UserProfileCubit>().state;
+                            final profileState = context
+                                .watch<UserProfileCubit>()
+                                .state;
                             final currency = profileState is UserProfileLoaded
                                 ? profileState.profile.currencyCode
                                 : 'MYR';
@@ -296,8 +299,10 @@ class _HomePageState extends State<HomePage> {
                   const SliverToBoxAdapter(child: SizedBox.shrink()),
 
                 // Bottom space for comfortable navigation overlay
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: AppSpacing.xxxl),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: AppSpacing.xxxl + context.cartFloatingBarPadding,
+                  ),
                 ),
               ],
             ),

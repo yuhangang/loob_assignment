@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 
 /// Edge-to-edge premium hero banner carousel.
@@ -83,9 +84,9 @@ class _HeroBannerState extends State<HeroBanner> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                Colors.black.withValues(alpha: 0.8),
-                                Colors.black.withValues(alpha: 0.2),
-                                Colors.transparent,
+                                AppColors.black.withValues(alpha: 0.8),
+                                AppColors.black.withValues(alpha: 0.2),
+                                AppColors.transparent,
                               ],
                               begin: Alignment.bottomCenter,
                               end: Alignment.topCenter,
@@ -105,11 +106,11 @@ class _HeroBannerState extends State<HeroBanner> {
                             Text(
                               item.title,
                               style: theme.textTheme.headlineSmall?.copyWith(
-                                color: Colors.white,
+                                color: AppColors.white,
                                 fontWeight: FontWeight.w800,
                                 shadows: [
                                   Shadow(
-                                    color: Colors.black.withValues(alpha: 0.3),
+                                    color: AppColors.black.withValues(alpha: 0.3),
                                     offset: const Offset(0, 2),
                                     blurRadius: 4,
                                   ),
@@ -122,11 +123,11 @@ class _HeroBannerState extends State<HeroBanner> {
                             Text(
                               item.subtitle,
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: Colors.white.withValues(alpha: 0.9),
+                                color: AppColors.white.withValues(alpha: 0.9),
                                 fontWeight: FontWeight.w500,
                                 shadows: [
                                   Shadow(
-                                    color: Colors.black.withValues(alpha: 0.3),
+                                    color: AppColors.black.withValues(alpha: 0.3),
                                     offset: const Offset(0, 1),
                                     blurRadius: 2,
                                   ),
@@ -149,11 +150,11 @@ class _HeroBannerState extends State<HeroBanner> {
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: AppColors.white,
                             borderRadius: BorderRadius.circular(100),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.1),
+                                color: AppColors.black.withValues(alpha: 0.1),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),

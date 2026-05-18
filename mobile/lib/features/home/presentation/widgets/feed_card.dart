@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../data/models/feed_item_model.dart';
 
@@ -29,7 +30,7 @@ class FeedCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(100), // Pill shape
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
+              color: AppColors.black.withValues(alpha: 0.04),
               blurRadius: 16,
               offset: const Offset(0, 8),
             ),

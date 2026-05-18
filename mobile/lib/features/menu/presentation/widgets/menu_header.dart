@@ -1,0 +1,234 @@
+import 'package:flutter/material.dart';
+
+import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/theme/tokens/colors.dart';
+import '../../../../core/theme/tokens/spacing.dart';
+import '../../data/models/store_model.dart';
+
+/// Custom top Menu Header matching screenshots exactly
+class MenuHeader extends StatelessWidget {
+  const MenuHeader({
+    super.key,
+    required this.brandName,
+    required this.isPickup,
+    required this.selectedStore,
+    required this.primaryColor,
+    required this.onFulfillmentChanged,
+    required this.onChangeOutlet,
+  });
+
+  final String brandName;
+  final bool isPickup;
+  final StoreModel selectedStore;
+  final Color primaryColor;
+  final ValueChanged<bool> onFulfillmentChanged;
+  final VoidCallback onChangeOutlet;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.pageHorizontal,
+        AppSpacing.md,
+        AppSpacing.pageHorizontal,
+        AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Row 1: Sliding fulfillment selector + Business hour text
+          Row(
+            children: [
+              // Custom Sliding Fulfillment Capsule
+              Container(
+                height: 38,
+                width: 170,
+                padding: const EdgeInsets.all(2.0),
+                decoration: BoxDecoration(
+                  color: AppColors.lightLavender, // Light lavender background
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    // Delivery Tab
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => onFulfillmentChanged(false),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: !isPickup
+                                ? primaryColor.withValues(alpha: 0.15)
+                                : AppColors.transparent,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            context.l10n.delivery,
+                            style: TextStyle(
+                              color: !isPickup
+                                  ? primaryColor
+                                  : AppColors.grey600,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Pickup Tab
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => onFulfillmentChanged(true),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isPickup
+                                ? primaryColor
+                                : AppColors.transparent,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            context.l10n.pickup,
+                            style: TextStyle(
+                              color: isPickup
+                                  ? AppColors.white
+                                  : AppColors.grey600,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.lg),
+
+              // Business Hour Details
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Icon(
+                      Icons.door_sliding_outlined,
+                      color: primaryColor.withValues(alpha: 0.7),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            context.l10n.businessHourHeader,
+                            style: const TextStyle(
+                              color: AppColors
+                                  .softPink, // Soft pink-purple color matching screenshot
+                              fontWeight: FontWeight.w800,
+                              fontSize: 8,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Text(
+                            '10:30AM - 09:00PM',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: AppColors.black87,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Row 2: Outlet selector
+          InkWell(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            onTap: onChangeOutlet,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.storefront_rounded, color: primaryColor, size: 24),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      selectedStore.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: AppColors.black87,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.edit_outlined, color: primaryColor, size: 16),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm + 2),
+
+          // Row 3: Outlined Search Bar with Boba cup prefix
+          TextField(
+            readOnly: true,
+            onTap: () {
+              // Action if search was tapped
+            },
+            decoration: InputDecoration(
+              hintText: context.l10n.searchBobaPlaceholder,
+              hintStyle: TextStyle(
+                color: primaryColor.withValues(alpha: 0.4),
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+              ),
+              prefixIcon: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Icon(
+                  Icons.local_drink_rounded,
+                  color: primaryColor,
+                  size: 22,
+                ),
+              ),
+              suffixIcon: Icon(
+                Icons.search_rounded,
+                color: primaryColor,
+                size: 24,
+              ),
+              fillColor: AppColors.white,
+              filled: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                borderSide: BorderSide(
+                  color: primaryColor.withValues(alpha: 0.35),
+                  width: 1.5,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                borderSide: BorderSide(color: primaryColor, width: 1.5),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

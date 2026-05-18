@@ -255,19 +255,7 @@ class _CustomizationSheetState extends State<CustomizationSheet> {
                       );
                     }),
 
-                    // Quantity selector
-                    const SizedBox(height: AppSpacing.sm),
-                    Center(
-                      child: QuantityStepper(
-                        quantity: _quantity,
-                        style: QuantityStepperStyle.standard,
-                        onDecrease: _quantity > 1
-                            ? () => setState(() => _quantity--)
-                            : null,
-                        onIncrease: () => setState(() => _quantity++),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
+                    const SizedBox(height: AppSpacing.md),
                   ],
                 ),
               ),
@@ -275,29 +263,70 @@ class _CustomizationSheetState extends State<CustomizationSheet> {
               // Add to cart button
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton(
-                    onPressed: _hasValidSelections
-                        ? () {
-                            widget.onAddToCart?.call({
-                              for (final entry in _selections.entries)
-                                entry.key: entry.value.toList(),
-                            }, _quantity);
-                            Navigator.of(context).pop();
-                          }
-                        : null,
-                    child: Text(
-                      context.l10n.addToCartBtn(
-                        _totalPrice.toDisplayPrice(widget.currency),
-                      ),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Left-side Total Price
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              context.l10n.totalLabel,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.textTheme.bodySmall?.color
+                                    ?.withValues(alpha: 0.5),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _totalPrice.toDisplayPrice(widget.currency),
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ],
+                        ),
+                        QuantityStepper(
+                          quantity: _quantity,
+                          style: QuantityStepperStyle.standard,
+                          onDecrease: _quantity > 1
+                              ? () => setState(() => _quantity--)
+                              : null,
+                          onIncrease: () => setState(() => _quantity++),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: FilledButton(
+                        onPressed: _hasValidSelections
+                            ? () {
+                                widget.onAddToCart?.call({
+                                  for (final entry in _selections.entries)
+                                    entry.key: entry.value.toList(),
+                                }, _quantity);
+                                Navigator.of(context).pop();
+                              }
+                            : null,
+                        child: Text(
+                          context.l10n.addToCart,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],

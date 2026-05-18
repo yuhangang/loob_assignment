@@ -16,7 +16,7 @@ class AppTheme {
       case LoobBrand.tealive:
         return _tealiveTheme();
       case LoobBrand.baskbear:
-        return _baskbearTheme();
+        return _tealiveTheme();
     }
   }
 
@@ -68,7 +68,7 @@ class AppTheme {
   static DialogThemeData _dialogTheme(ColorScheme colors) {
     return DialogThemeData(
       backgroundColor: colors.surface,
-      surfaceTintColor: Colors.transparent,
+      surfaceTintColor: AppColors.transparent,
       elevation: 16,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
@@ -124,23 +124,23 @@ class AppTheme {
 
   static ThemeData _neutralTheme() {
     final colors = ColorScheme.light(
-      primary: const Color(0xFFB2C9AB),
-      onPrimary: const Color(0xFF1E331A),
-      primaryContainer: const Color(0xFFD3E2CC),
-      onPrimaryContainer: const Color(0xFF0F1E0C),
-      secondary: const Color(0xFFD4C1EC),
-      onSecondary: const Color(0xFF2C194D),
-      secondaryContainer: const Color(0xFFEDE6F8),
-      onSecondaryContainer: const Color(0xFF160633),
-      tertiary: const Color(0xFFF7E1AD),
-      onTertiary: const Color(0xFF4C3806),
-      tertiaryContainer: const Color(0xFFFBF1D6),
-      onTertiaryContainer: const Color(0xFF261900),
-      surface: const Color(0xFFF9FBF7),
-      onSurface: const Color(0xFF1E211C),
+      primary: AppColors.discoverPrimary,
+      onPrimary: AppColors.discoverOnPrimary,
+      primaryContainer: AppColors.discoverPrimaryContainer,
+      onPrimaryContainer: AppColors.discoverOnPrimaryContainer,
+      secondary: AppColors.discoverSecondary,
+      onSecondary: AppColors.discoverOnSecondary,
+      secondaryContainer: AppColors.discoverSecondaryContainer,
+      onSecondaryContainer: AppColors.discoverOnSecondaryContainer,
+      tertiary: AppColors.discoverTertiary,
+      onTertiary: AppColors.discoverOnTertiary,
+      tertiaryContainer: AppColors.discoverTertiaryContainer,
+      onTertiaryContainer: AppColors.discoverOnTertiaryContainer,
+      surface: AppColors.discoverSurface,
+      onSurface: AppColors.discoverOnSurface,
       error: AppColors.error,
-      onError: Colors.white,
-      outline: const Color(0xFFE1E4DC),
+      onError: AppColors.white,
+      outline: AppColors.discoverDivider,
     );
 
     return ThemeData(
@@ -150,28 +150,28 @@ class AppTheme {
       colorScheme: colors,
       scaffoldBackgroundColor: AppColors.yamLightBackground,
       cardTheme: CardThemeData(
-        color: Colors.white,
+        color: AppColors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
-          side: const BorderSide(color: Color(0xFFE1E4DC), width: 1),
+          side: const BorderSide(color: AppColors.discoverDivider, width: 1),
         ),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.yamLightBackground,
-        foregroundColor: const Color(0xFF1E211C),
+        foregroundColor: AppColors.discoverOnSurface,
         elevation: 0,
         centerTitle: false,
         titleTextStyle: AppTypography.headlineSmall.copyWith(
-          color: const Color(0xFF1E211C),
+          color: AppColors.discoverOnSurface,
           fontSize: 20,
           fontWeight: FontWeight.w600,
         ),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.yamLightBackground,
-        selectedItemColor: Color(0xFF5E7957),
-        unselectedItemColor: Color(0xFF8C9388),
+        selectedItemColor: AppColors.discoverSelectedNav,
+        unselectedItemColor: AppColors.discoverUnselectedNav,
         type: BottomNavigationBarType.fixed,
         elevation: 8,
       ),
@@ -181,8 +181,8 @@ class AppTheme {
       dialogTheme: _dialogTheme(colors),
       inputDecorationTheme: _inputDecorationTheme(colors),
       dividerTheme: _dividerTheme(colors),
-      textTheme: _textTheme(const Color(0xFF1E211C)),
-      dividerColor: const Color(0xFFE1E4DC),
+      textTheme: _textTheme(AppColors.discoverOnSurface),
+      dividerColor: AppColors.discoverDivider,
     );
   }
 
@@ -201,7 +201,7 @@ class AppTheme {
       surface: AppColors.tealiveSurface,
       onSurface: AppColors.tealivePrimary,
       error: AppColors.error,
-      onError: Colors.white,
+      onError: AppColors.white,
       outline: AppColors.tealivePrimary.withValues(alpha: 0.08),
     );
 
@@ -231,7 +231,7 @@ class AppTheme {
         ),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         selectedItemColor: AppColors.tealivePrimary,
         unselectedItemColor: AppColors.neutralSecondary,
         type: BottomNavigationBarType.fixed,
@@ -253,71 +253,6 @@ class AppTheme {
   }
 
   // ── Baskbear ──────────────────────────────────────────────────────────────
-
-  static ThemeData _baskbearTheme() {
-    final colors = ColorScheme.dark(
-      primary: AppColors.baskbearAccent,
-      onPrimary: AppColors.baskbearPrimary,
-      primaryContainer: AppColors.baskbearSurface,
-      onPrimaryContainer: AppColors.baskbearAccent,
-      secondary: AppColors.baskbearAccent,
-      onSecondary: AppColors.baskbearPrimary,
-      secondaryContainer: AppColors.baskbearAccent.withValues(alpha: 0.1),
-      onSecondaryContainer: AppColors.baskbearAccent,
-      surface: AppColors.baskbearSurface,
-      onSurface: AppColors.baskbearOnPrimary,
-      error: AppColors.error,
-      onError: Colors.white,
-      outline: Colors.white12,
-    );
-
-    return ThemeData(
-      useMaterial3: true,
-      splashFactory: InkSparkle.splashFactory,
-      brightness: Brightness.dark,
-      colorScheme: colors,
-      scaffoldBackgroundColor: AppColors.baskbearBackground,
-      cardTheme: CardThemeData(
-        color: AppColors.baskbearCard,
-        elevation: 6,
-        shadowColor: Colors.black45,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
-        ),
-      ),
-      appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.baskbearPrimary,
-        foregroundColor: AppColors.baskbearOnPrimary,
-        elevation: 0,
-        centerTitle: false,
-        titleTextStyle: AppTypography.headlineSmall.copyWith(
-          color: AppColors.baskbearOnPrimary,
-          fontSize: 20,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
-        ),
-      ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppColors.baskbearPrimary,
-        selectedItemColor: AppColors.baskbearAccent,
-        unselectedItemColor: Colors.white54,
-        type: BottomNavigationBarType.fixed,
-        elevation: 8,
-      ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.baskbearAccent,
-        foregroundColor: AppColors.baskbearOnPrimary,
-      ),
-      filledButtonTheme: _filledButtonTheme(colors),
-      outlinedButtonTheme: _outlinedButtonTheme(colors),
-      textButtonTheme: _textButtonTheme(colors),
-      dialogTheme: _dialogTheme(colors),
-      inputDecorationTheme: _inputDecorationTheme(colors),
-      dividerTheme: _dividerTheme(colors),
-      textTheme: _textTheme(AppColors.baskbearOnPrimary),
-      dividerColor: Colors.white12,
-    );
-  }
 
   // ── Shared text theme builder ─────────────────────────────────────────────
 

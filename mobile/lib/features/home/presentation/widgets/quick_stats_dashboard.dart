@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../settings/data/models/user_profile_model.dart';
@@ -17,12 +18,12 @@ class QuickStatsDashboard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md + 4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
+        color: AppColors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(
           AppSpacing.radiusLg,
         ),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.12),
+          color: AppColors.white.withValues(alpha: 0.12),
           width: 1.2,
         ),
       ),
@@ -37,7 +38,7 @@ class QuickStatsDashboard extends StatelessWidget {
                     Icon(
                       Icons.account_balance_wallet_rounded,
                       size: 13,
-                      color: Colors.white.withValues(
+                      color: AppColors.white.withValues(
                         alpha: 0.6,
                       ),
                     ),
@@ -45,7 +46,7 @@ class QuickStatsDashboard extends StatelessWidget {
                     Text(
                       'Balance (${(profile?.currencyCode.isEmpty ?? true ? 'MYR' : profile!.currencyCode).currencySymbol})',
                       style: TextStyle(
-                        color: Colors.white.withValues(
+                        color: AppColors.white.withValues(
                           alpha: 0.5,
                         ),
                         fontSize: 10,
@@ -60,7 +61,7 @@ class QuickStatsDashboard extends StatelessWidget {
                       ? (profile!.walletBalance / 100).toStringAsFixed(2)
                       : '0.00',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                   ),
@@ -71,7 +72,7 @@ class QuickStatsDashboard extends StatelessWidget {
           Container(
             height: 28,
             width: 1.2,
-            color: Colors.white12,
+            color: AppColors.white12,
           ),
           const SizedBox(width: AppSpacing.lg),
           Expanded(
@@ -96,7 +97,7 @@ class QuickStatsDashboard extends StatelessWidget {
                       child: const Text(
                         't',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.white,
                           fontSize: 9,
                           fontWeight: FontWeight.bold,
                           height: 1.0,
@@ -107,7 +108,7 @@ class QuickStatsDashboard extends StatelessWidget {
                     Text(
                       'TPoints (PTS)',
                       style: TextStyle(
-                        color: Colors.white.withValues(
+                        color: AppColors.white.withValues(
                           alpha: 0.5,
                         ),
                         fontSize: 10,
@@ -120,7 +121,7 @@ class QuickStatsDashboard extends StatelessWidget {
                 Text(
                   profile != null ? profile!.loyaltyPoints.toString() : '0',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                   ),

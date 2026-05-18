@@ -3,7 +3,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/cart/presentation/bloc/cart_item.dart';
 import '../../features/menu/data/models/catalog_model.dart';
+import '../../features/menu/data/models/store_model.dart';
 import '../../features/menu/presentation/product_detail_page.dart';
+import '../../features/menu/presentation/select_outlet_page.dart';
 import '../../features/cart/presentation/cart_page.dart';
 import '../../features/cart/presentation/checkout_page.dart';
 import '../../features/cart/presentation/order_status_page.dart';
@@ -23,6 +25,8 @@ class AppRouter {
       GlobalKey<NavigatorState>();
   static final ValueNotifier<String?> currentRouteNotifier =
       ValueNotifier<String?>(null);
+  static final ValueNotifier<bool> isDialogOpenNotifier =
+      ValueNotifier<bool>(false);
   static final NavigatorObserver routeObserver = _RouteObserver();
 
   // A refresh signal ValueNotifier to communicate between AppShell tab double-tap and OrdersPage.
@@ -39,6 +43,7 @@ class AppRouter {
   static const String campaigns = '/campaigns';
   static const String settings = '/settings';
   static const String barcode = '/barcode';
+  static const String selectOutlet = '/menu/select-outlet';
 
   static final GoRouter router = GoRouter(
     navigatorKey: navigatorKey,
@@ -70,9 +75,8 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: '/orders', // Unique path for orders branch tab
-                builder: (context, state) => OrdersPage(
-                  refreshSignal: ordersRefreshSignal,
-                ),
+                builder: (context, state) =>
+                    OrdersPage(refreshSignal: ordersRefreshSignal),
               ),
             ],
           ),
@@ -134,10 +138,24 @@ class AppRouter {
         name: orderStatus,
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
-          final trackingId = (extra?['trackingId'] as String?) ??
+          final trackingId =
+              (extra?['trackingId'] as String?) ??
               state.uri.queryParameters['trackingId'] ??
               '';
           return OrderStatusPage(trackingId: trackingId);
+        },
+      ),
+      GoRoute(
+        path: selectOutlet,
+        name: selectOutlet,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final stores = extra?['stores'] as List<StoreModel>? ?? const [];
+          final selectedStoreId = extra?['selectedStoreId'] as int? ?? 0;
+          return SelectOutletPage(
+            stores: stores,
+            selectedStoreId: selectedStoreId,
+          );
         },
       ),
     ],
@@ -145,18 +163,57 @@ class AppRouter {
 }
 
 class _RouteObserver extends NavigatorObserver {
+  static int _activeDialogCount = 0;
+
+  void _updateRoute(String? name) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AppRouter.currentRouteNotifier.value = name;
+    });
+  }
+
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    AppRouter.currentRouteNotifier.value = route.settings.name;
+    _updateRoute(route.settings.name);
+    if (route is PopupRoute || route.runtimeType.toString().contains('DialogRoute')) {
+      _activeDialogCount++;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AppRouter.isDialogOpenNotifier.value = _activeDialogCount > 0;
+      });
+    }
   }
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    AppRouter.currentRouteNotifier.value = previousRoute?.settings.name;
+    _updateRoute(previousRoute?.settings.name);
+    if (route is PopupRoute || route.runtimeType.toString().contains('DialogRoute')) {
+      _activeDialogCount = (_activeDialogCount - 1).clamp(0, 999);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AppRouter.isDialogOpenNotifier.value = _activeDialogCount > 0;
+      });
+    }
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (route is PopupRoute || route.runtimeType.toString().contains('DialogRoute')) {
+      _activeDialogCount = (_activeDialogCount - 1).clamp(0, 999);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AppRouter.isDialogOpenNotifier.value = _activeDialogCount > 0;
+      });
+    }
   }
 
   @override
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
-    AppRouter.currentRouteNotifier.value = newRoute?.settings.name;
+    _updateRoute(newRoute?.settings.name);
+    if (oldRoute is PopupRoute || oldRoute?.runtimeType.toString().contains('DialogRoute') == true) {
+      _activeDialogCount = (_activeDialogCount - 1).clamp(0, 999);
+    }
+    if (newRoute is PopupRoute || newRoute?.runtimeType.toString().contains('DialogRoute') == true) {
+      _activeDialogCount++;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AppRouter.isDialogOpenNotifier.value = _activeDialogCount > 0;
+    });
   }
 }

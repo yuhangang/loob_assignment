@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import 'barcode_painters.dart';
 
@@ -35,10 +36,10 @@ class BarcodeMainCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cardBg = isScannerMode ? Colors.white : surfaceColor;
+    final cardBg = isScannerMode ? AppColors.white : surfaceColor;
     final cardBorder = isScannerMode
         ? accentColor.withValues(alpha: 0.5)
-        : Colors.white.withValues(alpha: 0.1);
+        : AppColors.white.withValues(alpha: 0.1);
 
     return Container(
       decoration: BoxDecoration(
@@ -54,7 +55,7 @@ class BarcodeMainCard extends StatelessWidget {
             )
           else
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
+              color: AppColors.black.withValues(alpha: 0.25),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -87,7 +88,7 @@ class BarcodeMainCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
-                      color: isScannerMode ? Colors.black54 : Colors.white60,
+                      color: isScannerMode ? AppColors.black54 : AppColors.white60,
                       letterSpacing: 0.8,
                     ),
                   ),
@@ -98,13 +99,13 @@ class BarcodeMainCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: isScannerMode
-                      ? Colors.grey.shade100
-                      : Colors.white.withValues(alpha: 0.06),
+                      ? AppColors.grey100
+                      : AppColors.white.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(100),
                   border: Border.all(
                     color: isScannerMode
-                        ? Colors.grey.shade300
-                        : Colors.white12,
+                        ? AppColors.grey300
+                        : AppColors.white12,
                     width: 1,
                   ),
                 ),
@@ -118,7 +119,7 @@ class BarcodeMainCard extends StatelessWidget {
                         value: secondsRemaining / maxSeconds,
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(accentColor),
-                        backgroundColor: Colors.grey.withValues(alpha: 0.2),
+                        backgroundColor: AppColors.grey500.withValues(alpha: 0.2),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs + 2),
@@ -128,8 +129,8 @@ class BarcodeMainCard extends StatelessWidget {
                         fontSize: 9,
                         fontWeight: FontWeight.w900,
                         color: isScannerMode
-                            ? Colors.black.withValues(alpha: 0.85)
-                            : Colors.white,
+                            ? AppColors.black.withValues(alpha: 0.85)
+                            : AppColors.white,
                       ),
                     ),
                   ],
@@ -146,7 +147,7 @@ class BarcodeMainCard extends StatelessWidget {
             child: Container(
               height: 180,
               width: double.infinity,
-              color: Colors.white,
+              color: AppColors.white,
               padding: const EdgeInsets.all(AppSpacing.md),
               child: Stack(
                 children: [
@@ -213,13 +214,13 @@ class BarcodeMainCard extends StatelessWidget {
               ),
               decoration: BoxDecoration(
                 color: isScannerMode
-                    ? Colors.grey.shade50
-                    : Colors.white.withValues(alpha: 0.04),
+                    ? AppColors.grey50
+                    : AppColors.white.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isScannerMode
-                      ? Colors.grey.shade200
-                      : Colors.white.withValues(alpha: 0.06),
+                      ? AppColors.grey200
+                      : AppColors.white.withValues(alpha: 0.06),
                   width: 1,
                 ),
               ),
@@ -233,8 +234,8 @@ class BarcodeMainCard extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
                       color: isScannerMode
-                          ? Colors.black.withValues(alpha: 0.85)
-                          : Colors.white,
+                          ? AppColors.black.withValues(alpha: 0.85)
+                          : AppColors.white,
                     ),
                   ),
                   Text(
@@ -259,8 +260,8 @@ class BarcodeMainCard extends StatelessWidget {
           Container(
             height: 1,
             color: isScannerMode
-                ? Colors.grey.shade200
-                : Colors.white.withValues(alpha: 0.08),
+                ? AppColors.grey200
+                : AppColors.white.withValues(alpha: 0.08),
           ),
 
           const SizedBox(height: AppSpacing.md),
@@ -299,8 +300,8 @@ class BarcodeMainCard extends StatelessWidget {
     required Color accentColor,
   }) {
     final labelColor = isSelected
-        ? (isScannerMode ? Colors.black : Colors.white)
-        : (isScannerMode ? Colors.black38 : Colors.white30);
+        ? (isScannerMode ? AppColors.black : AppColors.white)
+        : (isScannerMode ? AppColors.black38 : AppColors.white30);
 
     return GestureDetector(
       onTap: onTap,
@@ -324,7 +325,7 @@ class BarcodeMainCard extends StatelessWidget {
               size: 16,
               color: isSelected
                   ? accentColor
-                  : (isScannerMode ? Colors.black38 : Colors.white30),
+                  : (isScannerMode ? AppColors.black38 : AppColors.white30),
             ),
             const SizedBox(width: AppSpacing.sm),
             Text(

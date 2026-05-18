@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 import '../../../core/di/injection.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/localization/language_cubit.dart';
+import '../../../core/theme/tokens/colors.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../data/models/campaign_model.dart';
 import '../data/models/home_feed_model.dart';
@@ -236,7 +237,7 @@ class _CampaignBanner extends StatelessWidget {
           Text(
             campaign.title,
             style: theme.textTheme.titleMedium?.copyWith(
-              color: Colors.white,
+              color: AppColors.white,
               fontWeight: FontWeight.w700,
             ),
             maxLines: 2,
@@ -246,7 +247,7 @@ class _CampaignBanner extends StatelessWidget {
           Text(
             campaign.subtitle,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.white.withValues(alpha: 0.85),
+              color: AppColors.white.withValues(alpha: 0.85),
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

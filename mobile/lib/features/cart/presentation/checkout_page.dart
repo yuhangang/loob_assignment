@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:loob_app/features/orders/presentation/bloc/active_order_cubit.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/di/injection.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/tokens/colors.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
+import '../../vouchers/data/models/wallet_model.dart';
 import '../../vouchers/domain/repositories/voucher_repository.dart';
 import '../data/models/checkout_response_model.dart';
-import 'bloc/cart_item.dart';
 import 'bloc/cart_bloc.dart';
 import 'bloc/cart_event.dart';
+import 'bloc/cart_item.dart';
 import 'bloc/cart_state.dart';
 import 'bloc/checkout_cubit.dart';
 import 'bloc/checkout_state.dart';
@@ -41,6 +45,37 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   void _submitCheckout(BuildContext context, CartState cart) {
+    final activeOrder = context.read<ActiveOrderCubit>().state.activeOrder;
+    if (activeOrder != null) {
+      showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(context.l10n.activeOrderWarningTitle),
+          content: Text(context.l10n.activeOrderWarningContent),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(context.l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _performSubmit(context, cart);
+              },
+              child: Text(context.l10n.continueBtn),
+            ),
+          ],
+        ),
+      );
+    } else {
+      _performSubmit(context, cart);
+    }
+  }
+
+  void _performSubmit(BuildContext context, CartState cart) {
     context.read<CheckoutCubit>().submitCheckout(
       cart: cart,
       userId: context.read<CartBloc>().userId,
@@ -55,9 +90,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
     BuildContext context,
     CheckoutResponseModel checkout,
   ) {
+    final appConfig = sl<AppConfig>();
+    final transactionId = checkout.payment?.id ?? '';
     context.read<CheckoutCubit>().confirmMockPayment(
-      checkout.orderTrackingId,
-      () => context.read<CartBloc>().add(const CartCleared()),
+      orderTrackingId: checkout.orderTrackingId,
+      transactionId: transactionId,
+      mockSecret: appConfig.mockGatewaySecret,
+      onCartCleared: () => context.read<CartBloc>().add(const CartCleared()),
     );
   }
 
@@ -189,40 +228,47 @@ class _CheckoutPageState extends State<CheckoutPage> {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (providerContext) =>
+      create: (_) =>
           CheckoutCubit(buyNowItem: widget.buyNowItem)..loadPaymentMethods(
-            providerContext.read<CartBloc>().state.countryCode,
-            providerContext.l10n.unableLoadPaymentMethods,
+            context.read<CartBloc>().state.countryCode,
+            context.l10n.unableLoadPaymentMethods,
           ),
       child: BlocBuilder<CheckoutCubit, CheckoutState>(
         builder: (context, state) {
           return BlocBuilder<CartBloc, CartState>(
             builder: (context, cart) {
               final checkout = state.checkout;
-              return Scaffold(
-                appBar: AppBar(
-                  title: Text(
-                    checkout == null
-                        ? context.l10n.checkoutTitle
-                        : context.l10n.paymentTitle,
+              return PopScope(
+                canPop: checkout == null,
+                onPopInvokedWithResult: (didPop, result) {
+                  if (didPop) return;
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+                child: Scaffold(
+                  appBar: AppBar(
+                    title: Text(
+                      checkout == null
+                          ? context.l10n.checkoutTitle
+                          : context.l10n.paymentTitle,
+                    ),
                   ),
+                  body: checkout == null
+                      ? _buildCheckoutForm(context, cart, state)
+                      : _buildPaymentResult(
+                          context,
+                          checkout,
+                          cart.currency,
+                          state,
+                        ),
+                  bottomNavigationBar:
+                      checkout == null &&
+                          state
+                              .getItems(cart)
+                              .where((item) => item.isAvailable)
+                              .isNotEmpty
+                      ? _buildFloatingCheckoutButton(context, cart, state)
+                      : null,
                 ),
-                body: checkout == null
-                    ? _buildCheckoutForm(context, cart, state)
-                    : _buildPaymentResult(
-                        context,
-                        checkout,
-                        cart.currency,
-                        state,
-                      ),
-                bottomNavigationBar:
-                    checkout == null &&
-                        state
-                            .getItems(cart)
-                            .where((item) => item.isAvailable)
-                            .isNotEmpty
-                    ? _buildFloatingCheckoutButton(context, cart, state)
-                    : null,
               );
             },
           );
@@ -257,7 +303,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: AppColors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -4),
           ),
@@ -312,7 +358,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           dimension: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: AppColors.white,
                           ),
                         )
                       : const Icon(Icons.lock_rounded, size: 18),
@@ -667,7 +713,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         Icon(
           isPaid ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
           size: 72,
-          color: isPaid ? Colors.green : theme.colorScheme.primary,
+          color: isPaid ? AppColors.success : theme.colorScheme.primary,
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(
@@ -744,7 +790,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 ),
                 CheckoutAmountRow(
                   label: context.l10n.statusLabel,
-                  value: checkout.payment!.status,
+                  value: isPaid ? 'SUCCESS' : checkout.payment!.status,
                 ),
               ],
             ],
@@ -755,9 +801,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
           SizedBox(
             height: 52,
             child: FilledButton.icon(
-              onPressed: () => _confirmMockPayment(context, checkout),
-              icon: const Icon(Icons.verified_rounded),
-              label: Text(context.l10n.confirmMockPayment),
+              onPressed: state.isCheckingOut
+                  ? null
+                  : () => _confirmMockPayment(context, checkout),
+              icon: state.isCheckingOut
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.white,
+                      ),
+                    )
+                  : const Icon(Icons.verified_rounded),
+              label: Text(
+                state.isCheckingOut
+                    ? 'Confirming...'
+                    : context.l10n.confirmMockPayment,
+              ),
             ),
           )
         else
@@ -801,7 +861,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             maxChildSize: 0.85,
             expand: false,
             builder: (scrollContext, scrollController) {
-              return FutureBuilder(
+              return FutureBuilder<WalletModel>(
                 future: sl<IVoucherRepository>().getWallet(
                   countryCode: cart.countryCode,
                   userId: scrollContext.read<CartBloc>().userId,
@@ -856,7 +916,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Widget _buildBottomSheetContent(
     BuildContext context,
-    AsyncSnapshot snapshot,
+    AsyncSnapshot<WalletModel> snapshot,
     CartState cart,
     ScrollController scrollController,
   ) {
@@ -880,7 +940,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             children: [
               const Icon(
                 Icons.error_outline_rounded,
-                color: Colors.red,
+                color: AppColors.error,
                 size: 48,
               ),
               const SizedBox(height: AppSpacing.md),
@@ -989,7 +1049,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         color:
                             (isEligible
                                     ? theme.colorScheme.primary
-                                    : Colors.grey)
+                                    : AppColors.grey500)
                                 .withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(
                           AppSpacing.radiusMd,
@@ -1005,7 +1065,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           style: theme.textTheme.titleSmall?.copyWith(
                             color: isEligible
                                 ? theme.colorScheme.primary
-                                : Colors.grey,
+                                : AppColors.grey500,
                             fontWeight: FontWeight.w900,
                           ),
                           textAlign: TextAlign.center,
@@ -1076,7 +1136,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     color:
                                         (isEligible
                                                 ? theme.colorScheme.primary
-                                                : Colors.grey)
+                                                : AppColors.grey500)
                                             .withValues(alpha: 0.05),
                                     borderRadius: BorderRadius.circular(
                                       AppSpacing.radiusSm,
@@ -1085,7 +1145,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       color:
                                           (isEligible
                                                   ? theme.colorScheme.primary
-                                                  : Colors.grey)
+                                                  : AppColors.grey500)
                                               .withValues(alpha: 0.15),
                                     ),
                                   ),
@@ -1099,7 +1159,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                               fontWeight: FontWeight.w900,
                                               color: isEligible
                                                   ? theme.colorScheme.primary
-                                                  : Colors.grey,
+                                                  : AppColors.grey500,
                                               letterSpacing: 0.5,
                                             ),
                                       ),
@@ -1110,7 +1170,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                         color:
                                             (isEligible
                                                     ? theme.colorScheme.primary
-                                                    : Colors.grey)
+                                                    : AppColors.grey500)
                                                 .withValues(alpha: 0.7),
                                       ),
                                     ],
@@ -1124,7 +1184,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     vertical: AppSpacing.xxs,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.red.withValues(alpha: 0.1),
+                                    color: AppColors.error.withValues(
+                                      alpha: 0.1,
+                                    ),
                                     borderRadius: BorderRadius.circular(
                                       AppSpacing.radiusSm,
                                     ),
@@ -1138,7 +1200,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     style: const TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w800,
-                                      color: Colors.red,
+                                      color: AppColors.error,
                                     ),
                                   ),
                                 ),

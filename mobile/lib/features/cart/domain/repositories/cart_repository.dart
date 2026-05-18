@@ -16,4 +16,11 @@ abstract class ICartRepository {
   });
 
   Future<OrderStatusModel> getOrderStatus(String trackingId);
+
+  Future<OrderStatusModel> collectOrder(String trackingId);
+
+  Future<void> confirmMockPayment({
+    required String transactionId,
+    required String secret,
+  });
 }

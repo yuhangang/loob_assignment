@@ -64,6 +64,7 @@ func registerRoutes(cfg routesConfig) {
 	ordersGroup.GET("", cfg.checkoutHandler.List)
 	ordersGroup.POST("/checkout", cfg.checkoutHandler.Checkout)
 	ordersGroup.GET("/:tracking_id/status", cfg.checkoutHandler.Status)
+	ordersGroup.POST("/:tracking_id/collect", cfg.checkoutHandler.Collect)
 
 	// Cart routes (Requires Authentication)
 	cartGroup := v1.Group("/cart", cfg.requireAuth)

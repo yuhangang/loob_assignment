@@ -45,6 +45,7 @@ func (r *Repository) GetCart(ctx context.Context, userID, countryID string, over
 			(
 				mi.is_active = true
 				AND mi.deleted_at IS NULL
+				AND mi.brand_id = s.brand_id
 				AND COALESCE(smis.is_listed, true)    = true
 				AND COALESCE(smis.is_available, true) = true
 			) AS is_available
@@ -276,6 +277,7 @@ func (r *Repository) getSelectedOptions(ctx context.Context, storeID int, option
 		     AND linked.is_active = true
 		     AND linked.deleted_at IS NULL
 		     AND linked.item_type = 'ADDON'
+		     AND linked.brand_id = s.brand_id
 		LEFT JOIN menu_item_pricing mip ON mip.menu_item_id = co.linked_menu_item_id AND mip.zone_id = s.zone_id
 		LEFT JOIN store_menu_item_status smis ON smis.store_id = ? AND smis.menu_item_id = co.linked_menu_item_id
 		WHERE co.id IN (%s)

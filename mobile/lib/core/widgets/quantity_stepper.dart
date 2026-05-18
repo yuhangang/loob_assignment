@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/tokens/colors.dart';
 import '../theme/tokens/spacing.dart';
 
 enum QuantityStepperStyle {
@@ -120,7 +121,7 @@ class QuantityStepper extends StatelessWidget {
       child: Container(
         width: compactButtonSize ? 38 : 48,
         height: 52,
-        color: Colors.transparent,
+        color: AppColors.transparent,
         child: Center(
           child: Icon(
             icon,

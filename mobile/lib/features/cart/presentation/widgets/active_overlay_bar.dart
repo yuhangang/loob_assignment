@@ -5,44 +5,66 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../vouchers/presentation/voucher_wallet_page.dart';
+import '../../data/models/order_status_model.dart';
 import '../bloc/cart_state.dart';
 
-/// Glassmorphic floating cart bar rendered as a global overlay above all screens.
+/// Glassmorphic active overlay bar rendered as a global overlay above all screens.
 ///
-/// Automatically hides itself when the current route is the [AppRouter.cart]
-/// page (no point showing "View Cart" when you're already there).
-class CartFloatingBar extends StatelessWidget {
+/// Handles both active uncollected/unpaid orders and active shopping cart states.
+/// Automatically hides itself when the current route is in checkout or status page.
+class ActiveOverlayBar extends StatelessWidget {
   final CartState cartState;
+  final OrderStatusModel? activeOrder;
 
-  const CartFloatingBar({super.key, required this.cartState});
+  const ActiveOverlayBar({super.key, required this.cartState, this.activeOrder});
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<String?>(
-      valueListenable: AppRouter.currentRouteNotifier,
-      builder: (context, currentRoute, child) {
-        // Hide the bar when the user is on the cart, vouchers, checkout, orderStatus, barcode, or product detail page.
-        if (currentRoute == AppRouter.cart ||
-            currentRoute == AppRouter.vouchers ||
-            currentRoute == AppRouter.checkout ||
-            currentRoute == AppRouter.orderStatus ||
-            currentRoute == AppRouter.barcode ||
-            currentRoute == AppRouter.productDetail) {
-          return const SizedBox.shrink();
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppRouter.isDialogOpenNotifier,
+      builder: (context, isDialogOpen, _) {
+        if (isDialogOpen) {
+          return const IgnorePointer(ignoring: true, child: SizedBox.shrink());
         }
+        return ValueListenableBuilder<String?>(
+          valueListenable: AppRouter.currentRouteNotifier,
+          builder: (context, currentRoute, child) {
+            if (currentRoute == AppRouter.cart ||
+                currentRoute == AppRouter.checkout ||
+                currentRoute == AppRouter.orderStatus ||
+                currentRoute == AppRouter.barcode ||
+                currentRoute == AppRouter.productDetail ||
+                currentRoute == AppRouter.selectOutlet) {
+              return const IgnorePointer(
+                ignoring: true,
+                child: SizedBox.shrink(),
+              );
+            }
 
-        final theme = Theme.of(context);
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            _buildVoucherButton(context, theme),
-            const SizedBox(height: AppSpacing.md),
-            _buildBar(context, theme),
-          ],
+            final theme = Theme.of(context);
+            final showVoucherButton = currentRoute != AppRouter.vouchers;
+            final showCartBar = cartState.totalQuantity > 0;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (activeOrder != null) ...[
+                  _buildActiveOrderBar(context, theme, activeOrder!),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                if (showVoucherButton && showCartBar) ...[
+                  _buildVoucherButton(context, theme),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                if (showCartBar) _buildBar(context, theme),
+              ],
+            );
+          },
         );
       },
     );
@@ -71,7 +93,7 @@ class CartFloatingBar extends StatelessWidget {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
               child: Material(
-                color: Colors.transparent,
+                color: AppColors.transparent,
                 child: InkWell(
                   onTap: () {
                     context.push(AppRouter.vouchers);
@@ -85,7 +107,7 @@ class CartFloatingBar extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: theme.brightness == Brightness.dark
                           ? theme.colorScheme.surface.withValues(alpha: 0.85)
-                          : Colors.white.withValues(alpha: 0.88),
+                          : AppColors.white.withValues(alpha: 0.88),
                       borderRadius: BorderRadius.circular(
                         AppSpacing.radiusFull,
                       ),
@@ -161,7 +183,7 @@ class CartFloatingBar extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Material(
-            color: Colors.transparent,
+            color: AppColors.transparent,
             child: InkWell(
               onTap: () {
                 context.push(AppRouter.cart);
@@ -175,7 +197,7 @@ class CartFloatingBar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: theme.brightness == Brightness.dark
                       ? theme.colorScheme.surface.withValues(alpha: 0.85)
-                      : Colors.white.withValues(alpha: 0.88),
+                      : AppColors.white.withValues(alpha: 0.88),
                   borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
                   border: Border.all(
                     color: theme.colorScheme.primary.withValues(alpha: 0.1),
@@ -213,7 +235,7 @@ class CartFloatingBar extends StatelessWidget {
                               border: Border.all(
                                 color: theme.brightness == Brightness.dark
                                     ? theme.colorScheme.surface
-                                    : Colors.white,
+                                    : AppColors.white,
                                 width: 1.5,
                               ),
                             ),
@@ -264,7 +286,7 @@ class CartFloatingBar extends StatelessWidget {
                             Text(
                               context.l10n.someOptionsUnavailable,
                               style: theme.textTheme.labelSmall?.copyWith(
-                                color: Colors.orange.shade700,
+                                color: AppColors.textFulfillmentOrange,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 10,
                               ),
@@ -318,6 +340,193 @@ class CartFloatingBar extends StatelessWidget {
                           const Icon(Icons.arrow_forward_ios_rounded, size: 12),
                         ],
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveOrderBar(
+    BuildContext context,
+    ThemeData theme,
+    OrderStatusModel activeOrder,
+  ) {
+    final isUnpaid =
+        activeOrder.status.toUpperCase() == 'PENDING' ||
+        activeOrder.status.toUpperCase() == 'PAYMENT_PENDING' ||
+        activeOrder.paymentStatus.toUpperCase() == 'PENDING';
+
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withValues(alpha: 0.1),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Material(
+            color: AppColors.transparent,
+            child: InkWell(
+              onTap: () {
+                context.push(
+                  AppRouter.orderStatus,
+                  extra: {'trackingId': activeOrder.orderTrackingId},
+                );
+              },
+              borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+              child: Ink(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.md,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.brightness == Brightness.dark
+                      ? theme.colorScheme.surface.withValues(alpha: 0.85)
+                      : AppColors.white.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                    width: 1.5,
+                  ),
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Watermark background icon with low opacity
+                    Positioned(
+                      left: -8,
+                      top: -12,
+                      bottom: -12,
+                      child: IgnorePointer(
+                        child: Opacity(
+                          opacity: 0.07,
+                          child: Icon(
+                            activeOrder.status.toUpperCase() == 'READY' ||
+                                    activeOrder.status.toUpperCase() ==
+                                        'READY_TO_COLLECT'
+                                ? Icons.check_circle_rounded
+                                : isUnpaid
+                                ? Icons.payment_rounded
+                                : Icons.hourglass_top_rounded,
+                            color: theme.colorScheme.primary,
+                            size: 80,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        // Order Info
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                isUnpaid
+                                    ? context.l10n.unpaidOrder
+                                    : context.l10n.uncollectedOrder,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 10,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                activeOrder.orderTrackingId,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: theme.colorScheme.onSurface,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 14,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                activeOrder.status.toUpperCase() == 'READY' ||
+                                        activeOrder.status.toUpperCase() ==
+                                            'READY_TO_COLLECT'
+                                    ? context.l10n.readyForCollection
+                                    : isUnpaid
+                                    ? context.l10n.awaitingPayment
+                                    : context.l10n.preparingOrder,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.6,
+                                  ),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        // CTA Button
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: theme.colorScheme.primary,
+                            foregroundColor: theme.colorScheme.onPrimary,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.lg,
+                              vertical: AppSpacing.md,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppSpacing.radiusFull,
+                              ),
+                            ),
+                            elevation: 0,
+                          ),
+                          onPressed: () {
+                            context.push(
+                              AppRouter.orderStatus,
+                              extra: {
+                                'trackingId': activeOrder.orderTrackingId,
+                              },
+                            );
+                          },
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                isUnpaid
+                                    ? context.l10n.payNow
+                                    : context.l10n.track,
+                                style: TextStyle(
+                                  color: theme.colorScheme.onPrimary,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 14,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.xs),
+                              Icon(
+                                isUnpaid
+                                    ? Icons.payment_rounded
+                                    : Icons.radar_rounded,
+                                size: 14,
+                                color: theme.colorScheme.onPrimary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

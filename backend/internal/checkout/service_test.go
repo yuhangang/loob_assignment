@@ -23,6 +23,16 @@ type mockRepository struct {
 	getStatus               func(ctx context.Context, countryID, trackingID string) (Status, error)
 	getStatusForUser        func(ctx context.Context, countryID, userID, trackingID string) (Status, error)
 	listStatusesByUser      func(ctx context.Context, countryID, userID string) ([]Status, error)
+	getMenuItemNames        func(ctx context.Context, itemIDs []int) (map[int]string, error)
+	getOptionNames          func(ctx context.Context, optionIDs []int) (map[int]string, error)
+	markOrderCollected      func(ctx context.Context, countryID, userID, trackingID string) error
+}
+
+func (m *mockRepository) MarkOrderCollected(ctx context.Context, countryID, userID, trackingID string) error {
+	if m.markOrderCollected != nil {
+		return m.markOrderCollected(ctx, countryID, userID, trackingID)
+	}
+	return nil
 }
 
 func (m *mockRepository) GetCountry(ctx context.Context, countryID string) (Country, error) {
@@ -69,6 +79,18 @@ func (m *mockRepository) GetStatusForUser(ctx context.Context, countryID, userID
 }
 func (m *mockRepository) ListStatusesByUser(ctx context.Context, countryID, userID string) ([]Status, error) {
 	return m.listStatusesByUser(ctx, countryID, userID)
+}
+func (m *mockRepository) GetMenuItemNames(ctx context.Context, itemIDs []int) (map[int]string, error) {
+	if m.getMenuItemNames != nil {
+		return m.getMenuItemNames(ctx, itemIDs)
+	}
+	return map[int]string{}, nil
+}
+func (m *mockRepository) GetOptionNames(ctx context.Context, optionIDs []int) (map[int]string, error) {
+	if m.getOptionNames != nil {
+		return m.getOptionNames(ctx, optionIDs)
+	}
+	return map[int]string{}, nil
 }
 
 func TestValidate(t *testing.T) {
