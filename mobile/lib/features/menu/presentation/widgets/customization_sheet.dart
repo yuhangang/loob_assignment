@@ -3,6 +3,7 @@ import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../data/models/catalog_model.dart';
 import '../../../../core/utils/extensions.dart';
+import '../../../../core/widgets/quantity_stepper.dart';
 
 /// Bottom sheet for product customization (Size, Sugar, Ice, Toppings).
 class CustomizationSheet extends StatefulWidget {
@@ -256,29 +257,15 @@ class _CustomizationSheetState extends State<CustomizationSheet> {
 
                     // Quantity selector
                     const SizedBox(height: AppSpacing.sm),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          onPressed: _quantity > 1
-                              ? () => setState(() => _quantity--)
-                              : null,
-                          icon: const Icon(Icons.remove_circle_outline),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
-                          ),
-                          child: Text(
-                            '$_quantity',
-                            style: theme.textTheme.titleLarge,
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => setState(() => _quantity++),
-                          icon: const Icon(Icons.add_circle_outline),
-                        ),
-                      ],
+                    Center(
+                      child: QuantityStepper(
+                        quantity: _quantity,
+                        style: QuantityStepperStyle.standard,
+                        onDecrease: _quantity > 1
+                            ? () => setState(() => _quantity--)
+                            : null,
+                        onIncrease: () => setState(() => _quantity++),
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.xl),
                   ],

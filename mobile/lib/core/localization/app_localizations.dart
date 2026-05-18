@@ -93,6 +93,12 @@ class AppLocalizations {
       'search_boba_placeholder': 'Looking for something refreshing?',
       'new_badge': 'NEW',
       'unavailable': 'Unavailable',
+      'product_unavailable': 'This item is currently unavailable',
+      'option_unavailable_tag': '{} (Unavailable)',
+      'some_options_unavailable': 'Some options are unavailable',
+      'cart_availability_changed_title': 'Review your cart',
+      'cart_availability_changed_body':
+          'Some cart items or add-ons are not available at this outlet.',
       'checkout_title': 'Checkout',
       'payment_title': 'Payment',
       'unable_load_payment_methods':
@@ -126,6 +132,7 @@ class AppLocalizations {
       'tax_label': 'Tax',
       'discount_label': 'Discount',
       'total_label': 'Total',
+      'waived_label': 'Waived',
       'method_label': 'Method',
       'provider_label': 'Provider',
       'status_label': 'Status',
@@ -146,6 +153,23 @@ class AppLocalizations {
       'choose_up_to': 'Choose up to {}',
       'quantity_label': 'Quantity',
       'update_item_btn': 'Update item {}',
+      'adjust_choices': 'Adjust choices',
+      'clear_cart_title': 'Clear Cart?',
+      'clear_cart_content':
+          'Are you sure you want to remove all items from your cart?',
+      'cancel': 'Cancel',
+      'clear_all': 'Clear All',
+      'order_id_copied': 'Order ID copied',
+      'order_status_title': 'Order Status',
+      'show_to_staff': 'SHOW TO STAFF FOR COLLECTION',
+      'collection_pin': 'COLLECTION PIN',
+      'your_collection_code': 'YOUR COLLECTION CODE',
+      'order_created': 'Order created',
+      'pending': 'Pending',
+      'created': 'Created',
+      'updated': 'Updated',
+      'unable_load_order_status': 'Unable to load order status.',
+      'retry': 'Retry',
     },
     'ms': {
       'home': 'Utama',
@@ -227,6 +251,12 @@ class AppLocalizations {
       'search_boba_placeholder': 'Mencari sesuatu yang menyegarkan?',
       'new_badge': 'BARU',
       'unavailable': 'Tidak Tersedia',
+      'product_unavailable': 'Item ini tidak tersedia buat masa ini',
+      'option_unavailable_tag': '{} (Tidak Tersedia)',
+      'some_options_unavailable': 'Beberapa pilihan tidak tersedia',
+      'cart_availability_changed_title': 'Semak troli anda',
+      'cart_availability_changed_body':
+          'Beberapa item atau tambahan dalam troli tidak tersedia di cawangan ini.',
       'checkout_title': 'Daftar Keluar',
       'payment_title': 'Pembayaran',
       'unable_load_payment_methods':
@@ -264,6 +294,7 @@ class AppLocalizations {
       'tax_label': 'Cukai',
       'discount_label': 'Diskaun',
       'total_label': 'Jumlah',
+      'waived_label': 'Dikecualikan',
       'method_label': 'Kaedah',
       'provider_label': 'Penyedia',
       'status_label': 'Status',
@@ -284,6 +315,19 @@ class AppLocalizations {
       'choose_up_to': 'Pilih sehingga {}',
       'quantity_label': 'Kuantiti',
       'update_item_btn': 'Kemaskini item {}',
+      'adjust_choices': 'Laras pilihan',
+      'clear_cart_title': 'Kosongkan Troli?',
+      'clear_cart_content':
+          'Adakah anda pasti mahu mengalih keluar semua item daripada troli anda?',
+      'cancel': 'Batal',
+      'clear_all': 'Kosongkan Semua',
+      'order_id_copied': 'ID Pesanan disalin',
+      'order_status_title': 'Status Pesanan',
+      'show_to_staff': 'Tunjukkan ini kepada kakitangan di kaunter',
+      'collection_pin': 'PIN',
+      'your_collection_code': 'KOD KOLEKSI ANDA',
+      'unable_load_order_status': 'Tidak dapat memuatkan status pesanan.',
+      'retry': 'Cuba Semula',
     },
   };
 
@@ -409,6 +453,7 @@ class AppLocalizations {
   String get taxLabel => _translate('tax_label');
   String get discountLabel => _translate('discount_label');
   String get totalLabel => _translate('total_label');
+  String get waivedLabel => _translate('waived_label');
   String get methodLabel => _translate('method_label');
   String get providerLabel => _translate('provider_label');
   String get statusLabel => _translate('status_label');
@@ -424,6 +469,37 @@ class AppLocalizations {
   String get noEditableOptionsSub => _translate('no_editable_options_sub');
   String get chooseOne => _translate('choose_one');
   String get quantityLabel => _translate('quantity_label');
+  String get itemUnavailableRemove => _translate('item_unavailable_remove');
+  String get eachLabel => _translate('each');
+  String get removeUnavailableItems => _translate('remove_unavailable_items');
+  String get selectedOutletClosed => _translate('selected_outlet_closed');
+  String get proceedToCheckout => _translate('proceed_to_checkout');
+  String get adjustChoices => _translate('adjust_choices');
+  String get productUnavailable => _translate('product_unavailable');
+  String get someOptionsUnavailable => _translate('some_options_unavailable');
+  String get cartAvailabilityChangedTitle =>
+      _translate('cart_availability_changed_title');
+  String get cartAvailabilityChangedBody =>
+      _translate('cart_availability_changed_body');
+  String optionUnavailableTag(String name) {
+    return _translate('option_unavailable_tag').replaceAll('{}', name);
+  }
+
+  String get clearCartTitle => _translate('clear_cart_title');
+  String get clearCartContent => _translate('clear_cart_content');
+  String get cancel => _translate('cancel');
+  String get clearAll => _translate('clear_all');
+  String get orderIdCopied => _translate('order_id_copied');
+  String get orderStatusTitle => _translate('order_status_title');
+  String get showToStaff => _translate('show_to_staff');
+  String get collectionPin => _translate('collection_pin');
+  String get yourCollectionCode => _translate('your_collection_code');
+  String get orderCreated => _translate('order_created');
+  String get pending => _translate('pending');
+  String get createdLabel => _translate('created');
+  String get updatedLabel => _translate('updated');
+  String get unableLoadOrderStatus => _translate('unable_load_order_status');
+  String get retry => _translate('retry');
 
   String voucherWillBeValidated(String code) {
     return _translate('voucher_will_be_validated').replaceAll('{}', code);

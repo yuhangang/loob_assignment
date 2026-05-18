@@ -15,6 +15,45 @@ type Profile struct {
 	LoyaltyTier         string `json:"loyalty_tier"`
 }
 
+type WalletTransaction struct {
+	ID              int    `json:"id"`
+	TransactionType string `json:"transaction_type"`
+	Amount          int    `json:"amount"`
+	BalanceAfter    int    `json:"balance_after"`
+	CurrencyCode    string `json:"currency_code"`
+	ReferenceType   string `json:"reference_type,omitempty"`
+	ReferenceID     string `json:"reference_id,omitempty"`
+	Description     string `json:"description,omitempty"`
+	CreatedAt       string `json:"created_at"`
+}
+
+type LoyaltyTransaction struct {
+	ID              int    `json:"id"`
+	TransactionType string `json:"transaction_type"`
+	PointsDelta     int    `json:"points_delta"`
+	BalanceAfter    int    `json:"balance_after"`
+	ReferenceType   string `json:"reference_type,omitempty"`
+	ReferenceID     string `json:"reference_id,omitempty"`
+	Description     string `json:"description,omitempty"`
+	CreatedAt       string `json:"created_at"`
+}
+
+type WalletHistory struct {
+	UserID       string              `json:"user_id"`
+	CountryCode  string              `json:"country_code"`
+	CurrencyCode string              `json:"currency_code"`
+	Balance      int                 `json:"balance"`
+	Transactions []WalletTransaction `json:"transactions"`
+}
+
+type LoyaltyHistory struct {
+	UserID       string               `json:"user_id"`
+	CountryCode  string               `json:"country_code"`
+	Points       int                  `json:"points"`
+	Tier         string               `json:"tier"`
+	Transactions []LoyaltyTransaction `json:"transactions"`
+}
+
 type UpdateProfileRequest struct {
 	DisplayName       *string `json:"display_name"`
 	Email             *string `json:"email"`
@@ -22,6 +61,11 @@ type UpdateProfileRequest struct {
 	AvatarURL         *string `json:"avatar_url"`
 	PreferredLanguage *string `json:"preferred_language"`
 	MarketingOptIn    *bool   `json:"marketing_opt_in"`
+}
+
+type WalletTopUpRequest struct {
+	Amount      int    `json:"amount"`
+	Description string `json:"description"`
 }
 
 type ProfileUpdate struct {

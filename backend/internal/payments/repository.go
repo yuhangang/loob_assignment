@@ -99,25 +99,30 @@ func (r *Repository) ApplyCallback(ctx context.Context, update CallbackUpdate) (
 	}
 	defer tx.Rollback()
 
-	var provider string
+	var provider, userID, countryID, methodCode, currencyCode, orderTrackingID string
+	var amount int
+	var voucherCode sql.NullString
 	if err := tx.QueryRowContext(ctx, `
-		SELECT provider
-		FROM payment_transactions
-		WHERE id = ?
+		SELECT pt.provider, pt.user_id, pt.country_id, COALESCE(pt.payment_method_code, ''),
+		       pt.currency_code, pt.amount, pt.order_tracking_id, oi.voucher_code
+		FROM payment_transactions pt
+		INNER JOIN order_intents oi ON oi.tracking_id = pt.order_tracking_id
+		WHERE pt.id = ?
 		FOR UPDATE
-	`, update.TransactionID).Scan(&provider); err != nil {
+	`, update.TransactionID).Scan(&provider, &userID, &countryID, &methodCode, &currencyCode, &amount, &orderTrackingID, &voucherCode); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return TransactionRow{}, ErrNotFound
 		}
 		return TransactionRow{}, err
 	}
 
-	if _, err := tx.ExecContext(ctx, `
+	eventResult, err := tx.ExecContext(ctx, `
 		INSERT IGNORE INTO payment_events (
 			payment_transaction_id, provider, gateway_event_id, event_type, status, payload
 		)
 		VALUES (?, ?, ?, ?, ?, CAST(? AS JSON))
-	`, update.TransactionID, provider, update.GatewayEventID, update.EventType, update.PaymentStatus, string(payload)); err != nil {
+	`, update.TransactionID, provider, update.GatewayEventID, update.EventType, update.PaymentStatus, string(payload))
+	if err != nil {
 		return TransactionRow{}, err
 	}
 
@@ -140,6 +145,22 @@ func (r *Repository) ApplyCallback(ctx context.Context, update CallbackUpdate) (
 		return TransactionRow{}, err
 	}
 
+	eventInserted, _ := eventResult.RowsAffected()
+	if update.PaymentStatus == "CAPTURED" && eventInserted > 0 {
+		if err := applyCapturedPaymentEffects(ctx, tx, capturedPaymentEffect{
+			TransactionID:   update.TransactionID,
+			OrderTrackingID: orderTrackingID,
+			UserID:          userID,
+			CountryID:       countryID,
+			MethodCode:      methodCode,
+			CurrencyCode:    currencyCode,
+			Amount:          amount,
+			VoucherCode:     voucherCode,
+		}); err != nil {
+			return TransactionRow{}, err
+		}
+	}
+
 	transaction, err := getTransactionTx(ctx, tx, update.TransactionID)
 	if err != nil {
 		return TransactionRow{}, err
@@ -148,6 +169,130 @@ func (r *Repository) ApplyCallback(ctx context.Context, update CallbackUpdate) (
 		return TransactionRow{}, err
 	}
 	return transaction, nil
+}
+
+type capturedPaymentEffect struct {
+	TransactionID   string
+	OrderTrackingID string
+	UserID          string
+	CountryID       string
+	MethodCode      string
+	CurrencyCode    string
+	Amount          int
+	VoucherCode     sql.NullString
+}
+
+func applyCapturedPaymentEffects(ctx context.Context, tx *sql.Tx, effect capturedPaymentEffect) error {
+	if effect.MethodCode == "EWALLET" {
+		var existing int
+		if err := tx.QueryRowContext(ctx, `
+			SELECT COUNT(*)
+			FROM wallet_transactions
+			WHERE user_id = ? AND country_id = ? AND transaction_type = 'SPEND'
+			  AND reference_type = 'PAYMENT' AND reference_id = ?
+		`, effect.UserID, effect.CountryID, effect.TransactionID).Scan(&existing); err != nil {
+			return err
+		}
+		if existing == 0 {
+			if _, err := tx.ExecContext(ctx, `
+				INSERT IGNORE INTO wallet_accounts (user_id, country_id, balance, currency_code)
+				VALUES (?, ?, 0, ?)
+			`, effect.UserID, effect.CountryID, effect.CurrencyCode); err != nil {
+				return err
+			}
+			var balance int
+			if err := tx.QueryRowContext(ctx, `
+				SELECT balance
+				FROM wallet_accounts
+				WHERE user_id = ? AND country_id = ?
+				FOR UPDATE
+			`, effect.UserID, effect.CountryID).Scan(&balance); err != nil {
+				return err
+			}
+			if balance < effect.Amount {
+				return ErrInsufficientWalletBalance
+			}
+			balance -= effect.Amount
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE wallet_accounts
+				SET balance = ?
+				WHERE user_id = ? AND country_id = ?
+			`, balance, effect.UserID, effect.CountryID); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO wallet_transactions (
+					user_id, country_id, transaction_type, amount, balance_after, currency_code,
+					reference_type, reference_id, description
+				)
+				VALUES (?, ?, 'SPEND', ?, ?, ?, 'PAYMENT', ?, ?)
+			`, effect.UserID, effect.CountryID, -effect.Amount, balance, effect.CurrencyCode, effect.TransactionID, "Order "+effect.OrderTrackingID); err != nil {
+				return err
+			}
+		}
+	}
+
+	if effect.VoucherCode.Valid && effect.VoucherCode.String != "" {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE user_vouchers uv
+			INNER JOIN vouchers v ON v.id = uv.voucher_id
+			SET uv.status = 'USED', uv.used_at = COALESCE(uv.used_at, NOW())
+			WHERE uv.user_id = ? AND v.country_id = ? AND v.code = ? AND uv.status = 'AVAILABLE'
+		`, effect.UserID, effect.CountryID, effect.VoucherCode.String); err != nil {
+			return err
+		}
+	}
+
+	points := effect.Amount / 100
+	if points <= 0 && effect.Amount > 0 {
+		points = 1
+	}
+	if points == 0 {
+		return nil
+	}
+	var existingEarn int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM loyalty_transactions
+		WHERE user_id = ? AND country_id = ? AND transaction_type = 'EARN'
+		  AND reference_type = 'PAYMENT' AND reference_id = ?
+	`, effect.UserID, effect.CountryID, effect.TransactionID).Scan(&existingEarn); err != nil {
+		return err
+	}
+	if existingEarn > 0 {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT IGNORE INTO loyalty_accounts (user_id, country_id, points, lifetime_points, tier)
+		VALUES (?, ?, 0, 0, 'MEMBER')
+	`, effect.UserID, effect.CountryID); err != nil {
+		return err
+	}
+	var balance int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT points
+		FROM loyalty_accounts
+		WHERE user_id = ? AND country_id = ?
+		FOR UPDATE
+	`, effect.UserID, effect.CountryID).Scan(&balance); err != nil {
+		return err
+	}
+	balance += points
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE loyalty_accounts
+		SET points = ?, lifetime_points = lifetime_points + ?
+		WHERE user_id = ? AND country_id = ?
+	`, balance, points, effect.UserID, effect.CountryID); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO loyalty_transactions (
+			user_id, country_id, transaction_type, points_delta, balance_after,
+			reference_type, reference_id, description
+		)
+		VALUES (?, ?, 'EARN', ?, ?, 'PAYMENT', ?, ?)
+	`, effect.UserID, effect.CountryID, points, balance, effect.TransactionID, "Order "+effect.OrderTrackingID)
+	return err
 }
 
 func (r *Repository) Get(ctx context.Context, countryID, transactionID string) (TransactionRow, error) {
@@ -325,4 +470,7 @@ func decodeAnyMap(raw []byte) map[string]any {
 	return out
 }
 
-var ErrNotFound = errors.New("not found")
+var (
+	ErrNotFound                  = errors.New("not found")
+	ErrInsufficientWalletBalance = errors.New("insufficient wallet balance")
+)

@@ -12,8 +12,9 @@ import 'core/theme/brand.dart';
 import 'core/theme/theme_cubit.dart';
 import 'core/theme/tokens/spacing.dart';
 import 'features/cart/data/datasources/cart_remote_data_source.dart';
-import 'features/cart/presentation/cubit/cart_cubit.dart';
-import 'features/cart/presentation/cubit/cart_state.dart';
+import 'features/cart/presentation/bloc/cart_bloc.dart';
+import 'features/cart/presentation/bloc/cart_event.dart';
+import 'features/cart/presentation/bloc/cart_state.dart';
 import 'features/cart/presentation/widgets/cart_floating_bar.dart';
 import 'features/settings/presentation/user_profile_cubit.dart';
 import 'features/vouchers/presentation/voucher_wallet_page.dart';
@@ -75,8 +76,8 @@ class _CartFloatingBarPositioned extends StatelessWidget {
   Widget build(BuildContext context) {
     // Use the ancestor context to read cart state — the overlay context is
     // outside the BlocProvider tree.
-    return BlocBuilder<CartCubit, CartState>(
-      bloc: cartCubitContext.read<CartCubit>(),
+    return BlocBuilder<CartBloc, CartState>(
+      bloc: cartCubitContext.read<CartBloc>(),
       builder: (_, cartState) {
         if (cartState.totalQuantity == 0) return const SizedBox.shrink();
         final mq = MediaQuery.of(cartCubitContext);
@@ -107,11 +108,13 @@ class LoobApp extends StatelessWidget {
         BlocProvider(create: (_) => ThemeCubit()),
         BlocProvider(create: (_) => sl<LanguageCubit>()),
         BlocProvider(
-          create: (_) => CartCubit(
+          create: (_) => CartBloc(
             remoteDataSource: CartRemoteDataSource(client: sl()),
             userId: 'mock_user_001',
             countryCode: config.defaultCountryCode,
-          )..loadCart(), // Hydrate from server on startup
+          )
+            ..add(const CartLoadRequested()) // Hydrate from server on startup
+            ..add(const CartAvailabilityPollStarted()), // Start periodic polling
         ),
         BlocProvider(create: (_) => sl<UserProfileCubit>()..loadProfile()),
         BlocProvider(create: (_) => VoucherCubit()..loadWallet()),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/config/app_config.dart';
+import '../../../../core/di/injection.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../settings/data/models/user_profile_model.dart';
 
@@ -37,8 +39,8 @@ class BarcodeProfileHeader extends StatelessWidget {
             backgroundColor: Colors.white12,
             backgroundImage: profile != null && profile!.avatarUrl.isNotEmpty
                 ? NetworkImage(profile!.avatarUrl)
-                : const NetworkImage(
-                    'http://localhost:8080/cdn/cute_avatar.png',
+                : NetworkImage(
+                    '${sl<AppConfig>().baseUrl}/cdn/cute_avatar.png',
                   ),
           ),
         ),

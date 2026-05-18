@@ -4,6 +4,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/api_exception.dart';
 import '../models/wallet_model.dart';
+import '../models/voucher_validation_model.dart';
 
 /// Remote data source for voucher endpoints.
 ///
@@ -29,6 +30,24 @@ class VoucherRemoteDataSource {
         },
       );
       return WalletModel.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<VoucherValidationModel> validateVoucher({
+    required String countryCode,
+    required Map<String, dynamic> body,
+  }) async {
+    try {
+      final response = await _client.dio.post(
+        ApiEndpoints.vouchersValidate,
+        data: body,
+        options: Options(headers: {'X-Country-Code': countryCode}),
+      );
+      return VoucherValidationModel.fromJson(
+        response.data as Map<String, dynamic>,
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

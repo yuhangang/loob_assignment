@@ -36,9 +36,11 @@ func (s Store) AcceptsOrders() bool {
 }
 
 type PricedItem struct {
-	MenuItemID int
-	BasePrice  int
-	BrandID    int
+	MenuItemID  int
+	CategoryID  int
+	BasePrice   int
+	BrandID     int
+	IsPromoItem bool
 }
 
 type OptionPrice struct {
@@ -64,12 +66,49 @@ type CustomizationOptionRule struct {
 }
 
 type Voucher struct {
-	Code           string
-	DiscountType   string
-	DiscountValue  int
-	MinSpend       int
-	MaxDiscountCap sql.NullInt64
-	BrandID        sql.NullInt64
+	Code                     string
+	ZoneID                   sql.NullString
+	BrandID                  sql.NullInt64
+	DiscountType             string
+	DiscountValue            int
+	MinSpend                 int
+	MaxDiscountCap           sql.NullInt64
+	MaxRedemptions           sql.NullInt64
+	MaxRedemptionsPerUser    sql.NullInt64
+	AllowPromoItems          bool
+	ApplicableStoreIDs       []int
+	ApplicableCategoryIDs    []int
+	ApplicableItemIDs        []int
+	ApplicablePaymentMethods []string
+	UserVoucherStatus        sql.NullString
+	TotalRedemptions         int
+	UserRedemptions          int
+}
+
+type ChargeDefinition struct {
+	Code              string
+	Name              string
+	Scope             string
+	CalculationType   string
+	Amount            int
+	Taxable           bool
+	TaxInclusive      bool
+	WaiverMinSubtotal sql.NullInt64
+	WaiverReason      sql.NullString
+}
+
+type ChargeLine struct {
+	Code          string `json:"code"`
+	Name          string `json:"name"`
+	Scope         string `json:"scope"`
+	Amount        int    `json:"amount"`
+	TaxableAmount int    `json:"taxable_amount"`
+	TaxAmount     int    `json:"tax_amount"`
+	TotalAmount   int    `json:"total_amount"`
+	Taxable       bool   `json:"taxable"`
+	TaxInclusive  bool   `json:"tax_inclusive"`
+	Waived        bool   `json:"waived"`
+	WaiverReason  string `json:"waiver_reason,omitempty"`
 }
 
 type Intent struct {
@@ -82,11 +121,13 @@ type Intent struct {
 	Fulfillment    string
 	Status         string
 	Subtotal       int
+	Charges        []ChargeLine
 	TaxAmount      int
 	DiscountAmount int
 	TotalAmount    int
 	VoucherCode    string
 	CartPayload    []byte
+	ChargesPayload []byte
 }
 
 type PaymentTransaction struct {
@@ -106,11 +147,62 @@ type Status struct {
 	Status         string
 	PaymentStatus  sql.NullString
 	Subtotal       int
+	Charges        []ChargeLine
 	TaxAmount      int
 	DiscountAmount int
 	TotalAmount    int
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+func (r *Repository) ListChargeDefinitions(ctx context.Context, countryID string, store Store, fulfillment string) ([]ChargeDefinition, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT code, name, scope, calculation_type, amount, taxable, tax_inclusive,
+		       waiver_min_subtotal, waiver_reason
+		FROM checkout_charge_definitions
+		WHERE is_active = true
+		  AND (country_id IS NULL OR country_id = ?)
+		  AND (zone_id IS NULL OR zone_id = ?)
+		  AND (brand_id IS NULL OR brand_id = ?)
+		  AND (fulfillment_type IS NULL OR fulfillment_type = ?)
+		  AND NOW() BETWEEN starts_at AND COALESCE(expires_at, '9999-12-31 23:59:59')
+		ORDER BY
+		  CASE WHEN country_id IS NULL THEN 0 ELSE 1 END DESC,
+		  CASE WHEN zone_id IS NULL THEN 0 ELSE 1 END DESC,
+		  CASE WHEN brand_id IS NULL THEN 0 ELSE 1 END DESC,
+		  CASE WHEN fulfillment_type IS NULL THEN 0 ELSE 1 END DESC,
+		  display_order ASC,
+		  id ASC
+	`, countryID, store.ZoneID, store.BrandID, fulfillment)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	seen := map[string]bool{}
+	definitions := []ChargeDefinition{}
+	for rows.Next() {
+		var definition ChargeDefinition
+		if err := rows.Scan(
+			&definition.Code,
+			&definition.Name,
+			&definition.Scope,
+			&definition.CalculationType,
+			&definition.Amount,
+			&definition.Taxable,
+			&definition.TaxInclusive,
+			&definition.WaiverMinSubtotal,
+			&definition.WaiverReason,
+		); err != nil {
+			return nil, err
+		}
+		if seen[definition.Code] {
+			continue
+		}
+		seen[definition.Code] = true
+		definitions = append(definitions, definition)
+	}
+	return definitions, rows.Err()
 }
 
 func (r *Repository) GetCountry(ctx context.Context, countryID string) (Country, error) {
@@ -159,7 +251,7 @@ func (r *Repository) GetPricedItems(ctx context.Context, storeID int, zoneID str
 		return map[int]PricedItem{}, nil
 	}
 	query, args := inQuery(`
-		SELECT mi.id, mip.base_price, mi.brand_id
+		SELECT mi.id, mi.category_id, mip.base_price, mi.brand_id, COALESCE(mi.is_promo, false)
 		FROM menu_items mi
 		INNER JOIN menu_item_pricing mip ON mip.menu_item_id = mi.id AND mip.zone_id = ?
 		LEFT JOIN store_menu_item_status smis ON smis.store_id = ? AND smis.menu_item_id = mi.id
@@ -181,7 +273,7 @@ func (r *Repository) GetPricedItems(ctx context.Context, storeID int, zoneID str
 	items := map[int]PricedItem{}
 	for rows.Next() {
 		var item PricedItem
-		if err := rows.Scan(&item.MenuItemID, &item.BasePrice, &item.BrandID); err != nil {
+		if err := rows.Scan(&item.MenuItemID, &item.CategoryID, &item.BasePrice, &item.BrandID, &item.IsPromoItem); err != nil {
 			return nil, err
 		}
 		items[item.MenuItemID] = item
@@ -288,19 +380,52 @@ func (r *Repository) GetCustomizationRules(ctx context.Context, menuItemIDs []in
 	return groups, options, optionRows.Err()
 }
 
-func (r *Repository) GetVoucher(ctx context.Context, countryID, code string) (Voucher, error) {
+func (r *Repository) GetVoucher(ctx context.Context, countryID, userID, code string) (Voucher, error) {
 	var voucher Voucher
+	var applicableStoreIDs, applicableCategoryIDs, applicableItemIDs, applicablePaymentMethods []byte
 	err := r.db.QueryRowContext(ctx, `
-		SELECT code, discount_type, discount_value, min_spend, max_discount_cap, brand_id
-		FROM vouchers
-		WHERE country_id = ? AND code = ? AND is_active = true AND NOW() BETWEEN starts_at AND expires_at
-	`, countryID, code).Scan(&voucher.Code, &voucher.DiscountType, &voucher.DiscountValue, &voucher.MinSpend, &voucher.MaxDiscountCap, &voucher.BrandID)
+		SELECT v.code, v.zone_id, v.brand_id, v.discount_type, v.discount_value, v.min_spend,
+		       v.max_discount_cap, v.max_redemptions, v.max_redemptions_per_user,
+		       v.allow_promo_items, COALESCE(v.applicable_store_ids, JSON_ARRAY()),
+		       COALESCE(v.applicable_category_ids, JSON_ARRAY()),
+		       COALESCE(v.applicable_item_ids, JSON_ARRAY()),
+		       COALESCE(v.applicable_payment_methods, JSON_ARRAY()),
+		       uv.status,
+		       (
+		         SELECT COUNT(*)
+		         FROM order_intents oi
+		         WHERE oi.country_id = v.country_id AND oi.voucher_code = v.code
+		           AND oi.status IN ('QUEUED', 'PROCESSING', 'COMPLETED')
+		       ) AS total_redemptions,
+		       (
+		         SELECT COUNT(*)
+		         FROM order_intents user_oi
+		         WHERE user_oi.country_id = v.country_id AND user_oi.voucher_code = v.code
+		           AND user_oi.user_id = ? AND user_oi.status IN ('QUEUED', 'PROCESSING', 'COMPLETED')
+		       ) AS user_redemptions
+		FROM vouchers v
+		LEFT JOIN user_vouchers uv ON uv.voucher_id = v.id AND uv.user_id = ?
+		WHERE v.country_id = ? AND v.code = ? AND v.is_active = true
+		  AND v.voided_at IS NULL
+		  AND NOW() BETWEEN v.starts_at AND v.expires_at
+	`, userID, userID, countryID, code).Scan(
+		&voucher.Code, &voucher.ZoneID, &voucher.BrandID, &voucher.DiscountType,
+		&voucher.DiscountValue, &voucher.MinSpend, &voucher.MaxDiscountCap,
+		&voucher.MaxRedemptions, &voucher.MaxRedemptionsPerUser, &voucher.AllowPromoItems,
+		&applicableStoreIDs, &applicableCategoryIDs, &applicableItemIDs,
+		&applicablePaymentMethods, &voucher.UserVoucherStatus,
+		&voucher.TotalRedemptions, &voucher.UserRedemptions,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Voucher{}, ErrNotFound
 		}
 		return Voucher{}, err
 	}
+	voucher.ApplicableStoreIDs = decodeIntList(applicableStoreIDs)
+	voucher.ApplicableCategoryIDs = decodeIntList(applicableCategoryIDs)
+	voucher.ApplicableItemIDs = decodeIntList(applicableItemIDs)
+	voucher.ApplicablePaymentMethods = decodeStringList(applicablePaymentMethods)
 	return voucher, nil
 }
 
@@ -313,16 +438,18 @@ func (r *Repository) FindIntentByIdempotency(ctx context.Context, countryID, use
 	var intent Intent
 	var payment PaymentTransaction
 	var voucher sql.NullString
+	var chargesPayload []byte
 	var paymentID, paymentProvider, paymentMethodCode, paymentStatus, currencyCode sql.NullString
 	var paymentAmount sql.NullInt64
 	err := r.db.QueryRowContext(ctx, `
 		SELECT oi.tracking_id, oi.trace_id, oi.idempotency_key, oi.user_id, oi.store_id, oi.country_id, oi.fulfillment_type,
-		       oi.status, oi.subtotal, oi.tax_amount, oi.discount_amount, oi.total_amount, oi.voucher_code, oi.cart_payload,
+		       oi.status, oi.subtotal, COALESCE(oi.charges_payload, JSON_ARRAY()), oi.tax_amount, oi.discount_amount,
+		       oi.total_amount, oi.voucher_code, oi.cart_payload,
 		       pt.id, pt.provider, pt.payment_method_code, pt.status, pt.currency_code, pt.amount
 		FROM order_intents oi
 		LEFT JOIN payment_transactions pt ON pt.order_tracking_id = oi.tracking_id
 		WHERE oi.country_id = ? AND oi.user_id = ? AND oi.idempotency_key = ?
-	`, countryID, userID, key).Scan(&intent.TrackingID, &intent.TraceID, &intent.IdempotencyKey, &intent.UserID, &intent.StoreID, &intent.CountryID, &intent.Fulfillment, &intent.Status, &intent.Subtotal, &intent.TaxAmount, &intent.DiscountAmount, &intent.TotalAmount, &voucher, &intent.CartPayload, &paymentID, &paymentProvider, &paymentMethodCode, &paymentStatus, &currencyCode, &paymentAmount)
+	`, countryID, userID, key).Scan(&intent.TrackingID, &intent.TraceID, &intent.IdempotencyKey, &intent.UserID, &intent.StoreID, &intent.CountryID, &intent.Fulfillment, &intent.Status, &intent.Subtotal, &chargesPayload, &intent.TaxAmount, &intent.DiscountAmount, &intent.TotalAmount, &voucher, &intent.CartPayload, &paymentID, &paymentProvider, &paymentMethodCode, &paymentStatus, &currencyCode, &paymentAmount)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return IntentWithPayment{}, ErrNotFound
@@ -330,6 +457,8 @@ func (r *Repository) FindIntentByIdempotency(ctx context.Context, countryID, use
 		return IntentWithPayment{}, err
 	}
 	intent.VoucherCode = voucher.String
+	intent.ChargesPayload = chargesPayload
+	intent.Charges = decodeChargeLines(chargesPayload)
 	if paymentID.Valid {
 		payment.ID = paymentID.String
 		payment.OrderTrackingID = intent.TrackingID
@@ -348,18 +477,22 @@ func (r *Repository) CreateIntent(ctx context.Context, intent Intent) error {
 	if !json.Valid(intent.CartPayload) {
 		return errors.New("cart payload must be valid json")
 	}
+	chargesPayload, err := encodeChargeLines(intent.Charges)
+	if err != nil {
+		return err
+	}
 	var voucher any
 	if intent.VoucherCode != "" {
 		voucher = intent.VoucherCode
 	}
-	_, err := r.db.ExecContext(ctx, `
+	_, err = r.db.ExecContext(ctx, `
 		INSERT INTO order_intents (
 			tracking_id, trace_id, idempotency_key, user_id, store_id, country_id,
-			fulfillment_type, status, subtotal, tax_amount, discount_amount, total_amount,
-			voucher_code, cart_payload
+			fulfillment_type, status, subtotal, charges_payload, tax_amount, discount_amount,
+			total_amount, voucher_code, cart_payload
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON))
-	`, intent.TrackingID, intent.TraceID, intent.IdempotencyKey, intent.UserID, intent.StoreID, intent.CountryID, intent.Fulfillment, intent.Status, intent.Subtotal, intent.TaxAmount, intent.DiscountAmount, intent.TotalAmount, voucher, string(intent.CartPayload))
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, ?, CAST(? AS JSON))
+	`, intent.TrackingID, intent.TraceID, intent.IdempotencyKey, intent.UserID, intent.StoreID, intent.CountryID, intent.Fulfillment, intent.Status, intent.Subtotal, string(chargesPayload), intent.TaxAmount, intent.DiscountAmount, intent.TotalAmount, voucher, string(intent.CartPayload))
 	return err
 }
 
@@ -423,18 +556,22 @@ type txExecutor interface {
 }
 
 func insertIntent(ctx context.Context, exec txExecutor, intent Intent) error {
+	chargesPayload, err := encodeChargeLines(intent.Charges)
+	if err != nil {
+		return err
+	}
 	var voucher any
 	if intent.VoucherCode != "" {
 		voucher = intent.VoucherCode
 	}
-	_, err := exec.ExecContext(ctx, `
+	_, err = exec.ExecContext(ctx, `
 		INSERT INTO order_intents (
 			tracking_id, trace_id, idempotency_key, user_id, store_id, country_id,
-			fulfillment_type, status, subtotal, tax_amount, discount_amount, total_amount,
-			voucher_code, cart_payload
+			fulfillment_type, status, subtotal, charges_payload, tax_amount, discount_amount,
+			total_amount, voucher_code, cart_payload
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON))
-	`, intent.TrackingID, intent.TraceID, intent.IdempotencyKey, intent.UserID, intent.StoreID, intent.CountryID, intent.Fulfillment, intent.Status, intent.Subtotal, intent.TaxAmount, intent.DiscountAmount, intent.TotalAmount, voucher, string(intent.CartPayload))
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, ?, CAST(? AS JSON))
+	`, intent.TrackingID, intent.TraceID, intent.IdempotencyKey, intent.UserID, intent.StoreID, intent.CountryID, intent.Fulfillment, intent.Status, intent.Subtotal, string(chargesPayload), intent.TaxAmount, intent.DiscountAmount, intent.TotalAmount, voucher, string(intent.CartPayload))
 	return err
 }
 
@@ -450,32 +587,36 @@ func insertPayment(ctx context.Context, exec txExecutor, payment PaymentTransact
 
 func (r *Repository) GetStatus(ctx context.Context, countryID, trackingID string) (Status, error) {
 	var status Status
+	var chargesPayload []byte
 	err := r.db.QueryRowContext(ctx, `
 		SELECT oi.tracking_id, oi.status, pt.status, oi.subtotal, oi.tax_amount,
-		       oi.discount_amount, oi.total_amount, oi.created_at, oi.updated_at
+		       oi.discount_amount, oi.total_amount, COALESCE(oi.charges_payload, JSON_ARRAY()),
+		       oi.created_at, oi.updated_at
 		FROM order_intents oi
 		LEFT JOIN payment_transactions pt ON pt.order_tracking_id = oi.tracking_id
-		WHERE oi.country_id = ? AND oi.tracking_id = ?
-	`, countryID, trackingID).Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &status.CreatedAt, &status.UpdatedAt)
+		WHERE oi.tracking_id = ?
+	`, trackingID).Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &chargesPayload, &status.CreatedAt, &status.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Status{}, ErrNotFound
 		}
 		return Status{}, err
 	}
+	status.Charges = decodeChargeLines(chargesPayload)
 	return status, nil
 }
 
 func (r *Repository) ListStatusesByUser(ctx context.Context, countryID, userID string) ([]Status, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT oi.tracking_id, oi.status, pt.status, oi.subtotal, oi.tax_amount,
-		       oi.discount_amount, oi.total_amount, oi.created_at, oi.updated_at
+		       oi.discount_amount, oi.total_amount, COALESCE(oi.charges_payload, JSON_ARRAY()),
+		       oi.created_at, oi.updated_at
 		FROM order_intents oi
 		LEFT JOIN payment_transactions pt ON pt.order_tracking_id = oi.tracking_id
-		WHERE oi.country_id = ? AND oi.user_id = ?
+		WHERE oi.user_id = ?
 		ORDER BY oi.created_at DESC
 		LIMIT 50
-	`, countryID, userID)
+	`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -484,9 +625,11 @@ func (r *Repository) ListStatusesByUser(ctx context.Context, countryID, userID s
 	statuses := []Status{}
 	for rows.Next() {
 		var status Status
-		if err := rows.Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &status.CreatedAt, &status.UpdatedAt); err != nil {
+		var chargesPayload []byte
+		if err := rows.Scan(&status.TrackingID, &status.Status, &status.PaymentStatus, &status.Subtotal, &status.TaxAmount, &status.DiscountAmount, &status.TotalAmount, &chargesPayload, &status.CreatedAt, &status.UpdatedAt); err != nil {
 			return nil, err
 		}
+		status.Charges = decodeChargeLines(chargesPayload)
 		statuses = append(statuses, status)
 	}
 	return statuses, rows.Err()
@@ -514,4 +657,44 @@ func sprintf(format, value string) string {
 		}
 	}
 	return format
+}
+
+func decodeIntList(raw []byte) []int {
+	if len(raw) == 0 {
+		return nil
+	}
+	var values []int
+	if err := json.Unmarshal(raw, &values); err == nil {
+		return values
+	}
+	return nil
+}
+
+func decodeStringList(raw []byte) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	var values []string
+	if err := json.Unmarshal(raw, &values); err == nil {
+		return values
+	}
+	return nil
+}
+
+func encodeChargeLines(charges []ChargeLine) ([]byte, error) {
+	if charges == nil {
+		charges = []ChargeLine{}
+	}
+	return json.Marshal(charges)
+}
+
+func decodeChargeLines(raw []byte) []ChargeLine {
+	if len(raw) == 0 {
+		return []ChargeLine{}
+	}
+	var values []ChargeLine
+	if err := json.Unmarshal(raw, &values); err == nil {
+		return values
+	}
+	return []ChargeLine{}
 }

@@ -79,7 +79,7 @@ func TestHome(t *testing.T) {
 		},
 	}
 
-	svc := NewService(repo)
+	svc := NewService(repo, "")
 
 	t.Run("success", func(t *testing.T) {
 		feed, err := svc.Home(context.Background(), "MY", "en", 0)

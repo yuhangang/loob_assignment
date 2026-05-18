@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 )
 
 type Repository struct {
@@ -116,6 +117,146 @@ func (r *Repository) UpdateProfile(ctx context.Context, userID string, update Pr
 		WHERE id = ?
 	`, update.DisplayName, update.Email, update.PhoneNumber, update.AvatarURL, update.PreferredLanguage, update.MarketingOptIn, userID)
 	return err
+}
+
+func (r *Repository) ListWalletTransactions(ctx context.Context, userID, countryID string, limit int) (WalletHistory, error) {
+	var history WalletHistory
+	var currency string
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COALESCE(wa.currency_code, c.currency_code), COALESCE(wa.balance, 0)
+		FROM countries c
+		LEFT JOIN wallet_accounts wa ON wa.country_id = c.id AND wa.user_id = ?
+		WHERE c.id = ?
+	`, userID, countryID).Scan(&currency, &history.Balance)
+	if err != nil {
+		return WalletHistory{}, err
+	}
+	history.UserID = userID
+	history.CountryCode = countryID
+	history.CurrencyCode = currency
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, transaction_type, amount, balance_after, currency_code,
+		       reference_type, reference_id, description, created_at
+		FROM wallet_transactions
+		WHERE user_id = ? AND country_id = ?
+		ORDER BY created_at DESC, id DESC
+		LIMIT ?
+	`, userID, countryID, limit)
+	if err != nil {
+		return WalletHistory{}, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tx WalletTransaction
+		var refType, refID, description sql.NullString
+		var createdAt time.Time
+		if err := rows.Scan(&tx.ID, &tx.TransactionType, &tx.Amount, &tx.BalanceAfter, &tx.CurrencyCode, &refType, &refID, &description, &createdAt); err != nil {
+			return WalletHistory{}, err
+		}
+		tx.ReferenceType = refType.String
+		tx.ReferenceID = refID.String
+		tx.Description = description.String
+		tx.CreatedAt = createdAt.Format("2006-01-02T15:04:05Z07:00")
+		history.Transactions = append(history.Transactions, tx)
+	}
+	return history, rows.Err()
+}
+
+func (r *Repository) ListLoyaltyTransactions(ctx context.Context, userID, countryID string, limit int) (LoyaltyHistory, error) {
+	var history LoyaltyHistory
+	var tier sql.NullString
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COALESCE(la.points, 0), COALESCE(la.tier, 'MEMBER')
+		FROM countries c
+		LEFT JOIN loyalty_accounts la ON la.country_id = c.id AND la.user_id = ?
+		WHERE c.id = ?
+	`, userID, countryID).Scan(&history.Points, &tier)
+	if err != nil {
+		return LoyaltyHistory{}, err
+	}
+	history.UserID = userID
+	history.CountryCode = countryID
+	history.Tier = tier.String
+	if history.Tier == "" {
+		history.Tier = "MEMBER"
+	}
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, transaction_type, points_delta, balance_after,
+		       reference_type, reference_id, description, created_at
+		FROM loyalty_transactions
+		WHERE user_id = ? AND country_id = ?
+		ORDER BY created_at DESC, id DESC
+		LIMIT ?
+	`, userID, countryID, limit)
+	if err != nil {
+		return LoyaltyHistory{}, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tx LoyaltyTransaction
+		var refType, refID, description sql.NullString
+		var createdAt time.Time
+		if err := rows.Scan(&tx.ID, &tx.TransactionType, &tx.PointsDelta, &tx.BalanceAfter, &refType, &refID, &description, &createdAt); err != nil {
+			return LoyaltyHistory{}, err
+		}
+		tx.ReferenceType = refType.String
+		tx.ReferenceID = refID.String
+		tx.Description = description.String
+		tx.CreatedAt = createdAt.Format("2006-01-02T15:04:05Z07:00")
+		history.Transactions = append(history.Transactions, tx)
+	}
+	return history, rows.Err()
+}
+
+func (r *Repository) TopUpWallet(ctx context.Context, userID string, country Country, amount int, description string) (WalletHistory, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return WalletHistory{}, err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT IGNORE INTO wallet_accounts (user_id, country_id, balance, currency_code)
+		VALUES (?, ?, 0, ?)
+	`, userID, country.ID, country.CurrencyCode); err != nil {
+		return WalletHistory{}, err
+	}
+
+	var balance int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT balance
+		FROM wallet_accounts
+		WHERE user_id = ? AND country_id = ?
+		FOR UPDATE
+	`, userID, country.ID).Scan(&balance); err != nil {
+		return WalletHistory{}, err
+	}
+	balance += amount
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE wallet_accounts
+		SET balance = ?
+		WHERE user_id = ? AND country_id = ?
+	`, balance, userID, country.ID); err != nil {
+		return WalletHistory{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO wallet_transactions (
+			user_id, country_id, transaction_type, amount, balance_after, currency_code, reference_type, description
+		)
+		VALUES (?, ?, 'TOPUP', ?, ?, ?, 'MANUAL', NULLIF(?, ''))
+	`, userID, country.ID, amount, balance, country.CurrencyCode, description); err != nil {
+		return WalletHistory{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return WalletHistory{}, err
+	}
+	return r.ListWalletTransactions(ctx, userID, country.ID, defaultHistoryLimit)
 }
 
 var ErrNotFound = errors.New("not found")

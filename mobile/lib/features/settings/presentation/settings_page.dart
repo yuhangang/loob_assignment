@@ -25,7 +25,8 @@ class _SettingsPageState extends State<SettingsPage> {
     return SafeArea(
       child: BlocBuilder<UserProfileCubit, UserProfileState>(
         builder: (context, state) {
-          final profile = state is UserProfileLoaded ? state.profile : null;
+          final loadedState = state is UserProfileLoaded ? state : null;
+          final profile = loadedState?.profile;
 
           return ListView(
             padding: const EdgeInsets.symmetric(
@@ -42,10 +43,17 @@ class _SettingsPageState extends State<SettingsPage> {
                   message: state.message,
                   onRetry: () => context.read<UserProfileCubit>().loadProfile(),
                 )
-              else if (profile != null) ...[
+              else if (loadedState != null && profile != null) ...[
                 _ProfileCard(profile: profile),
                 const SizedBox(height: AppSpacing.lg),
-                _RewardsCard(profile: profile),
+                _RewardsCard(
+                  profile: profile,
+                  walletHistory: loadedState.walletHistory,
+                  loyaltyHistory: loadedState.loyaltyHistory,
+                  isTopUpSubmitting: loadedState.isTopUpSubmitting,
+                  onTopUp: () =>
+                      context.read<UserProfileCubit>().topUpWallet(1000),
+                ),
               ],
               const SizedBox(height: AppSpacing.xl),
               _SettingsGroup(
@@ -237,8 +245,18 @@ class _ProfileCard extends StatelessWidget {
 
 class _RewardsCard extends StatelessWidget {
   final UserProfileModel profile;
+  final WalletHistoryModel walletHistory;
+  final LoyaltyHistoryModel loyaltyHistory;
+  final bool isTopUpSubmitting;
+  final VoidCallback onTopUp;
 
-  const _RewardsCard({required this.profile});
+  const _RewardsCard({
+    required this.profile,
+    required this.walletHistory,
+    required this.loyaltyHistory,
+    required this.isTopUpSubmitting,
+    required this.onTopUp,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -250,33 +268,216 @@ class _RewardsCard extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
-        child: Row(
+        child: Column(
           children: [
-            Expanded(
-              child: _RewardMetric(
-                label: context.l10n.balance,
-                value: profile.walletBalance.toDisplayPrice(currency),
-                icon: Icons.account_balance_wallet_rounded,
+            Row(
+              children: [
+                Expanded(
+                  child: _RewardMetric(
+                    label: context.l10n.balance,
+                    value: profile.walletBalance.toDisplayPrice(currency),
+                    icon: Icons.account_balance_wallet_rounded,
+                  ),
+                ),
+                Container(width: 1, height: 44, color: theme.dividerColor),
+                Expanded(
+                  child: _RewardMetric(
+                    label: context.l10n.tpoints,
+                    value: profile.loyaltyPoints.toString(),
+                    icon: Icons.stars_rounded,
+                  ),
+                ),
+                Container(width: 1, height: 44, color: theme.dividerColor),
+                Expanded(
+                  child: _RewardMetric(
+                    label: 'Tier',
+                    value: profile.loyaltyTier,
+                    icon: Icons.workspace_premium_rounded,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: isTopUpSubmitting ? null : onTopUp,
+                icon: isTopUpSubmitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add_card_rounded),
+                label: const Text('Top up RM 10.00'),
               ),
             ),
-            Container(width: 1, height: 44, color: theme.dividerColor),
-            Expanded(
-              child: _RewardMetric(
-                label: context.l10n.tpoints,
-                value: profile.loyaltyPoints.toString(),
-                icon: Icons.stars_rounded,
-              ),
+            const SizedBox(height: AppSpacing.lg),
+            _HistorySection(
+              title: 'Wallet activity',
+              emptyText: 'No wallet activity yet',
+              children: walletHistory.transactions
+                  .take(3)
+                  .map(
+                    (tx) => _HistoryRow(
+                      icon: tx.amount >= 0
+                          ? Icons.add_circle_outline_rounded
+                          : Icons.remove_circle_outline_rounded,
+                      title: _walletTitle(tx),
+                      subtitle: tx.description.isNotEmpty
+                          ? tx.description
+                          : tx.createdAt,
+                      value: tx.amount.toDisplayPrice(
+                        tx.currencyCode.isEmpty ? currency : tx.currencyCode,
+                      ),
+                      isPositive: tx.amount >= 0,
+                    ),
+                  )
+                  .toList(),
             ),
-            Container(width: 1, height: 44, color: theme.dividerColor),
-            Expanded(
-              child: _RewardMetric(
-                label: 'Tier',
-                value: profile.loyaltyTier,
-                icon: Icons.workspace_premium_rounded,
-              ),
+            const SizedBox(height: AppSpacing.md),
+            _HistorySection(
+              title: 'Points activity',
+              emptyText: 'No points activity yet',
+              children: loyaltyHistory.transactions
+                  .take(3)
+                  .map(
+                    (tx) => _HistoryRow(
+                      icon: tx.pointsDelta >= 0
+                          ? Icons.stars_rounded
+                          : Icons.redeem_rounded,
+                      title: _loyaltyTitle(tx),
+                      subtitle: tx.description.isNotEmpty
+                          ? tx.description
+                          : tx.createdAt,
+                      value:
+                          '${tx.pointsDelta > 0 ? '+' : ''}${tx.pointsDelta} pts',
+                      isPositive: tx.pointsDelta >= 0,
+                    ),
+                  )
+                  .toList(),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  String _walletTitle(WalletTransactionModel tx) {
+    switch (tx.transactionType) {
+      case 'TOPUP':
+        return 'Wallet top-up';
+      case 'SPEND':
+        return 'Wallet spend';
+      case 'REFUND':
+        return 'Wallet refund';
+      default:
+        return 'Wallet adjustment';
+    }
+  }
+
+  String _loyaltyTitle(LoyaltyTransactionModel tx) {
+    switch (tx.transactionType) {
+      case 'EARN':
+        return 'Points earned';
+      case 'REDEEM':
+        return 'Points redeemed';
+      case 'EXPIRE':
+        return 'Points expired';
+      default:
+        return 'Points adjusted';
+    }
+  }
+}
+
+class _HistorySection extends StatelessWidget {
+  final String title;
+  final String emptyText;
+  final List<Widget> children;
+
+  const _HistorySection({
+    required this.title,
+    required this.emptyText,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: theme.textTheme.titleSmall),
+        const SizedBox(height: AppSpacing.sm),
+        if (children.isEmpty)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              emptyText,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.6),
+              ),
+            ),
+          )
+        else
+          ...children,
+      ],
+    );
+  }
+}
+
+class _HistoryRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String value;
+  final bool isPositive;
+
+  const _HistoryRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.isPositive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final valueColor = isPositive
+        ? theme.colorScheme.primary
+        : theme.colorScheme.error;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(
+        children: [
+          Icon(icon, color: valueColor, size: 20),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.bodyMedium),
+                if (subtitle.isNotEmpty)
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.textTheme.bodySmall?.color?.withValues(
+                        alpha: 0.55,
+                      ),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            value,
+            style: theme.textTheme.labelLarge?.copyWith(color: valueColor),
+          ),
+        ],
       ),
     );
   }
@@ -338,7 +539,7 @@ class _SettingsErrorCard extends StatelessWidget {
           children: [
             Text(message, maxLines: 3, overflow: TextOverflow.ellipsis),
             const SizedBox(height: AppSpacing.md),
-            OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
+            OutlinedButton(onPressed: onRetry, child: Text(context.l10n.retry)),
           ],
         ),
       ),

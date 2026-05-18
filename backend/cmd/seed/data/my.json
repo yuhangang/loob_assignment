@@ -1297,5 +1297,75 @@
       "is_listed": false,
       "is_available": false
     }
+  ],
+  "vouchers": [
+    {
+      "code": "WELCOME10",
+      "brand_id": null,
+      "voucher_type": "CART_DISCOUNT",
+      "discount_type": "PERCENTAGE",
+      "discount_value": 10,
+      "min_spend": 0,
+      "max_discount_cap": 500,
+      "voided_at": null,
+      "max_redemptions": 1000,
+      "max_redemptions_per_user": 1,
+      "allow_promo_items": true,
+      "applicable_store_ids": null,
+      "applicable_category_ids": null,
+      "applicable_item_ids": null,
+      "applicable_payment_methods": null
+    },
+    {
+      "code": "TEALIVE5",
+      "brand_id": 1,
+      "voucher_type": "BRAND_DISCOUNT",
+      "discount_type": "FIXED_AMOUNT",
+      "discount_value": 500,
+      "min_spend": 1000,
+      "max_discount_cap": null,
+      "voided_at": null,
+      "max_redemptions": 500,
+      "max_redemptions_per_user": 2,
+      "allow_promo_items": true,
+      "applicable_store_ids": null,
+      "applicable_category_ids": [1],
+      "applicable_item_ids": null,
+      "applicable_payment_methods": null
+    },
+    {
+      "code": "BASKBEAR30",
+      "brand_id": 2,
+      "voucher_type": "BRAND_DISCOUNT",
+      "discount_type": "PERCENTAGE",
+      "discount_value": 30,
+      "min_spend": 1500,
+      "max_discount_cap": 1000,
+      "voided_at": null,
+      "max_redemptions": 300,
+      "max_redemptions_per_user": 1,
+      "allow_promo_items": false,
+      "applicable_store_ids": null,
+      "applicable_category_ids": null,
+      "applicable_item_ids": null,
+      "applicable_payment_methods": ["EWALLET"]
+    },
+    {
+      "code": "LOOBDELIGHT",
+      "brand_id": null,
+      "voucher_type": "CART_DISCOUNT",
+      "discount_type": "FIXED_AMOUNT",
+      "discount_value": 800,
+      "min_spend": 2000,
+      "max_discount_cap": null,
+      "voided_at": null,
+      "max_redemptions": 100,
+      "max_redemptions_per_user": 1,
+      "allow_promo_items": true,
+      "applicable_store_ids": null,
+      "applicable_category_ids": null,
+      "applicable_item_ids": null,
+      "applicable_payment_methods": null
+    }
   ]
 }

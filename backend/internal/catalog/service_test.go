@@ -123,7 +123,7 @@ func TestListCategoriesAndCategoryItems(t *testing.T) {
 		},
 	}
 
-	svc := NewService(repo)
+	svc := NewService(repo, "")
 
 	t.Run("list categories success", func(t *testing.T) {
 		catalog, err := svc.ListCategories(context.Background(), MenuRequest{CountryCode: "MY"})

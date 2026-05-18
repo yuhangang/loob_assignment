@@ -22,6 +22,50 @@ class UserProfileRemoteDataSource {
     }
   }
 
+  Future<WalletHistoryModel> getWalletHistory({required String userId}) async {
+    try {
+      final response = await _client.dio.get(
+        ApiEndpoints.userWalletHistory,
+        queryParameters: {'user_id': userId},
+      );
+      return WalletHistoryModel.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<WalletHistoryModel> topUpWallet({
+    required String userId,
+    required int amount,
+  }) async {
+    try {
+      final response = await _client.dio.post(
+        ApiEndpoints.userWalletTopups,
+        queryParameters: {'user_id': userId},
+        data: {'amount': amount, 'description': 'Mobile wallet top-up'},
+      );
+      return WalletHistoryModel.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<LoyaltyHistoryModel> getLoyaltyHistory({
+    required String userId,
+  }) async {
+    try {
+      final response = await _client.dio.get(
+        ApiEndpoints.userLoyaltyHistory,
+        queryParameters: {'user_id': userId},
+      );
+      return LoyaltyHistoryModel.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
   Future<UserProfileModel> updateProfile({
     required String userId,
     String? displayName,

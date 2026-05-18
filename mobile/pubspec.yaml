@@ -50,10 +50,12 @@ dependencies:
   path: ^1.9.1
   google_fonts: ^6.2.1
   flutter_svg: ^2.0.9
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  bloc_test: ^10.0.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

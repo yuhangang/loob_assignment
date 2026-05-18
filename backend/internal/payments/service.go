@@ -65,6 +65,9 @@ func (s *Service) ApplyMockGatewayCallback(ctx context.Context, req MockGatewayC
 		if errors.Is(err, ErrNotFound) {
 			return Transaction{}, ErrTransactionNotFound
 		}
+		if errors.Is(err, ErrInsufficientWalletBalance) {
+			return Transaction{}, ErrInsufficientWalletBalance
+		}
 		return Transaction{}, err
 	}
 	return toDomain(row), nil

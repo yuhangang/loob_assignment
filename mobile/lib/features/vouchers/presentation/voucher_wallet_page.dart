@@ -7,6 +7,7 @@ import '../../../core/localization/app_localizations.dart';
 import '../../../core/localization/language_cubit.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
+import '../../../core/widgets/status_message.dart';
 import '../data/models/wallet_model.dart';
 import '../data/models/voucher_model.dart';
 import '../data/repositories/voucher_repository.dart';
@@ -164,11 +165,10 @@ class _VoucherWalletPageState extends State<VoucherWalletPage> {
                   if (state is VoucherLoaded && state.vouchers.isEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
-                      child: Center(
-                        child: Text(
-                          context.l10n.myVouchers,
-                          style: theme.textTheme.bodyMedium,
-                        ),
+                      child: StatusMessage(
+                        icon: Icons.confirmation_number_outlined,
+                        title: context.l10n.noVouchersAvailable,
+                        subtitle: context.l10n.noActiveVouchersSub,
                       ),
                     ),
                   if (state is VoucherLoaded && state.vouchers.isNotEmpty)

@@ -8,20 +8,22 @@ import (
 )
 
 type mockCartRepository struct {
-	items     []CartItem
-	upserted  CartItem
-	updatedID int64
-	updated   CartItem
-	removedID int64
-	cleared   bool
-	getErr    error
-	upsertErr error
-	updateErr error
-	removeErr error
-	clearErr  error
+	items               []CartItem
+	upserted            CartItem
+	updatedID           int64
+	updated             CartItem
+	removedID           int64
+	cleared             bool
+	getErr              error
+	upsertErr           error
+	updateErr           error
+	removeErr           error
+	clearErr            error
+	lastOverrideStoreID int
 }
 
-func (m *mockCartRepository) GetCart(ctx context.Context, userID, countryID string) ([]CartItem, error) {
+func (m *mockCartRepository) GetCart(ctx context.Context, userID, countryID string, overrideStoreID int) ([]CartItem, error) {
+	m.lastOverrideStoreID = overrideStoreID
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
@@ -74,7 +76,7 @@ func TestUpsertItemSortsCustomizationIDsAndReturnsHydratedCart(t *testing.T) {
 			},
 		},
 	}
-	svc := NewService(repo)
+	svc := NewService(repo, "")
 
 	resp, err := svc.UpsertItem(context.Background(), "MY", CartItemRequest{
 		UserID:           "u1",
@@ -98,7 +100,7 @@ func TestUpdateItemReplacesExistingLine(t *testing.T) {
 	repo := &mockCartRepository{
 		items: []CartItem{{ID: 10, UserID: "u1", CountryID: "MY", StoreID: 2, MenuItemID: 4, Quantity: 2, CustomizationIDs: []int{1, 8}}},
 	}
-	svc := NewService(repo)
+	svc := NewService(repo, "")
 
 	_, err := svc.UpdateItem(context.Background(), "MY", 10, CartItemUpdateRequest{
 		UserID:           "u1",
@@ -119,7 +121,7 @@ func TestUpdateItemReplacesExistingLine(t *testing.T) {
 }
 
 func TestUpdateItemValidatesRequest(t *testing.T) {
-	svc := NewService(&mockCartRepository{})
+	svc := NewService(&mockCartRepository{}, "")
 
 	_, err := svc.UpdateItem(context.Background(), "MY", 0, CartItemUpdateRequest{
 		UserID: "u1", StoreID: 2, MenuItemID: 4, Quantity: 1,
@@ -137,10 +139,23 @@ func TestUpdateItemValidatesRequest(t *testing.T) {
 }
 
 func TestRemoveItemMapsNotFound(t *testing.T) {
-	svc := NewService(&mockCartRepository{removeErr: ErrNotFound})
+	svc := NewService(&mockCartRepository{removeErr: ErrNotFound}, "")
 
 	_, err := svc.RemoveItem(context.Background(), "MY", "u1", 99)
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestGetCartForwardsStoreOverrideForAvailabilityRefresh(t *testing.T) {
+	repo := &mockCartRepository{}
+	svc := NewService(repo, "")
+
+	_, err := svc.GetCart(context.Background(), "MY", "u1", 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.lastOverrideStoreID != 42 {
+		t.Fatalf("overrideStoreID = %d, want 42", repo.lastOverrideStoreID)
 	}
 }

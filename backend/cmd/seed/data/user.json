@@ -1,0 +1,209 @@
+{
+  "user": {
+    "id": "mock_user_001",
+    "display_name": "Dev User",
+    "email": "mock_user_001@loob.com.my",
+    "phone_number": "+60123456789",
+    "avatar_url": "/cdn/avatars/dev_user.png",
+    "preferred_language": "en-US",
+    "registered_country_id": "MY",
+    "marketing_opt_in": true
+  },
+  "wallets": [
+    {
+      "country_id": "MY",
+      "balance": 5000,
+      "currency_code": "MYR"
+    },
+    {
+      "country_id": "TH",
+      "balance": 15000,
+      "currency_code": "THB"
+    }
+  ],
+  "loyalty_accounts": [
+    {
+      "country_id": "MY",
+      "points": 120,
+      "lifetime_points": 120,
+      "tier": "GOLD"
+    },
+    {
+      "country_id": "TH",
+      "points": 80,
+      "lifetime_points": 80,
+      "tier": "SILVER"
+    }
+  ],
+  "user_vouchers": [
+    {
+      "code": "WELCOME10",
+      "country_id": "MY",
+      "status": "AVAILABLE"
+    },
+    {
+      "code": "TEALIVE5",
+      "country_id": "MY",
+      "status": "AVAILABLE"
+    },
+    {
+      "code": "BASKBEAR30",
+      "country_id": "MY",
+      "status": "AVAILABLE"
+    },
+    {
+      "code": "LOOBDELIGHT",
+      "country_id": "MY",
+      "status": "AVAILABLE"
+    },
+    {
+      "code": "THAI_WELCOME",
+      "country_id": "TH",
+      "status": "AVAILABLE"
+    },
+    {
+      "code": "THAI_BOBA",
+      "country_id": "TH",
+      "status": "USED"
+    }
+  ],
+  "transaction_history": [
+    {
+      "tracking_id": "MY-TX-001",
+      "trace_id": "trace-my-001",
+      "idempotency_key": "idem-my-001",
+      "store_code": "MY-TL-PAV",
+      "country_id": "MY",
+      "fulfillment_type": "TAKEAWAY",
+      "status": "COMPLETED",
+      "subtotal": 1950,
+      "tax_amount": 93,
+      "discount_amount": 500,
+      "total_amount": 1643,
+      "voucher_code": "TEALIVE5",
+      "cart_payload": [
+        {
+          "menu_item_id": 100,
+          "quantity": 1,
+          "customization_option_ids": [1, 5]
+        },
+        {
+          "menu_item_id": 109,
+          "quantity": 1,
+          "customization_option_ids": []
+        }
+      ],
+      "charges_payload": [
+        {
+          "code": "PACKAGING_FEE",
+          "name": "Packaging Fee",
+          "scope": "ORDER",
+          "amount": 100,
+          "taxable_amount": 100,
+          "tax_amount": 6,
+          "total_amount": 106,
+          "taxable": true,
+          "tax_inclusive": false,
+          "waived": false
+        }
+      ],
+      "payment": {
+        "id": "PAY-MY-001",
+        "provider": "mock_gateway",
+        "method_code": "EWALLET",
+        "status": "CAPTURED",
+        "currency_code": "MYR",
+        "amount": 1643
+      },
+      "created_at": "2026-05-10 14:30:00"
+    },
+    {
+      "tracking_id": "MY-TX-002",
+      "trace_id": "trace-my-002",
+      "idempotency_key": "idem-my-002",
+      "store_code": "MY-BB-MDV",
+      "country_id": "MY",
+      "fulfillment_type": "DINE_IN",
+      "status": "COMPLETED",
+      "subtotal": 1200,
+      "tax_amount": 78,
+      "discount_amount": 0,
+      "total_amount": 1378,
+      "voucher_code": null,
+      "cart_payload": [
+        {
+          "menu_item_id": 102,
+          "quantity": 1,
+          "customization_option_ids": []
+        }
+      ],
+      "charges_payload": [
+        {
+          "code": "PACKAGING_FEE",
+          "name": "Packaging Fee",
+          "scope": "ORDER",
+          "amount": 100,
+          "taxable_amount": 100,
+          "tax_amount": 6,
+          "total_amount": 106,
+          "taxable": true,
+          "tax_inclusive": false,
+          "waived": false
+        }
+      ],
+      "payment": {
+        "id": "PAY-MY-002",
+        "provider": "mock_gateway",
+        "method_code": "EWALLET",
+        "status": "CAPTURED",
+        "currency_code": "MYR",
+        "amount": 1378
+      },
+      "created_at": "2026-05-12 09:15:00"
+    },
+    {
+      "tracking_id": "TH-TX-001",
+      "trace_id": "trace-th-001",
+      "idempotency_key": "idem-th-001",
+      "store_code": "TH-TL-SIA",
+      "country_id": "TH",
+      "fulfillment_type": "TAKEAWAY",
+      "status": "COMPLETED",
+      "subtotal": 7500,
+      "tax_amount": 453,
+      "discount_amount": 1125,
+      "total_amount": 6928,
+      "voucher_code": "THAI_WELCOME",
+      "cart_payload": [
+        {
+          "menu_item_id": 200,
+          "quantity": 1,
+          "customization_option_ids": [10]
+        }
+      ],
+      "charges_payload": [
+        {
+          "code": "PACKAGING_FEE",
+          "name": "Packaging Fee",
+          "scope": "ORDER",
+          "amount": 100,
+          "taxable_amount": 100,
+          "tax_amount": 7,
+          "total_amount": 107,
+          "taxable": true,
+          "tax_inclusive": false,
+          "waived": false
+        }
+      ],
+      "payment": {
+        "id": "PAY-TH-001",
+        "provider": "mock_gateway",
+        "method_code": "EWALLET",
+        "status": "CAPTURED",
+        "currency_code": "THB",
+        "amount": 6928
+      },
+      "created_at": "2026-05-15 16:00:00"
+    }
+  ]
+}

@@ -778,5 +778,41 @@
       "is_listed": true,
       "is_available": false
     }
+  ],
+  "vouchers": [
+    {
+      "code": "THAI_WELCOME",
+      "brand_id": null,
+      "voucher_type": "CART_DISCOUNT",
+      "discount_type": "PERCENTAGE",
+      "discount_value": 15,
+      "min_spend": 0,
+      "max_discount_cap": null,
+      "voided_at": null,
+      "max_redemptions": 2000,
+      "max_redemptions_per_user": 1,
+      "allow_promo_items": true,
+      "applicable_store_ids": null,
+      "applicable_category_ids": null,
+      "applicable_item_ids": null,
+      "applicable_payment_methods": null
+    },
+    {
+      "code": "THAI_BOBA",
+      "brand_id": 1,
+      "voucher_type": "BRAND_DISCOUNT",
+      "discount_type": "FIXED_AMOUNT",
+      "discount_value": 4000,
+      "min_spend": 10000,
+      "max_discount_cap": null,
+      "voided_at": null,
+      "max_redemptions": 1000,
+      "max_redemptions_per_user": 1,
+      "allow_promo_items": true,
+      "applicable_store_ids": null,
+      "applicable_category_ids": null,
+      "applicable_item_ids": null,
+      "applicable_payment_methods": null
+    }
   ]
 }

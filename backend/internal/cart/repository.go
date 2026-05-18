@@ -21,8 +21,21 @@ func NewRepository(db *sql.DB) *Repository {
 // GetCart returns all cart items for the given user in the given country,
 // enriched with the current product name, image, base price, and availability
 // from menu_items and store_menu_item_status.
-func (r *Repository) GetCart(ctx context.Context, userID, countryID string) ([]CartItem, error) {
-	rows, err := r.db.QueryContext(ctx, `
+//
+// When overrideStoreID > 0 the availability and pricing joins use that store
+// instead of each row's persisted ci.store_id.
+func (r *Repository) GetCart(ctx context.Context, userID, countryID string, overrideStoreID int) ([]CartItem, error) {
+	// Build the store reference for availability / pricing evaluation.
+	// If an override is supplied we use it; otherwise fall back to the row's own store_id.
+	storeRef := "ci.store_id"
+	args := []any{userID, countryID}
+	if overrideStoreID > 0 {
+		storeRef = "?"
+		// We need 3 placeholders (pricing zone lookup, smis store, smis store).
+		// We'll inject them via fmt.Sprintf and prepend to the WHERE args.
+	}
+
+	query := fmt.Sprintf(`
 		SELECT
 			ci.id, ci.user_id, ci.country_id, ci.store_id, ci.menu_item_id,
 			ci.quantity, ci.customization_ids,
@@ -37,16 +50,24 @@ func (r *Repository) GetCart(ctx context.Context, userID, countryID string) ([]C
 			) AS is_available
 		FROM cart_items ci
 		LEFT JOIN menu_items mi    ON mi.id = ci.menu_item_id
-		LEFT JOIN stores s         ON s.id  = ci.store_id
+		LEFT JOIN stores s         ON s.id  = %[1]s
 		LEFT JOIN menu_item_pricing mip
 			ON  mip.menu_item_id = ci.menu_item_id
 			AND mip.zone_id      = COALESCE(s.zone_id, '')
 		LEFT JOIN store_menu_item_status smis
-			ON  smis.store_id     = ci.store_id
+			ON  smis.store_id     = %[1]s
 			AND smis.menu_item_id = ci.menu_item_id
 		WHERE ci.user_id = ? AND ci.country_id = ?
 		ORDER BY ci.created_at ASC
-	`, userID, countryID)
+	`, storeRef)
+
+	// When using an override we need to supply the store_id twice (stores join + smis join)
+	// before the WHERE params.
+	if overrideStoreID > 0 {
+		args = []any{overrideStoreID, overrideStoreID, userID, countryID}
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +94,11 @@ func (r *Repository) GetCart(ctx context.Context, userID, countryID string) ([]C
 	}
 
 	for i := range items {
-		options, err := r.getSelectedOptions(ctx, items[i].StoreID, items[i].CustomizationIDs)
+		evalStoreID := items[i].StoreID
+		if overrideStoreID > 0 {
+			evalStoreID = overrideStoreID
+		}
+		options, err := r.getSelectedOptions(ctx, evalStoreID, items[i].CustomizationIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -243,7 +268,7 @@ func (r *Repository) getSelectedOptions(ctx context.Context, storeID int, option
 		       CASE
 		           WHEN co.linked_menu_item_id IS NULL THEN true
 		           WHEN linked.id IS NULL THEN false
-		           ELSE COALESCE(smis.is_available, true)
+		           ELSE COALESCE(smis.is_listed, true) AND COALESCE(smis.is_available, true)
 		       END AS is_available
 		FROM customization_options co
 		LEFT JOIN stores s ON s.id = ?

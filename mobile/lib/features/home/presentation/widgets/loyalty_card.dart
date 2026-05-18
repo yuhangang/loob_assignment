@@ -14,32 +14,6 @@ class LoyaltyCard extends StatelessWidget {
     required this.profile,
   });
 
-  void _showSimulatedAction(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              Icons.check_circle_outline_rounded,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -97,8 +71,7 @@ class LoyaltyCard extends StatelessWidget {
                     ),
                     const SizedBox(width: AppSpacing.xs),
                     GestureDetector(
-                      onTap: () => _showSimulatedAction(
-                        context,
+                      onTap: () => context.showSuccessSnackBar(
                         context.l10n.topUpInitiated,
                       ),
                       child: Container(

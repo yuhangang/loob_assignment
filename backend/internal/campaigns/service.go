@@ -12,11 +12,12 @@ type CampaignRepository interface {
 }
 
 type Service struct {
-	repo CampaignRepository
+	repo          CampaignRepository
+	publicBaseURL string
 }
 
-func NewService(repo CampaignRepository) *Service {
-	return &Service{repo: repo}
+func NewService(repo CampaignRepository, publicBaseURL string) *Service {
+	return &Service{repo: repo, publicBaseURL: publicBaseURL}
 }
 
 func (s *Service) Home(ctx context.Context, countryID, language string, brandID int) (HomeFeed, error) {
@@ -46,7 +47,7 @@ func (s *Service) Home(ctx context.Context, countryID, language string, brandID 
 			Type:       row.CampaignType,
 			Title:      localize(row.TitleTranslations, resolved, country.DefaultLanguage),
 			Subtitle:   localize(row.SubtitleTranslations, resolved, country.DefaultLanguage),
-			ImageURL:   row.ImageURL,
+			ImageURL:   resolveAssetURL(s.publicBaseURL, row.ImageURL),
 			DeepLink:   row.DeepLink,
 			WebviewURL: row.WebviewURL,
 			Priority:   row.Priority,
@@ -92,4 +93,18 @@ func localize(values map[string]string, language, fallback string) string {
 		}
 	}
 	return ""
+}
+
+func resolveAssetURL(publicBaseURL, path string) string {
+	if path == "" {
+		return ""
+	}
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
+	}
+	publicBaseURL = strings.TrimRight(publicBaseURL, "/")
+	if strings.HasPrefix(path, "/") {
+		return publicBaseURL + path
+	}
+	return publicBaseURL + "/" + path
 }

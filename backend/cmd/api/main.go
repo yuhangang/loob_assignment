@@ -68,12 +68,12 @@ func main() {
 	ps := payments.Init(db, cfg.MockGatewaySecret)
 
 	payments.Register(v1, ps)
-	catalog.Register(db, v1)
+	catalog.Register(db, v1, cfg.PublicBaseURL)
 	checkout.Register(db, v1, ps)
-	cart.Register(db, v1)
-	campaigns.Register(db, v1)
+	cart.Register(db, v1, cfg.PublicBaseURL)
+	campaigns.Register(db, v1, cfg.PublicBaseURL)
 	vouchers.Register(db, v1)
-	users.Register(db, v1)
+	users.Register(db, v1, cfg.PublicBaseURL)
 	appconfig.Register(v1, cfg.PublicBaseURL)
 
 	log.Printf("starting Loob API on %s", cfg.HTTPAddr)

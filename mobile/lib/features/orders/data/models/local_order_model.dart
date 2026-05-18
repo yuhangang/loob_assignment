@@ -10,6 +10,7 @@ class LocalOrderModel {
   final String status;
   final String paymentStatus;
   final int subtotal;
+  final List<ChargeLineModel> charges;
   final int taxAmount;
   final int discountAmount;
   final int totalAmount;
@@ -23,6 +24,7 @@ class LocalOrderModel {
     required this.status,
     required this.paymentStatus,
     required this.subtotal,
+    this.charges = const [],
     required this.taxAmount,
     required this.discountAmount,
     required this.totalAmount,
@@ -43,6 +45,7 @@ class LocalOrderModel {
       status: checkout.status,
       paymentStatus: checkout.payment?.status ?? '',
       subtotal: checkout.subtotal,
+      charges: checkout.charges,
       taxAmount: checkout.taxAmount,
       discountAmount: checkout.discountAmount,
       totalAmount: checkout.totalAmount,
@@ -60,6 +63,9 @@ class LocalOrderModel {
       status: json['status'] as String? ?? '',
       paymentStatus: json['payment_status'] as String? ?? '',
       subtotal: json['subtotal'] as int? ?? 0,
+      charges: (json['charges'] as List<dynamic>? ?? const [])
+          .map((e) => ChargeLineModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
       taxAmount: json['tax_amount'] as int? ?? 0,
       discountAmount: json['discount_amount'] as int? ?? 0,
       totalAmount: json['total_amount'] as int? ?? 0,
@@ -85,6 +91,7 @@ class LocalOrderModel {
       'status': status,
       'payment_status': paymentStatus,
       'subtotal': subtotal,
+      'charges': charges.map((charge) => charge.toJson()).toList(),
       'tax_amount': taxAmount,
       'discount_amount': discountAmount,
       'total_amount': totalAmount,
@@ -102,6 +109,7 @@ class LocalOrderModel {
       status: status,
       paymentStatus: paymentStatus,
       subtotal: subtotal,
+      charges: charges,
       taxAmount: taxAmount,
       discountAmount: discountAmount,
       totalAmount: totalAmount,

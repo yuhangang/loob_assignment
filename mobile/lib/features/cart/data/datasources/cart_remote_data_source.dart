@@ -20,14 +20,22 @@ class CartRemoteDataSource {
   // ── Cart CRUD ──────────────────────────────────────────────────────────────
 
   /// Fetches the current server-side cart for [userId].
+  ///
+  /// When [storeId] is provided, availability is evaluated against that store
+  /// instead of the store_id stored in each cart row.
   Future<CartApiResponse> getCart({
     required String userId,
     required String countryCode,
+    int? storeId,
   }) async {
     try {
+      final queryParams = <String, dynamic>{'user_id': userId};
+      if (storeId != null && storeId > 0) {
+        queryParams['store_id'] = storeId;
+      }
       final response = await _client.dio.get(
         ApiEndpoints.cart,
-        queryParameters: {'user_id': userId},
+        queryParameters: queryParams,
         options: Options(headers: {'X-Country-Code': countryCode}),
       );
       return CartApiResponse.fromJson(response.data as Map<String, dynamic>);
@@ -35,6 +43,45 @@ class CartRemoteDataSource {
       throw ApiException.fromDioError(e);
     }
   }
+
+  /// Consolidated cart mutation endpoint.
+  ///
+  /// [method] is one of: `upsert`, `update`, `remove`, `clear`.
+  /// Returns the full refreshed cart after the operation.
+  Future<CartApiResponse> updateCart({
+    required String method,
+    required String userId,
+    required String countryCode,
+    int storeId = 0,
+    int? itemId,
+    int? menuItemId,
+    int? quantity,
+    List<int>? customizationOptionIds,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'method': method,
+        'user_id': userId,
+        'store_id': storeId,
+      };
+      if (itemId != null) body['item_id'] = itemId;
+      if (menuItemId != null) body['menu_item_id'] = menuItemId;
+      if (quantity != null) body['quantity'] = quantity;
+      if (customizationOptionIds != null) {
+        body['customization_option_ids'] = customizationOptionIds;
+      }
+      final response = await _client.dio.post(
+        ApiEndpoints.cartUpdate,
+        data: body,
+        options: Options(headers: {'X-Country-Code': countryCode}),
+      );
+      return CartApiResponse.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  // ── Legacy endpoints (kept for backward compatibility) ─────────────────────
 
   /// Adds a new item or updates the quantity of an existing matching item.
   ///

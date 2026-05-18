@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/config/app_config.dart';
+import '../../../../core/di/injection.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/tokens/spacing.dart';
+import '../../../../core/utils/extensions.dart';
 import '../../data/models/app_config_model.dart';
 
 class MarketingPopupDialog extends StatelessWidget {
@@ -11,32 +14,6 @@ class MarketingPopupDialog extends StatelessWidget {
     super.key,
     required this.popup,
   });
-
-  void _showSimulatedAction(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              Icons.check_circle_outline_rounded,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +40,7 @@ class MarketingPopupDialog extends StatelessWidget {
                 child: Image.network(
                   popup.imageUrl.startsWith('http')
                       ? popup.imageUrl
-                      : 'http://localhost:8080${popup.imageUrl}',
+                      : '${sl<AppConfig>().baseUrl}${popup.imageUrl}',
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) => Container(
                     color: theme.colorScheme.primary.withValues(alpha: 0.05),
@@ -121,8 +98,7 @@ class MarketingPopupDialog extends StatelessWidget {
                     ),
                     onPressed: () {
                       Navigator.pop(context);
-                      _showSimulatedAction(
-                        context,
+                      context.showSuccessSnackBar(
                         context.l10n.eventClaimedToast,
                       );
                     },

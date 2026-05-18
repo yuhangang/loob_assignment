@@ -3,6 +3,7 @@ import '../../../../core/auth/auth_service.dart';
 import '../../../../core/config/app_config.dart';
 import '../datasources/voucher_remote_data_source.dart';
 import '../models/wallet_model.dart';
+import '../models/voucher_validation_model.dart';
 
 /// Repository for voucher wallet data.
 class VoucherRepository {
@@ -26,5 +27,13 @@ class VoucherRepository {
     countryCode: countryCode ?? _config.defaultCountryCode,
     userId: userId ?? _authService.currentUser?.uid ?? '',
     brandId: brandId,
+  );
+
+  Future<VoucherValidationModel> validateVoucher({
+    String? countryCode,
+    required Map<String, dynamic> body,
+  }) => _remote.validateVoucher(
+    countryCode: countryCode ?? _config.defaultCountryCode,
+    body: body,
   );
 }

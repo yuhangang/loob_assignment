@@ -42,6 +42,25 @@ type RegionalData struct {
 	Categories        []CategoryData        `json:"categories"`
 	Items             []ItemData            `json:"items"`
 	StoreItemStatuses []StoreItemStatusData `json:"store_item_statuses"`
+	Vouchers          []VoucherData         `json:"vouchers"`
+}
+
+type VoucherData struct {
+	Code                     string          `json:"code"`
+	BrandID                  *int            `json:"brand_id"`
+	VoucherType              string          `json:"voucher_type"`
+	DiscountType             string          `json:"discount_type"`
+	DiscountValue            int             `json:"discount_value"`
+	MinSpend                 int             `json:"min_spend"`
+	MaxDiscountCap           *int            `json:"max_discount_cap"`
+	VoidedAt                 *string         `json:"voided_at"`
+	MaxRedemptions           *int            `json:"max_redemptions"`
+	MaxRedemptionsPerUser    *int            `json:"max_redemptions_per_user"`
+	AllowPromoItems          bool            `json:"allow_promo_items"`
+	ApplicableStoreIDs       json.RawMessage `json:"applicable_store_ids"`
+	ApplicableCategoryIDs    json.RawMessage `json:"applicable_category_ids"`
+	ApplicableItemIDs        json.RawMessage `json:"applicable_item_ids"`
+	ApplicablePaymentMethods json.RawMessage `json:"applicable_payment_methods"`
 }
 
 type ZoneData struct {
@@ -109,6 +128,72 @@ type StoreItemStatusData struct {
 	IsAvailable bool   `json:"is_available"`
 }
 
+type UserSeedData struct {
+	User            UserData                 `json:"user"`
+	Wallets         []UserWalletData         `json:"wallets"`
+	LoyaltyAccounts []UserLoyaltyAccountData `json:"loyalty_accounts"`
+	UserVouchers    []UserVoucherLinkData    `json:"user_vouchers"`
+	Transactions    []UserTransactionData    `json:"transaction_history"`
+}
+
+type UserData struct {
+	ID                  string `json:"id"`
+	DisplayName         string `json:"display_name"`
+	Email               string `json:"email"`
+	PhoneNumber         string `json:"phone_number"`
+	AvatarURL           string `json:"avatar_url"`
+	PreferredLanguage   string `json:"preferred_language"`
+	RegisteredCountryID string `json:"registered_country_id"`
+	MarketingOptIn      bool   `json:"marketing_opt_in"`
+}
+
+type UserWalletData struct {
+	CountryID    string `json:"country_id"`
+	Balance      int    `json:"balance"`
+	CurrencyCode string `json:"currency_code"`
+}
+
+type UserLoyaltyAccountData struct {
+	CountryID      string `json:"country_id"`
+	Points         int    `json:"points"`
+	LifetimePoints int    `json:"lifetime_points"`
+	Tier           string `json:"tier"`
+}
+
+type UserVoucherLinkData struct {
+	Code      string `json:"code"`
+	CountryID string `json:"country_id"`
+	Status    string `json:"status"`
+}
+
+type UserTransactionData struct {
+	TrackingID      string          `json:"tracking_id"`
+	TraceID         string          `json:"trace_id"`
+	IdempotencyKey  string          `json:"idempotency_key"`
+	StoreCode       string          `json:"store_code"`
+	CountryID       string          `json:"country_id"`
+	FulfillmentType string          `json:"fulfillment_type"`
+	Status          string          `json:"status"`
+	Subtotal        int             `json:"subtotal"`
+	ChargesPayload  json.RawMessage `json:"charges_payload"`
+	TaxAmount       int             `json:"tax_amount"`
+	DiscountAmount  int             `json:"discount_amount"`
+	TotalAmount     int             `json:"total_amount"`
+	VoucherCode     *string         `json:"voucher_code"`
+	CartPayload     json.RawMessage `json:"cart_payload"`
+	Payment         *PaymentData    `json:"payment"`
+	CreatedAt       string          `json:"created_at"`
+}
+
+type PaymentData struct {
+	ID           string `json:"id"`
+	Provider     string `json:"provider"`
+	MethodCode   string `json:"method_code"`
+	Status       string `json:"status"`
+	CurrencyCode string `json:"currency_code"`
+	Amount       int    `json:"amount"`
+}
+
 func main() {
 	database.InitDB()
 	db := database.DB
@@ -135,7 +220,7 @@ func cleanDB(db *sql.DB, country string) {
 	_, _ = db.Exec("SET FOREIGN_KEY_CHECKS = 0")
 	if country == "" {
 		tables := []string{
-			"order_intents", "wallet_accounts", "loyalty_accounts", "loyalty_checkins", "user_vouchers", "vouchers", "store_menu_item_status", "customization_options", "customization_groups",
+			"loyalty_transactions", "wallet_transactions", "payment_events", "payment_transactions", "order_intents", "wallet_accounts", "loyalty_accounts", "loyalty_checkins", "user_vouchers", "vouchers", "store_menu_item_status", "customization_options", "customization_groups",
 			"menu_item_pricing", "menu_items", "categories", "stores", "zones",
 			"brands", "users", "countries", "campaigns",
 		}
@@ -143,6 +228,15 @@ func cleanDB(db *sql.DB, country string) {
 			_, _ = db.Exec(fmt.Sprintf("TRUNCATE TABLE %s", table))
 		}
 	} else {
+		_, _ = db.Exec("DELETE FROM loyalty_transactions WHERE country_id = ?", country)
+		_, _ = db.Exec("DELETE FROM wallet_transactions WHERE country_id = ?", country)
+		_, _ = db.Exec("DELETE FROM payment_events WHERE payment_transaction_id IN (SELECT id FROM payment_transactions WHERE country_id = ?)", country)
+		_, _ = db.Exec("DELETE FROM payment_transactions WHERE country_id = ?", country)
+		_, _ = db.Exec("DELETE FROM order_intents WHERE country_id = ?", country)
+		_, _ = db.Exec("DELETE FROM user_vouchers WHERE voucher_id IN (SELECT id FROM vouchers WHERE country_id = ?)", country)
+		_, _ = db.Exec("DELETE FROM vouchers WHERE country_id = ?", country)
+		_, _ = db.Exec("DELETE FROM wallet_accounts WHERE country_id = ?", country)
+		_, _ = db.Exec("DELETE FROM loyalty_accounts WHERE country_id = ?", country)
 		_, _ = db.Exec("DELETE smis FROM store_menu_item_status smis INNER JOIN stores s ON s.id = smis.store_id WHERE s.country_id = ?", country)
 		_, _ = db.Exec("DELETE FROM menu_item_pricing WHERE zone_id IN (SELECT id FROM zones WHERE country_id = ?)", country)
 		_, _ = db.Exec("DELETE FROM stores WHERE country_id = ?", country)
@@ -186,7 +280,7 @@ func seed(db *sql.DB, country string) {
 		seedCampaigns(db, "TH")
 	}
 
-	seedVouchers(db, country)
+	seedUserData(db, country)
 }
 
 func seedBase(db *sql.DB, data BaseData) {
@@ -353,6 +447,7 @@ func seedRegional(db *sql.DB, cid string, data RegionalData) {
 	}
 
 	seedStoreItemStatuses(db, data.StoreItemStatuses, storeIDs, itemIDsBySKU)
+	seedRegionalVouchers(db, cid, data.Vouchers)
 }
 
 func seedCustomizationGroups(db *sql.DB, itemID int, groups []CustomizationGroupData, itemIDsBySKU map[string]int) {
@@ -529,140 +624,276 @@ func seedCampaigns(db *sql.DB, countryCode string) {
 	}
 }
 
-func seedVouchers(db *sql.DB, country string) {
+func seedUserData(db *sql.DB, targetCountry string) {
+	var data UserSeedData
+	if err := loadJSON("user.json", &data); err != nil {
+		log.Fatalf("Failed to load user.json: %v", err)
+	}
+
 	ctx := context.Background()
-	log.Println("Seeding vouchers & mock user records...")
+	log.Printf("Seeding user %s and related multi-country details...", data.User.ID)
 
-	// 1. Seed the main test user mock_user_001
+	// 1. Seed user profile
 	_, err := db.ExecContext(ctx, `
-		INSERT INTO users (id, email, phone_number, preferred_language, registered_country_id)
-		VALUES ('mock_user_001', 'mock_user_001@loob.com.my', '+60123456789', 'en-US', 'MY')
-		ON DUPLICATE KEY UPDATE registered_country_id = 'MY'
-	`)
+		INSERT INTO users (id, display_name, email, phone_number, avatar_url, preferred_language, registered_country_id, marketing_opt_in)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+			display_name = VALUES(display_name),
+			email = VALUES(email),
+			phone_number = VALUES(phone_number),
+			avatar_url = VALUES(avatar_url),
+			preferred_language = VALUES(preferred_language),
+			registered_country_id = VALUES(registered_country_id),
+			marketing_opt_in = VALUES(marketing_opt_in)
+	`, data.User.ID, data.User.DisplayName, data.User.Email, data.User.PhoneNumber, data.User.AvatarURL, data.User.PreferredLanguage, data.User.RegisteredCountryID, data.User.MarketingOptIn)
 	if err != nil {
-		log.Printf("Failed to seed mock_user_001 user: %v", err)
+		log.Fatalf("Failed to seed user profile: %v", err)
 	}
 
-	// 2. Seed mock wallet account and loyalty points for mock_user_001
-	_, err = db.ExecContext(ctx, `
-		INSERT INTO wallet_accounts (user_id, country_id, balance, currency_code)
-		VALUES ('mock_user_001', 'MY', 5000, 'MYR')
-		ON DUPLICATE KEY UPDATE balance = 5000
-	`)
-	if err != nil {
-		log.Printf("Failed to seed mock_user_001 wallet: %v", err)
+	// 2. Seed wallet accounts
+	walletRunningBalance := map[string]int{}
+	for _, w := range data.Wallets {
+		if targetCountry != "" && w.CountryID != targetCountry {
+			continue
+		}
+		_, err = db.ExecContext(ctx, `
+			INSERT INTO wallet_accounts (user_id, country_id, balance, currency_code)
+			VALUES (?, ?, ?, ?)
+			ON DUPLICATE KEY UPDATE
+				balance = VALUES(balance),
+				currency_code = VALUES(currency_code)
+		`, data.User.ID, w.CountryID, w.Balance, w.CurrencyCode)
+		if err != nil {
+			log.Printf("Failed to seed wallet account for country %s: %v", w.CountryID, err)
+		}
 	}
 
-	_, err = db.ExecContext(ctx, `
-		INSERT INTO loyalty_accounts (user_id, country_id, points, lifetime_points, tier)
-		VALUES ('mock_user_001', 'MY', 120, 120, 'GOLD')
-		ON DUPLICATE KEY UPDATE points = 120, tier = 'GOLD'
-	`)
-	if err != nil {
-		log.Printf("Failed to seed mock_user_001 loyalty account: %v", err)
+	// 3. Seed loyalty accounts
+	for _, l := range data.LoyaltyAccounts {
+		if targetCountry != "" && l.CountryID != targetCountry {
+			continue
+		}
+		_, err = db.ExecContext(ctx, `
+			INSERT INTO loyalty_accounts (user_id, country_id, points, lifetime_points, tier)
+			VALUES (?, ?, ?, ?, ?)
+			ON DUPLICATE KEY UPDATE
+				points = VALUES(points),
+				lifetime_points = VALUES(lifetime_points),
+				tier = VALUES(tier)
+		`, data.User.ID, l.CountryID, l.Points, l.LifetimePoints, l.Tier)
+		if err != nil {
+			log.Printf("Failed to seed loyalty account for country %s: %v", l.CountryID, err)
+		}
 	}
 
-	// 3. Define vouchers to seed
-	type SeedVoucher struct {
-		Code           string
-		CountryID      string
-		BrandID        *int
-		VoucherType    string
-		DiscountType   string
-		DiscountValue  int
-		MinSpend       int
-		MaxDiscountCap *int
-	}
-
-	tealiveBrand := 1
-	baskbearBrand := 2
-	cap500 := 500
-	cap1000 := 1000
-
-	vouchersToSeed := []SeedVoucher{
-		{
-			Code:           "WELCOME10",
-			CountryID:      "MY",
-			VoucherType:    "CART_DISCOUNT",
-			DiscountType:   "PERCENTAGE",
-			DiscountValue:  10,
-			MinSpend:       0,
-			MaxDiscountCap: &cap500,
-		},
-		{
-			Code:          "TEALIVE5",
-			CountryID:     "MY",
-			BrandID:       &tealiveBrand,
-			VoucherType:   "BRAND_DISCOUNT",
-			DiscountType:  "FIXED_AMOUNT",
-			DiscountValue: 500,  // RM 5.00 off
-			MinSpend:      1000, // Min spend RM 10.00
-		},
-		{
-			Code:           "BASKBEAR30",
-			CountryID:      "MY",
-			BrandID:        &baskbearBrand,
-			VoucherType:    "BRAND_DISCOUNT",
-			DiscountType:   "PERCENTAGE",
-			DiscountValue:  30,
-			MinSpend:       1500,     // Min spend RM 15.00
-			MaxDiscountCap: &cap1000, // RM 10.00 max cap
-		},
-		{
-			Code:          "LOOBDELIGHT",
-			CountryID:     "MY",
-			VoucherType:   "CART_DISCOUNT",
-			DiscountType:  "FIXED_AMOUNT",
-			DiscountValue: 800,  // RM 8.00 off
-			MinSpend:      2000, // Min spend RM 20.00
-		},
-		{
-			Code:          "THAI_WELCOME",
-			CountryID:     "TH",
-			VoucherType:   "CART_DISCOUNT",
-			DiscountType:  "PERCENTAGE",
-			DiscountValue: 15,
-			MinSpend:      0,
-		},
-	}
-
-	for _, v := range vouchersToSeed {
-		if country != "" && v.CountryID != country {
+	// 4. Link user_vouchers
+	for _, uv := range data.UserVouchers {
+		if targetCountry != "" && uv.CountryID != targetCountry {
 			continue
 		}
 
-		res, err := db.ExecContext(ctx, `
+		var voucherID int
+		err := db.QueryRowContext(ctx, "SELECT id FROM vouchers WHERE code = ? AND country_id = ?", uv.Code, uv.CountryID).Scan(&voucherID)
+		if err != nil {
+			log.Printf("Voucher %s in %s not found when linking to user: %v", uv.Code, uv.CountryID, err)
+			continue
+		}
+
+		_, err = db.ExecContext(ctx, `
+			INSERT INTO user_vouchers (user_id, voucher_id, status)
+			VALUES (?, ?, ?)
+			ON DUPLICATE KEY UPDATE status = VALUES(status)
+		`, data.User.ID, voucherID, uv.Status)
+		if err != nil {
+			log.Printf("Failed to link voucher %s to user: %v", uv.Code, err)
+		}
+	}
+
+	// 5. Seed transaction history (orders)
+	capturedWalletSpendByCountry := map[string]int{}
+	capturedLoyaltyEarnByCountry := map[string]int{}
+	for _, t := range data.Transactions {
+		if targetCountry != "" && t.CountryID != targetCountry {
+			continue
+		}
+		if t.Payment != nil && t.Payment.MethodCode == "EWALLET" && t.Payment.Status == "CAPTURED" {
+			capturedWalletSpendByCountry[t.CountryID] += t.Payment.Amount
+		}
+		if t.Payment != nil && t.Payment.Status == "CAPTURED" {
+			points := t.Payment.Amount / 100
+			if points <= 0 && t.Payment.Amount > 0 {
+				points = 1
+			}
+			capturedLoyaltyEarnByCountry[t.CountryID] += points
+		}
+	}
+	for _, w := range data.Wallets {
+		if targetCountry != "" && w.CountryID != targetCountry {
+			continue
+		}
+		initialBalance := w.Balance + capturedWalletSpendByCountry[w.CountryID]
+		walletRunningBalance[w.CountryID] = initialBalance
+		_, _ = db.ExecContext(ctx, `
+			INSERT IGNORE INTO wallet_transactions (
+				user_id, country_id, transaction_type, amount, balance_after, currency_code, reference_type, reference_id, description
+			)
+			VALUES (?, ?, 'TOPUP', ?, ?, ?, 'SEED', CONCAT(?, '-initial-wallet'), 'Initial demo wallet balance')
+		`, data.User.ID, w.CountryID, initialBalance, initialBalance, w.CurrencyCode, w.CountryID)
+	}
+	loyaltyRunningBalance := map[string]int{}
+	for _, l := range data.LoyaltyAccounts {
+		if targetCountry != "" && l.CountryID != targetCountry {
+			continue
+		}
+		openingPoints := l.Points - capturedLoyaltyEarnByCountry[l.CountryID]
+		if openingPoints < 0 {
+			openingPoints = 0
+		}
+		loyaltyRunningBalance[l.CountryID] = openingPoints
+		if openingPoints > 0 {
+			_, _ = db.ExecContext(ctx, `
+				INSERT IGNORE INTO loyalty_transactions (
+					user_id, country_id, transaction_type, points_delta, balance_after, reference_type, reference_id, description
+				)
+				VALUES (?, ?, 'ADJUSTMENT', ?, ?, 'SEED', CONCAT(?, '-initial-points'), 'Initial demo loyalty points')
+			`, data.User.ID, l.CountryID, openingPoints, openingPoints, l.CountryID)
+		}
+	}
+
+	for _, t := range data.Transactions {
+		if targetCountry != "" && t.CountryID != targetCountry {
+			continue
+		}
+
+		// Find store ID from store code
+		var storeID int
+		err := db.QueryRowContext(ctx, "SELECT id FROM stores WHERE store_code = ?", t.StoreCode).Scan(&storeID)
+		if err != nil {
+			log.Printf("Failed to find store ID for store_code %s: %v", t.StoreCode, err)
+			continue
+		}
+
+		chargesPayload := string(t.ChargesPayload)
+		if chargesPayload == "" || chargesPayload == "null" {
+			chargesPayload = "[]"
+		}
+
+		// Check if order exists
+		var existingCount int
+		_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM order_intents WHERE tracking_id = ?", t.TrackingID).Scan(&existingCount)
+
+		if existingCount > 0 {
+			// Update order
+			_, err = db.ExecContext(ctx, `
+				UPDATE order_intents
+				SET trace_id = ?, idempotency_key = ?, store_id = ?, country_id = ?,
+				    fulfillment_type = ?, status = ?, subtotal = ?, charges_payload = CAST(? AS JSON),
+				    tax_amount = ?, discount_amount = ?, total_amount = ?, voucher_code = ?,
+				    cart_payload = CAST(? AS JSON), created_at = ?
+				WHERE tracking_id = ?
+			`, t.TraceID, t.IdempotencyKey, storeID, t.CountryID, t.FulfillmentType, t.Status, t.Subtotal, chargesPayload, t.TaxAmount, t.DiscountAmount, t.TotalAmount, t.VoucherCode, string(t.CartPayload), t.CreatedAt, t.TrackingID)
+		} else {
+			// Insert order
+			_, err = db.ExecContext(ctx, `
+				INSERT INTO order_intents (
+					tracking_id, trace_id, idempotency_key, user_id, store_id, country_id,
+					fulfillment_type, status, subtotal, charges_payload, tax_amount, discount_amount, total_amount,
+					voucher_code, cart_payload, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, ?, CAST(? AS JSON), ?)
+			`, t.TrackingID, t.TraceID, t.IdempotencyKey, data.User.ID, storeID, t.CountryID, t.FulfillmentType, t.Status, t.Subtotal, chargesPayload, t.TaxAmount, t.DiscountAmount, t.TotalAmount, t.VoucherCode, string(t.CartPayload), t.CreatedAt)
+		}
+		if err != nil {
+			log.Printf("Failed to seed order %s: %v", t.TrackingID, err)
+			continue
+		}
+
+		// Seed payment transaction if provided
+		if t.Payment != nil {
+			_, err = db.ExecContext(ctx, `
+				INSERT INTO payment_transactions (id, order_tracking_id, country_id, user_id, provider, payment_method_code, status, currency_code, amount)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ON DUPLICATE KEY UPDATE
+					status = VALUES(status),
+					amount = VALUES(amount)
+			`, t.Payment.ID, t.TrackingID, t.CountryID, data.User.ID, t.Payment.Provider, t.Payment.MethodCode, t.Payment.Status, t.Payment.CurrencyCode, t.Payment.Amount)
+			if err != nil {
+				log.Printf("Failed to seed payment transaction for order %s: %v", t.TrackingID, err)
+			}
+			if t.Payment.Status == "CAPTURED" {
+				if t.Payment.MethodCode == "EWALLET" {
+					walletRunningBalance[t.CountryID] -= t.Payment.Amount
+					_, _ = db.ExecContext(ctx, `
+						INSERT IGNORE INTO wallet_transactions (
+							user_id, country_id, transaction_type, amount, balance_after, currency_code,
+							reference_type, reference_id, description, created_at
+						)
+						VALUES (?, ?, 'SPEND', ?, ?, ?, 'PAYMENT', ?, ?, ?)
+					`, data.User.ID, t.CountryID, -t.Payment.Amount, walletRunningBalance[t.CountryID], t.Payment.CurrencyCode, t.Payment.ID, "Order "+t.TrackingID, t.CreatedAt)
+				}
+				points := t.Payment.Amount / 100
+				if points <= 0 && t.Payment.Amount > 0 {
+					points = 1
+				}
+				if points > 0 {
+					loyaltyRunningBalance[t.CountryID] += points
+					_, _ = db.ExecContext(ctx, `
+						INSERT IGNORE INTO loyalty_transactions (
+							user_id, country_id, transaction_type, points_delta, balance_after,
+							reference_type, reference_id, description, created_at
+						)
+						VALUES (?, ?, 'EARN', ?, ?, 'PAYMENT', ?, ?, ?)
+					`, data.User.ID, t.CountryID, points, loyaltyRunningBalance[t.CountryID], t.Payment.ID, "Order "+t.TrackingID, t.CreatedAt)
+				}
+			}
+		}
+	}
+}
+
+func seedRegionalVouchers(db *sql.DB, countryID string, vouchers []VoucherData) {
+	ctx := context.Background()
+	log.Printf("Seeding vouchers for %s...", countryID)
+	for _, v := range vouchers {
+		var applicableStoreIDs any = nil
+		if len(v.ApplicableStoreIDs) > 0 && string(v.ApplicableStoreIDs) != "null" {
+			applicableStoreIDs = string(v.ApplicableStoreIDs)
+		}
+		var applicableCategoryIDs any = nil
+		if len(v.ApplicableCategoryIDs) > 0 && string(v.ApplicableCategoryIDs) != "null" {
+			applicableCategoryIDs = string(v.ApplicableCategoryIDs)
+		}
+		var applicableItemIDs any = nil
+		if len(v.ApplicableItemIDs) > 0 && string(v.ApplicableItemIDs) != "null" {
+			applicableItemIDs = string(v.ApplicableItemIDs)
+		}
+		var applicablePaymentMethods any = nil
+		if len(v.ApplicablePaymentMethods) > 0 && string(v.ApplicablePaymentMethods) != "null" {
+			applicablePaymentMethods = string(v.ApplicablePaymentMethods)
+		}
+
+		_, err := db.ExecContext(ctx, `
 			INSERT INTO vouchers (
 				code, country_id, brand_id, voucher_type, discount_type,
-				discount_value, min_spend, max_discount_cap, starts_at, expires_at, is_active
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '2026-01-01 00:00:00', '2030-01-01 00:00:00', true)
+				discount_value, min_spend, max_discount_cap, voided_at,
+				max_redemptions, max_redemptions_per_user, allow_promo_items,
+				applicable_store_ids, applicable_category_ids, applicable_item_ids, applicable_payment_methods,
+				starts_at, expires_at, is_active
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), '2026-01-01 00:00:00', '2030-01-01 00:00:00', true)
 			ON DUPLICATE KEY UPDATE
 				discount_value = VALUES(discount_value),
 				min_spend = VALUES(min_spend),
 				max_discount_cap = VALUES(max_discount_cap),
-				is_active = true,
-				id = LAST_INSERT_ID(id)
-		`, v.Code, v.CountryID, v.BrandID, v.VoucherType, v.DiscountType, v.DiscountValue, v.MinSpend, v.MaxDiscountCap)
+				voided_at = VALUES(voided_at),
+				max_redemptions = VALUES(max_redemptions),
+				max_redemptions_per_user = VALUES(max_redemptions_per_user),
+				allow_promo_items = VALUES(allow_promo_items),
+				applicable_store_ids = VALUES(applicable_store_ids),
+				applicable_category_ids = VALUES(applicable_category_ids),
+				applicable_item_ids = VALUES(applicable_item_ids),
+				applicable_payment_methods = VALUES(applicable_payment_methods),
+				is_active = true
+		`, v.Code, countryID, v.BrandID, v.VoucherType, v.DiscountType, v.DiscountValue, v.MinSpend, v.MaxDiscountCap, v.VoidedAt, v.MaxRedemptions, v.MaxRedemptionsPerUser, v.AllowPromoItems, applicableStoreIDs, applicableCategoryIDs, applicableItemIDs, applicablePaymentMethods)
 		if err != nil {
 			log.Printf("Failed to seed voucher %s: %v", v.Code, err)
-			continue
-		}
-
-		voucherID, _ := res.LastInsertId()
-		if voucherID == 0 {
-			_ = db.QueryRowContext(ctx, "SELECT id FROM vouchers WHERE code = ?", v.Code).Scan(&voucherID)
-		}
-
-		// Automatically link the voucher in user_vouchers for mock_user_001
-		if v.CountryID == "MY" && voucherID > 0 {
-			_, err = db.ExecContext(ctx, `
-				INSERT INTO user_vouchers (user_id, voucher_id, status)
-				VALUES ('mock_user_001', ?, 'AVAILABLE')
-				ON DUPLICATE KEY UPDATE status = 'AVAILABLE'
-			`, voucherID)
-			if err != nil {
-				log.Printf("Failed to link voucher %s to mock_user_001: %v", v.Code, err)
-			}
 		}
 	}
 }

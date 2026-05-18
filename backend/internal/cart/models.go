@@ -12,6 +12,18 @@ type CartItemRequest struct {
 // CartItemUpdateRequest is the payload for replacing an existing cart line.
 type CartItemUpdateRequest CartItemRequest
 
+// CartUpdateRequest is the consolidated mutation request.
+// The "method" field determines the operation: upsert, update, remove, clear.
+type CartUpdateRequest struct {
+	Method           string `json:"method"`
+	UserID           string `json:"user_id"`
+	StoreID          int    `json:"store_id"`
+	ItemID           int64  `json:"item_id"`
+	MenuItemID       int    `json:"menu_item_id"`
+	Quantity         int    `json:"quantity"`
+	CustomizationIDs []int  `json:"customization_option_ids"`
+}
+
 // CartItem is the internal representation of a cart line-item (from DB).
 type CartItem struct {
 	ID               int64

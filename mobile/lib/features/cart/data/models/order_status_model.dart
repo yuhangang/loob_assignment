@@ -1,9 +1,12 @@
+import 'checkout_response_model.dart';
+
 /// Mapped from Go `checkout.OrderStatus`.
 class OrderStatusModel {
   final String orderTrackingId;
   final String status;
   final String paymentStatus;
   final int subtotal;
+  final List<ChargeLineModel> charges;
   final int taxAmount;
   final int discountAmount;
   final int totalAmount;
@@ -15,6 +18,7 @@ class OrderStatusModel {
     required this.status,
     required this.paymentStatus,
     required this.subtotal,
+    this.charges = const [],
     required this.taxAmount,
     required this.discountAmount,
     required this.totalAmount,
@@ -28,6 +32,9 @@ class OrderStatusModel {
       status: json['status'] as String? ?? '',
       paymentStatus: json['payment_status'] as String? ?? '',
       subtotal: json['subtotal'] as int? ?? 0,
+      charges: (json['charges'] as List<dynamic>? ?? const [])
+          .map((e) => ChargeLineModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
       taxAmount: json['tax_amount'] as int? ?? 0,
       discountAmount: json['discount_amount'] as int? ?? 0,
       totalAmount: json['total_amount'] as int? ?? 0,

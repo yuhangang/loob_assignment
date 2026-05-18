@@ -24,11 +24,24 @@ class UserProfileLoading extends UserProfileState {
 
 class UserProfileLoaded extends UserProfileState {
   final UserProfileModel profile;
+  final WalletHistoryModel walletHistory;
+  final LoyaltyHistoryModel loyaltyHistory;
+  final bool isTopUpSubmitting;
 
-  const UserProfileLoaded(this.profile);
+  const UserProfileLoaded(
+    this.profile, {
+    required this.walletHistory,
+    required this.loyaltyHistory,
+    this.isTopUpSubmitting = false,
+  });
 
   @override
-  List<Object?> get props => [profile];
+  List<Object?> get props => [
+    profile,
+    walletHistory,
+    loyaltyHistory,
+    isTopUpSubmitting,
+  ];
 }
 
 class UserProfileError extends UserProfileState {
@@ -46,14 +59,22 @@ class UserProfileCubit extends Cubit<UserProfileState> {
   final UserProfileRepository _repository;
 
   UserProfileCubit({UserProfileRepository? repository})
-      : _repository = repository ?? sl<UserProfileRepository>(),
-        super(const UserProfileInitial());
+    : _repository = repository ?? sl<UserProfileRepository>(),
+      super(const UserProfileInitial());
 
   Future<void> loadProfile() async {
     emit(const UserProfileLoading());
     try {
       final profile = await _repository.getProfile();
-      emit(UserProfileLoaded(profile));
+      final walletHistory = await _repository.getWalletHistory();
+      final loyaltyHistory = await _repository.getLoyaltyHistory();
+      emit(
+        UserProfileLoaded(
+          profile,
+          walletHistory: walletHistory,
+          loyaltyHistory: loyaltyHistory,
+        ),
+      );
     } catch (e) {
       emit(UserProfileError(e.toString()));
     }
@@ -69,7 +90,43 @@ class UserProfileCubit extends Cubit<UserProfileState> {
       final updatedProfile = await _repository.updateProfile(
         preferredLanguage: backendLanguage,
       );
-      emit(UserProfileLoaded(updatedProfile));
+      final walletHistory = await _repository.getWalletHistory();
+      final loyaltyHistory = await _repository.getLoyaltyHistory();
+      emit(
+        UserProfileLoaded(
+          updatedProfile,
+          walletHistory: walletHistory,
+          loyaltyHistory: loyaltyHistory,
+        ),
+      );
+    } catch (e) {
+      emit(UserProfileError(e.toString()));
+    }
+  }
+
+  Future<void> topUpWallet(int amount) async {
+    final currentState = state;
+    if (currentState is! UserProfileLoaded) return;
+
+    emit(
+      UserProfileLoaded(
+        currentState.profile,
+        walletHistory: currentState.walletHistory,
+        loyaltyHistory: currentState.loyaltyHistory,
+        isTopUpSubmitting: true,
+      ),
+    );
+    try {
+      final walletHistory = await _repository.topUpWallet(amount);
+      final profile = await _repository.getProfile();
+      final loyaltyHistory = await _repository.getLoyaltyHistory();
+      emit(
+        UserProfileLoaded(
+          profile,
+          walletHistory: walletHistory,
+          loyaltyHistory: loyaltyHistory,
+        ),
+      );
     } catch (e) {
       emit(UserProfileError(e.toString()));
     }

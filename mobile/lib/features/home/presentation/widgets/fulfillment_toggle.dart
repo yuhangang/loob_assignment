@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/tokens/spacing.dart';
+import '../../../../core/utils/extensions.dart';
 import '../../data/models/app_config_model.dart';
 
 class FulfillmentToggle extends StatelessWidget {
@@ -15,32 +16,6 @@ class FulfillmentToggle extends StatelessWidget {
     required this.isDeliverySelected,
     required this.onToggle,
   });
-
-  void _showSimulatedAction(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              Icons.check_circle_outline_rounded,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,8 +47,7 @@ class FulfillmentToggle extends StatelessWidget {
               onTap: () {
                 final enabled = config?.featureToggles.deliveryEnabled ?? true;
                 if (!enabled) {
-                  _showSimulatedAction(
-                    context,
+                  context.showSuccessSnackBar(
                     context.l10n.deliveryOfflineWarning,
                   );
                   return;
@@ -136,8 +110,7 @@ class FulfillmentToggle extends StatelessWidget {
               onTap: () {
                 final enabled = config?.featureToggles.pickupEnabled ?? true;
                 if (!enabled) {
-                  _showSimulatedAction(
-                    context,
+                  context.showSuccessSnackBar(
                     context.l10n.pickupOfflineWarning,
                   );
                   return;

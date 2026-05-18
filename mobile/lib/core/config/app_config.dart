@@ -20,7 +20,6 @@ enum AppEnv {
 class AppConfig {
   final AppEnv env;
   final String baseUrl;
-  final String cdnBaseUrl;
   final String defaultCountryCode;
   final String defaultLanguage;
   final String appName;
@@ -28,7 +27,6 @@ class AppConfig {
   const AppConfig({
     required this.env,
     required this.baseUrl,
-    required this.cdnBaseUrl,
     this.defaultCountryCode = 'MY',
     this.defaultLanguage = 'en',
     this.appName = 'Loob',
@@ -41,7 +39,6 @@ class AppConfig {
         return const AppConfig(
           env: AppEnv.devMY,
           baseUrl: 'http://localhost:8080',
-          cdnBaseUrl: 'http://localhost:8080/cdn',
           defaultCountryCode: 'MY',
           defaultLanguage: 'en',
         );
@@ -49,7 +46,6 @@ class AppConfig {
         return const AppConfig(
           env: AppEnv.devTH,
           baseUrl: 'http://localhost:8080',
-          cdnBaseUrl: 'http://localhost:8080/cdn',
           defaultCountryCode: 'TH',
           defaultLanguage: 'th',
         );
@@ -57,7 +53,6 @@ class AppConfig {
         return const AppConfig(
           env: AppEnv.stagingMY,
           baseUrl: 'https://staging-api.loob.com',
-          cdnBaseUrl: 'https://staging-cdn.loob.com',
           defaultCountryCode: 'MY',
           defaultLanguage: 'en',
         );
@@ -65,7 +60,6 @@ class AppConfig {
         return const AppConfig(
           env: AppEnv.stagingTH,
           baseUrl: 'https://staging-api.loob.com',
-          cdnBaseUrl: 'https://staging-cdn.loob.com',
           defaultCountryCode: 'TH',
           defaultLanguage: 'th',
         );
@@ -73,7 +67,6 @@ class AppConfig {
         return const AppConfig(
           env: AppEnv.prodMY,
           baseUrl: 'https://api.loob.com',
-          cdnBaseUrl: 'https://cdn.loob.com',
           defaultCountryCode: 'MY',
           defaultLanguage: 'en',
         );
@@ -81,7 +74,6 @@ class AppConfig {
         return const AppConfig(
           env: AppEnv.prodTH,
           baseUrl: 'https://api.loob.com',
-          cdnBaseUrl: 'https://cdn.loob.com',
           defaultCountryCode: 'TH',
           defaultLanguage: 'th',
         );

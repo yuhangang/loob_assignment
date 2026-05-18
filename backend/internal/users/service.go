@@ -11,14 +11,18 @@ type ProfileRepository interface {
 	EnsureAccount(ctx context.Context, userID string, country Country) error
 	GetProfile(ctx context.Context, userID, countryID string) (Profile, error)
 	UpdateProfile(ctx context.Context, userID string, update ProfileUpdate) error
+	ListWalletTransactions(ctx context.Context, userID, countryID string, limit int) (WalletHistory, error)
+	ListLoyaltyTransactions(ctx context.Context, userID, countryID string, limit int) (LoyaltyHistory, error)
+	TopUpWallet(ctx context.Context, userID string, country Country, amount int, description string) (WalletHistory, error)
 }
 
 type Service struct {
-	repo ProfileRepository
+	repo          ProfileRepository
+	publicBaseURL string
 }
 
-func NewService(repo ProfileRepository) *Service {
-	return &Service{repo: repo}
+func NewService(repo ProfileRepository, publicBaseURL string) *Service {
+	return &Service{repo: repo, publicBaseURL: publicBaseURL}
 }
 
 func (s *Service) Profile(ctx context.Context, countryID, userID string) (Profile, error) {
@@ -37,11 +41,30 @@ func (s *Service) Profile(ctx context.Context, countryID, userID string) (Profil
 	if err := s.repo.EnsureAccount(ctx, userID, country); err != nil {
 		return Profile{}, err
 	}
-	return s.repo.GetProfile(ctx, userID, country.ID)
+	prof, err := s.repo.GetProfile(ctx, userID, country.ID)
+	if err != nil {
+		return Profile{}, err
+	}
+	prof.AvatarURL = resolveAssetURL(s.publicBaseURL, prof.AvatarURL)
+	return prof, nil
 }
 
 func (s *Service) UpdateProfile(ctx context.Context, countryID, userID string, req UpdateProfileRequest) (Profile, error) {
-	current, err := s.Profile(ctx, countryID, userID)
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return Profile{}, ErrUserIDRequired
+	}
+	country, err := s.repo.GetCountry(ctx, countryID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Profile{}, ErrUnsupportedCountry
+		}
+		return Profile{}, err
+	}
+	if err := s.repo.EnsureAccount(ctx, userID, country); err != nil {
+		return Profile{}, err
+	}
+	current, err := s.repo.GetProfile(ctx, userID, country.ID)
 	if err != nil {
 		return Profile{}, err
 	}
@@ -64,7 +87,12 @@ func (s *Service) UpdateProfile(ctx context.Context, countryID, userID string, r
 		update.PhoneNumber = strings.TrimSpace(*req.PhoneNumber)
 	}
 	if req.AvatarURL != nil {
-		update.AvatarURL = strings.TrimSpace(*req.AvatarURL)
+		// Strip public base url prefix if user sends full URL in update payload
+		val := strings.TrimSpace(*req.AvatarURL)
+		if strings.HasPrefix(val, s.publicBaseURL) {
+			val = strings.TrimPrefix(val, s.publicBaseURL)
+		}
+		update.AvatarURL = val
 	}
 	if req.PreferredLanguage != nil {
 		update.PreferredLanguage = strings.TrimSpace(*req.PreferredLanguage)
@@ -79,10 +107,89 @@ func (s *Service) UpdateProfile(ctx context.Context, countryID, userID string, r
 	if err := s.repo.UpdateProfile(ctx, current.UserID, update); err != nil {
 		return Profile{}, err
 	}
-	return s.repo.GetProfile(ctx, current.UserID, countryID)
+	prof, err := s.repo.GetProfile(ctx, current.UserID, countryID)
+	if err != nil {
+		return Profile{}, err
+	}
+	prof.AvatarURL = resolveAssetURL(s.publicBaseURL, prof.AvatarURL)
+	return prof, nil
+}
+
+func (s *Service) WalletHistory(ctx context.Context, countryID, userID string) (WalletHistory, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return WalletHistory{}, ErrUserIDRequired
+	}
+	country, err := s.repo.GetCountry(ctx, countryID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return WalletHistory{}, ErrUnsupportedCountry
+		}
+		return WalletHistory{}, err
+	}
+	if err := s.repo.EnsureAccount(ctx, userID, country); err != nil {
+		return WalletHistory{}, err
+	}
+	return s.repo.ListWalletTransactions(ctx, userID, country.ID, defaultHistoryLimit)
+}
+
+func (s *Service) LoyaltyHistory(ctx context.Context, countryID, userID string) (LoyaltyHistory, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return LoyaltyHistory{}, ErrUserIDRequired
+	}
+	country, err := s.repo.GetCountry(ctx, countryID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return LoyaltyHistory{}, ErrUnsupportedCountry
+		}
+		return LoyaltyHistory{}, err
+	}
+	if err := s.repo.EnsureAccount(ctx, userID, country); err != nil {
+		return LoyaltyHistory{}, err
+	}
+	return s.repo.ListLoyaltyTransactions(ctx, userID, country.ID, defaultHistoryLimit)
+}
+
+func (s *Service) TopUpWallet(ctx context.Context, countryID, userID string, req WalletTopUpRequest) (WalletHistory, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return WalletHistory{}, ErrUserIDRequired
+	}
+	if req.Amount <= 0 {
+		return WalletHistory{}, ErrInvalidTopUpAmount
+	}
+	country, err := s.repo.GetCountry(ctx, countryID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return WalletHistory{}, ErrUnsupportedCountry
+		}
+		return WalletHistory{}, err
+	}
+	if err := s.repo.EnsureAccount(ctx, userID, country); err != nil {
+		return WalletHistory{}, err
+	}
+	return s.repo.TopUpWallet(ctx, userID, country, req.Amount, strings.TrimSpace(req.Description))
 }
 
 var (
 	ErrUnsupportedCountry = errors.New("unsupported country")
 	ErrUserIDRequired     = errors.New("user_id is required")
+	ErrInvalidTopUpAmount = errors.New("top-up amount must be greater than zero")
 )
+
+const defaultHistoryLimit = 50
+
+func resolveAssetURL(publicBaseURL, path string) string {
+	if path == "" {
+		return ""
+	}
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
+	}
+	publicBaseURL = strings.TrimRight(publicBaseURL, "/")
+	if strings.HasPrefix(path, "/") {
+		return publicBaseURL + path
+	}
+	return publicBaseURL + "/" + path
+}

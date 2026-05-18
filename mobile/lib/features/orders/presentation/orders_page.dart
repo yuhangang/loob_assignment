@@ -6,6 +6,7 @@ import '../../../core/localization/app_localizations.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
+import '../../../core/widgets/status_message.dart';
 import '../../cart/data/models/order_status_model.dart';
 import '../data/repositories/order_repository.dart';
 
@@ -69,21 +70,21 @@ class _OrdersPageState extends State<OrdersPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return _OrdersMessage(
+            return StatusMessage(
               icon: Icons.cloud_off_rounded,
               title: 'Unable to load orders',
               subtitle: 'Pull to refresh and try again.',
-              color: theme.colorScheme.error,
+              iconColor: theme.colorScheme.error,
             );
           }
 
           final orders = snapshot.data ?? const [];
           if (orders.isEmpty) {
-            return _OrdersMessage(
+            return StatusMessage(
               icon: Icons.receipt_long_outlined,
               title: 'No orders yet',
               subtitle: 'Orders created from checkout will appear here.',
-              color: theme.colorScheme.primary,
+              iconColor: theme.colorScheme.primary,
             );
           }
 
@@ -194,53 +195,6 @@ class _OrderCard extends StatelessWidget {
   }
 }
 
-class _OrdersMessage extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-
-  const _OrdersMessage({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 72, color: color),
-            const SizedBox(height: AppSpacing.lg),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.textTheme.bodyMedium?.color?.withValues(
-                  alpha: 0.65,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 extension on OrderStatusModel {
   String get statusLabel => status.isEmpty ? 'Order created' : status;

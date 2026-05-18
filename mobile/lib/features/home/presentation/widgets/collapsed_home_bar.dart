@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/config/app_config.dart';
+import '../../../../core/di/injection.dart';
 import '../../../../core/localization/language_cubit.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../settings/data/models/user_profile_model.dart';
@@ -38,8 +40,8 @@ class CollapsedHomeBar extends StatelessWidget {
               backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.05),
               backgroundImage: profile != null && profile!.avatarUrl.isNotEmpty
                   ? NetworkImage(profile!.avatarUrl)
-                  : const NetworkImage(
-                      'http://localhost:8080/cdn/cute_avatar.png',
+                  : NetworkImage(
+                      '${sl<AppConfig>().baseUrl}/cdn/cute_avatar.png',
                     ),
             ),
           ),

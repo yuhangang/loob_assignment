@@ -18,7 +18,8 @@ type CheckoutRepository interface {
 	GetPricedItems(ctx context.Context, storeID int, zoneID string, itemIDs []int) (map[int]PricedItem, error)
 	GetOptionPrices(ctx context.Context, storeID int, zoneID string, optionIDs []int) (map[int]OptionPrice, error)
 	GetCustomizationRules(ctx context.Context, menuItemIDs []int) ([]CustomizationGroupRule, map[int]CustomizationOptionRule, error)
-	GetVoucher(ctx context.Context, countryID, code string) (Voucher, error)
+	GetVoucher(ctx context.Context, countryID, userID, code string) (Voucher, error)
+	ListChargeDefinitions(ctx context.Context, countryID string, store Store, fulfillment string) ([]ChargeDefinition, error)
 	FindIntentByIdempotency(ctx context.Context, countryID, userID, key string) (IntentWithPayment, error)
 	CreateIntentWithPayment(ctx context.Context, intent Intent, payment PaymentTransaction) error
 	CreatePaymentIfMissing(ctx context.Context, payment PaymentTransaction) (PaymentTransaction, error)
@@ -109,6 +110,7 @@ func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req Checkout
 	}
 
 	subtotal := 0
+	lines := make([]pricedCartLine, 0, len(req.Items))
 	for _, item := range req.Items {
 		pricedItem := pricedItems[item.MenuItemID]
 		lineUnitPrice := pricedItem.BasePrice
@@ -119,22 +121,56 @@ func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req Checkout
 			}
 			lineUnitPrice += option.PriceAdjustment
 		}
-		subtotal += lineUnitPrice * item.Quantity
+		lineSubtotal := lineUnitPrice * item.Quantity
+		subtotal += lineSubtotal
+		lines = append(lines, pricedCartLine{
+			MenuItemID:  item.MenuItemID,
+			CategoryID:  pricedItem.CategoryID,
+			BrandID:     pricedItem.BrandID,
+			Quantity:    item.Quantity,
+			Subtotal:    lineSubtotal,
+			IsPromoItem: pricedItem.IsPromoItem,
+		})
 	}
 
 	discount := 0
 	if strings.TrimSpace(req.VoucherCode) != "" {
-		discount, err = s.discount(ctx, rc.CountryCode, req.VoucherCode, subtotal, pricedItems)
+		discount, err = s.discount(ctx, voucherEligibilityRequest{
+			CountryID:     rc.CountryCode,
+			UserID:        req.UserID,
+			Code:          req.VoucherCode,
+			StoreID:       store.ID,
+			ZoneID:        store.ZoneID,
+			PaymentMethod: req.PaymentMethod,
+			Subtotal:      subtotal,
+			Lines:         lines,
+		})
 		if err != nil {
 			return CheckoutResponse{}, err
 		}
 	}
 
-	taxAmount := int(math.Round(float64(subtotal-discount) * country.TaxRate))
-	total := subtotal - discount + taxAmount
-	if total < 0 {
-		total = 0
+	netItemAmount := subtotal - discount
+	if netItemAmount < 0 {
+		netItemAmount = 0
 	}
+	chargeDefinitions, err := s.repo.ListChargeDefinitions(ctx, rc.CountryCode, store, req.Fulfillment)
+	if err != nil {
+		return CheckoutResponse{}, err
+	}
+	charges := calculateCharges(chargeDefinitions, chargeCalculationRequest{
+		Subtotal: subtotal,
+		TaxRate:  country.TaxRate,
+	})
+	itemTaxAmount := int(math.Round(float64(netItemAmount) * country.TaxRate))
+	chargeTotalAmount := 0
+	chargeTaxAmount := 0
+	for _, charge := range charges {
+		chargeTotalAmount += charge.TotalAmount
+		chargeTaxAmount += charge.TaxAmount
+	}
+	taxAmount := itemTaxAmount + chargeTaxAmount
+	total := netItemAmount + itemTaxAmount + chargeTotalAmount
 
 	paymentReq := payments.StartPaymentRequest{
 		CountryID:    rc.CountryCode,
@@ -167,6 +203,7 @@ func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req Checkout
 		Fulfillment:    req.Fulfillment,
 		Status:         "PAYMENT_PENDING",
 		Subtotal:       subtotal,
+		Charges:        charges,
 		TaxAmount:      taxAmount,
 		DiscountAmount: discount,
 		TotalAmount:    total,
@@ -249,6 +286,52 @@ func (s *Service) createMissingPayment(ctx context.Context, intent Intent, metho
 	return responseFromIntent(IntentWithPayment{Intent: intent, Payment: payment}), nil
 }
 
+type chargeCalculationRequest struct {
+	Subtotal int
+	TaxRate  float64
+}
+
+func calculateCharges(definitions []ChargeDefinition, req chargeCalculationRequest) []ChargeLine {
+	lines := make([]ChargeLine, 0, len(definitions))
+	for _, definition := range definitions {
+		if definition.CalculationType != "FIXED_AMOUNT" || definition.Amount <= 0 {
+			continue
+		}
+		line := ChargeLine{
+			Code:         definition.Code,
+			Name:         definition.Name,
+			Scope:        definition.Scope,
+			Taxable:      definition.Taxable,
+			TaxInclusive: definition.TaxInclusive,
+		}
+		if definition.WaiverMinSubtotal.Valid && req.Subtotal >= int(definition.WaiverMinSubtotal.Int64) {
+			line.Waived = true
+			line.WaiverReason = definition.WaiverReason.String
+			lines = append(lines, line)
+			continue
+		}
+		if definition.Taxable && definition.TaxInclusive {
+			gross := definition.Amount
+			net := int(math.Round(float64(gross) / (1 + req.TaxRate)))
+			line.Amount = net
+			line.TaxableAmount = net
+			line.TaxAmount = gross - net
+			line.TotalAmount = gross
+			lines = append(lines, line)
+			continue
+		}
+		line.Amount = definition.Amount
+		line.TotalAmount = definition.Amount
+		if definition.Taxable {
+			line.TaxableAmount = definition.Amount
+			line.TaxAmount = int(math.Round(float64(definition.Amount) * req.TaxRate))
+			line.TotalAmount += line.TaxAmount
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
 func (s *Service) GetStatus(ctx context.Context, countryID, trackingID string) (OrderStatus, error) {
 	status, err := s.repo.GetStatus(ctx, countryID, trackingID)
 	if err != nil {
@@ -275,44 +358,229 @@ func (s *Service) ListOrders(ctx context.Context, countryID, userID string) ([]O
 	return orders, nil
 }
 
-func (s *Service) discount(ctx context.Context, countryID, code string, subtotal int, items map[int]PricedItem) (int, error) {
-	voucher, err := s.repo.GetVoucher(ctx, countryID, strings.ToUpper(strings.TrimSpace(code)))
+func (s *Service) ValidateVoucher(ctx context.Context, rc CheckoutContext, req VoucherValidationRequest) (VoucherValidationResponse, error) {
+	code := strings.ToUpper(strings.TrimSpace(req.VoucherCode))
+	if code == "" {
+		return VoucherValidationResponse{}, ErrVoucherNotFound
+	}
+	if strings.TrimSpace(req.UserID) == "" {
+		return VoucherValidationResponse{}, ErrUserRequired
+	}
+	if req.StoreID <= 0 {
+		return VoucherValidationResponse{}, ErrStoreRequired
+	}
+	if len(req.Items) == 0 {
+		return VoucherValidationResponse{}, ErrCartEmpty
+	}
+	for _, item := range req.Items {
+		if item.MenuItemID <= 0 || item.Quantity <= 0 {
+			return VoucherValidationResponse{}, ErrInvalidCartItem
+		}
+	}
+
+	store, err := s.repo.GetStore(ctx, rc.CountryCode, req.StoreID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return VoucherValidationResponse{}, ErrStoreNotFound
+		}
+		return VoucherValidationResponse{}, err
+	}
+	if !store.AcceptsOrders() {
+		return VoucherValidationResponse{}, ErrStoreClosed
+	}
+
+	itemIDs := uniqueItemIDs(req.Items)
+	pricedItems, err := s.repo.GetPricedItems(ctx, store.ID, store.ZoneID, itemIDs)
+	if err != nil {
+		return VoucherValidationResponse{}, err
+	}
+	if len(pricedItems) != len(itemIDs) {
+		return VoucherValidationResponse{}, ErrItemUnavailable
+	}
+	optionIDs := uniqueOptionIDs(req.Items)
+	optionPrices, err := s.repo.GetOptionPrices(ctx, store.ID, store.ZoneID, optionIDs)
+	if err != nil {
+		return VoucherValidationResponse{}, err
+	}
+	if len(optionPrices) != len(optionIDs) {
+		return VoucherValidationResponse{}, ErrInvalidCustomization
+	}
+
+	subtotal := 0
+	lines := make([]pricedCartLine, 0, len(req.Items))
+	for _, item := range req.Items {
+		pricedItem := pricedItems[item.MenuItemID]
+		lineUnitPrice := pricedItem.BasePrice
+		for _, optionID := range item.CustomizationIDs {
+			option := optionPrices[optionID]
+			if option.MenuItemID != item.MenuItemID {
+				return VoucherValidationResponse{}, ErrInvalidCustomization
+			}
+			lineUnitPrice += option.PriceAdjustment
+		}
+		lineSubtotal := lineUnitPrice * item.Quantity
+		subtotal += lineSubtotal
+		lines = append(lines, pricedCartLine{
+			MenuItemID:  item.MenuItemID,
+			CategoryID:  pricedItem.CategoryID,
+			BrandID:     pricedItem.BrandID,
+			Quantity:    item.Quantity,
+			Subtotal:    lineSubtotal,
+			IsPromoItem: pricedItem.IsPromoItem,
+		})
+	}
+
+	voucher, err := s.repo.GetVoucher(ctx, rc.CountryCode, req.UserID, code)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return VoucherValidationResponse{Code: code, IsValid: false, Reason: ErrVoucherNotFound.Error()}, nil
+		}
+		return VoucherValidationResponse{}, err
+	}
+	eligibleSubtotal := voucherEligibleSubtotal(voucher, voucherEligibilityRequest{
+		CountryID:     rc.CountryCode,
+		UserID:        req.UserID,
+		Code:          code,
+		StoreID:       store.ID,
+		ZoneID:        store.ZoneID,
+		PaymentMethod: req.PaymentMethod,
+		Subtotal:      subtotal,
+		Lines:         lines,
+	})
+	discount, err := s.discount(ctx, voucherEligibilityRequest{
+		CountryID:     rc.CountryCode,
+		UserID:        req.UserID,
+		Code:          code,
+		StoreID:       store.ID,
+		ZoneID:        store.ZoneID,
+		PaymentMethod: req.PaymentMethod,
+		Subtotal:      subtotal,
+		Lines:         lines,
+	})
+	if err != nil {
+		if errors.Is(err, ErrVoucherNotEligible) {
+			return VoucherValidationResponse{Code: code, IsValid: false, Reason: err.Error(), EligibleSubtotal: eligibleSubtotal}, nil
+		}
+		if errors.Is(err, ErrVoucherNotFound) {
+			return VoucherValidationResponse{Code: code, IsValid: false, Reason: err.Error()}, nil
+		}
+		return VoucherValidationResponse{}, err
+	}
+	return VoucherValidationResponse{
+		Code:             code,
+		IsValid:          true,
+		EligibleSubtotal: eligibleSubtotal,
+		DiscountAmount:   discount,
+	}, nil
+}
+
+type pricedCartLine struct {
+	MenuItemID  int
+	CategoryID  int
+	BrandID     int
+	Quantity    int
+	Subtotal    int
+	IsPromoItem bool
+}
+
+type voucherEligibilityRequest struct {
+	CountryID     string
+	UserID        string
+	Code          string
+	StoreID       int
+	ZoneID        string
+	PaymentMethod string
+	Subtotal      int
+	Lines         []pricedCartLine
+}
+
+func (s *Service) discount(ctx context.Context, req voucherEligibilityRequest) (int, error) {
+	voucher, err := s.repo.GetVoucher(ctx, req.CountryID, req.UserID, strings.ToUpper(strings.TrimSpace(req.Code)))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return 0, ErrVoucherNotFound
 		}
 		return 0, err
 	}
-	if subtotal < voucher.MinSpend {
+	eligibleSubtotal := voucherEligibleSubtotal(voucher, req)
+	if eligibleSubtotal <= 0 {
 		return 0, ErrVoucherNotEligible
 	}
-	if voucher.BrandID.Valid {
-		hasBrand := false
-		for _, item := range items {
-			if int64(item.BrandID) == voucher.BrandID.Int64 {
-				hasBrand = true
-				break
-			}
-		}
-		if !hasBrand {
-			return 0, ErrVoucherNotEligible
-		}
+	if eligibleSubtotal < voucher.MinSpend {
+		return 0, ErrVoucherNotEligible
+	}
+	if voucher.UserVoucherStatus.Valid && voucher.UserVoucherStatus.String != "AVAILABLE" {
+		return 0, ErrVoucherNotEligible
+	}
+	if voucher.ZoneID.Valid && voucher.ZoneID.String != req.ZoneID {
+		return 0, ErrVoucherNotEligible
+	}
+	if voucher.MaxRedemptions.Valid && voucher.TotalRedemptions >= int(voucher.MaxRedemptions.Int64) {
+		return 0, ErrVoucherNotEligible
+	}
+	if voucher.MaxRedemptionsPerUser.Valid && voucher.UserRedemptions >= int(voucher.MaxRedemptionsPerUser.Int64) {
+		return 0, ErrVoucherNotEligible
+	}
+	if len(voucher.ApplicablePaymentMethods) > 0 && !containsStringFold(voucher.ApplicablePaymentMethods, req.PaymentMethod) {
+		return 0, ErrVoucherNotEligible
 	}
 
 	var discount int
 	switch voucher.DiscountType {
 	case "PERCENTAGE":
-		discount = int(math.Round(float64(subtotal) * float64(voucher.DiscountValue) / 100))
+		discount = int(math.Round(float64(eligibleSubtotal) * float64(voucher.DiscountValue) / 100))
 		if voucher.MaxDiscountCap.Valid && discount > int(voucher.MaxDiscountCap.Int64) {
 			discount = int(voucher.MaxDiscountCap.Int64)
 		}
 	case "FIXED_AMOUNT":
 		discount = voucher.DiscountValue
 	}
-	if discount > subtotal {
-		return subtotal, nil
+	if discount > eligibleSubtotal {
+		return eligibleSubtotal, nil
 	}
 	return discount, nil
+}
+
+func voucherEligibleSubtotal(voucher Voucher, req voucherEligibilityRequest) int {
+	if len(voucher.ApplicableStoreIDs) > 0 && !containsInt(voucher.ApplicableStoreIDs, req.StoreID) {
+		return 0
+	}
+	eligibleSubtotal := 0
+	for _, line := range req.Lines {
+		if voucher.BrandID.Valid && int64(line.BrandID) != voucher.BrandID.Int64 {
+			continue
+		}
+		if !voucher.AllowPromoItems && line.IsPromoItem {
+			continue
+		}
+		if len(voucher.ApplicableCategoryIDs) > 0 && !containsInt(voucher.ApplicableCategoryIDs, line.CategoryID) {
+			continue
+		}
+		if len(voucher.ApplicableItemIDs) > 0 && !containsInt(voucher.ApplicableItemIDs, line.MenuItemID) {
+			continue
+		}
+		eligibleSubtotal += line.Subtotal
+	}
+	return eligibleSubtotal
+}
+
+func containsInt(values []int, want int) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsStringFold(values []string, want string) bool {
+	want = strings.TrimSpace(want)
+	for _, value := range values {
+		if strings.EqualFold(strings.TrimSpace(value), want) {
+			return true
+		}
+	}
+	return false
 }
 
 func orderStatusFromRow(status Status) OrderStatus {
@@ -321,6 +589,7 @@ func orderStatusFromRow(status Status) OrderStatus {
 		Status:         status.Status,
 		PaymentStatus:  status.PaymentStatus.String,
 		Subtotal:       status.Subtotal,
+		Charges:        chargeLineResponses(status.Charges),
 		TaxAmount:      status.TaxAmount,
 		DiscountAmount: status.DiscountAmount,
 		TotalAmount:    status.TotalAmount,
@@ -416,11 +685,35 @@ func responseFromIntent(intentWithPayment IntentWithPayment) CheckoutResponse {
 		OrderTrackingID: intent.TrackingID,
 		StatusURL:       "/api/v1/orders/" + intent.TrackingID + "/status",
 		Subtotal:        intent.Subtotal,
+		Charges:         chargeLineResponses(intent.Charges),
 		TaxAmount:       intent.TaxAmount,
 		DiscountAmount:  intent.DiscountAmount,
 		TotalAmount:     intent.TotalAmount,
 		Payment:         responsePayment,
 	}
+}
+
+func chargeLineResponses(lines []ChargeLine) []ChargeLineResponse {
+	if len(lines) == 0 {
+		return []ChargeLineResponse{}
+	}
+	responses := make([]ChargeLineResponse, 0, len(lines))
+	for _, line := range lines {
+		responses = append(responses, ChargeLineResponse{
+			Code:          line.Code,
+			Name:          line.Name,
+			Scope:         line.Scope,
+			Amount:        line.Amount,
+			TaxableAmount: line.TaxableAmount,
+			TaxAmount:     line.TaxAmount,
+			TotalAmount:   line.TotalAmount,
+			Taxable:       line.Taxable,
+			TaxInclusive:  line.TaxInclusive,
+			Waived:        line.Waived,
+			WaiverReason:  line.WaiverReason,
+		})
+	}
+	return responses
 }
 
 func uniqueItemIDs(items []CartItem) []int {

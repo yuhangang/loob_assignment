@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../core/config/app_config.dart';
+import '../../../core/di/injection.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/localization/language_cubit.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/brand.dart';
 import '../../../core/theme/theme_cubit.dart';
 import '../../../core/theme/tokens/spacing.dart';
-import '../../cart/presentation/cubit/cart_cubit.dart';
+import '../../cart/presentation/bloc/cart_bloc.dart';
+import '../../cart/presentation/bloc/cart_event.dart';
+import '../../cart/presentation/bloc/cart_state.dart';
 import '../data/models/catalog_model.dart';
 import '../data/models/store_model.dart';
 import 'menu_bloc.dart';
@@ -30,6 +34,7 @@ class _MenuPageState extends State<MenuPage> {
 
   int? _selectedStoreId;
   int? _selectedCategoryId;
+  int? _pendingStoreChangeWarningStoreId;
   bool _isPickup = true;
 
   // Set to track user favourites dynamically in memory
@@ -123,8 +128,25 @@ class _MenuPageState extends State<MenuPage> {
           bloc: _menuBloc,
           listener: (context, state) {
             if (state is MenuLoaded) {
-              context.read<CartCubit>().setStore(state.selectedStore);
+              context.read<CartBloc>().add(CartSetStore(state.selectedStore));
             }
+          },
+        ),
+        BlocListener<CartBloc, CartState>(
+          listener: (context, state) {
+            final pendingStoreId = _pendingStoreChangeWarningStoreId;
+            if (pendingStoreId == null ||
+                state.loadStatus != CartLoadStatus.loaded ||
+                state.storeId != pendingStoreId) {
+              return;
+            }
+
+            _pendingStoreChangeWarningStoreId = null;
+            if (state.items.isEmpty ||
+                (!state.hasUnavailableItems && !state.hasUnavailableOptions)) {
+              return;
+            }
+            _showCartAvailabilityWarning(state);
           },
         ),
       ],
@@ -425,8 +447,58 @@ class _MenuPageState extends State<MenuPage> {
     setState(() {
       _selectedStoreId = selected.id;
       _selectedCategoryId = null; // Reset category selection
+      _pendingStoreChangeWarningStoreId = selected.id;
     });
     _loadMenu(storeId: selected.id);
+  }
+
+  Future<void> _showCartAvailabilityWarning(CartState cartState) async {
+    if (!mounted) return;
+
+    final affectedItems = cartState.items.where((item) {
+      return !item.isAvailable || item.hasUnavailableOptions;
+    }).toList();
+
+    final details = affectedItems.take(4).map((item) {
+      final unavailableOptions = item.unavailableOptionNames;
+      if (!item.isAvailable) return item.product.name;
+      if (unavailableOptions.isEmpty) return item.product.name;
+      return '${item.product.name}: ${unavailableOptions.join(', ')}';
+    }).toList();
+
+    if (affectedItems.length > details.length) {
+      details.add('+${affectedItems.length - details.length} more');
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.l10n.cartAvailabilityChangedTitle),
+        content: Text(
+          [
+            context.l10n.cartAvailabilityChangedBody,
+            if (details.isNotEmpty) '',
+            ...details.map((detail) => '- $detail'),
+          ].join('\n'),
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(context.l10n.close),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.pushNamed(context, AppRouter.cart);
+            },
+            child: Text(context.l10n.myCart),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showCustomization(ProductModel product, String currency) async {
@@ -455,11 +527,13 @@ class _MenuPageState extends State<MenuPage> {
           .where((o) => allOptionIds.contains(o.id))
           .toList();
 
-      context.read<CartCubit>().addToCart(
-        product: product,
-        selectedOptions: selectedOptions,
-        customizationOptionIds: allOptionIds,
-        quantity: quantity,
+      context.read<CartBloc>().add(
+        CartItemAdded(
+          product: product,
+          selectedOptions: selectedOptions,
+          customizationOptionIds: allOptionIds,
+          quantity: quantity,
+        ),
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -477,11 +551,13 @@ class _MenuPageState extends State<MenuPage> {
       return;
     }
 
-    context.read<CartCubit>().addToCart(
-      product: product,
-      selectedOptions: const [],
-      customizationOptionIds: const [],
-      quantity: 1,
+    context.read<CartBloc>().add(
+      CartItemAdded(
+        product: product,
+        selectedOptions: const [],
+        customizationOptionIds: const [],
+        quantity: 1,
+      ),
     );
 
     ScaffoldMessenger.of(context).clearSnackBars();
@@ -557,8 +633,9 @@ class _SidebarCategoryTab extends StatelessWidget {
       }
 
       if (iconUrl.isNotEmpty) {
+        final resolvedIconUrl = iconUrl.startsWith('http') ? iconUrl : '${sl<AppConfig>().baseUrl}$iconUrl';
         iconWidget = SvgPicture.network(
-          'http://localhost:8080$iconUrl',
+          resolvedIconUrl,
           width: 24,
           height: 24,
           colorFilter: ColorFilter.mode(

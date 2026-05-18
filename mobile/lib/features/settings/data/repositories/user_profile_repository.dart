@@ -24,6 +24,18 @@ class UserProfileRepository {
     return _remote.getProfile(userId: currentUserId);
   }
 
+  Future<WalletHistoryModel> getWalletHistory() {
+    return _remote.getWalletHistory(userId: currentUserId);
+  }
+
+  Future<WalletHistoryModel> topUpWallet(int amount) {
+    return _remote.topUpWallet(userId: currentUserId, amount: amount);
+  }
+
+  Future<LoyaltyHistoryModel> getLoyaltyHistory() {
+    return _remote.getLoyaltyHistory(userId: currentUserId);
+  }
+
   Future<UserProfileModel> updateProfile({
     String? displayName,
     String? preferredLanguage,

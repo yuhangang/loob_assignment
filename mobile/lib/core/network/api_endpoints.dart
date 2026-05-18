@@ -30,12 +30,17 @@ class ApiEndpoints {
 
   // ── Vouchers ────────────────────────────────────────────────────────────────
   static const String vouchersWallet = '/api/v1/vouchers/wallet';
+  static const String vouchersValidate = '/api/v1/vouchers/validate';
 
   // ── Users ───────────────────────────────────────────────────────────────────
   static const String userProfile = '/api/v1/users/profile';
+  static const String userWalletHistory = '/api/v1/users/wallet/history';
+  static const String userWalletTopups = '/api/v1/users/wallet/topups';
+  static const String userLoyaltyHistory = '/api/v1/users/loyalty/history';
 
   // ── Cart ────────────────────────────────────────────────────────────────────
   static const String cart = '/api/v1/cart';
+  static const String cartUpdate = '/api/v1/cart/update';
   static const String cartItems = '/api/v1/cart/items';
   static String cartItem(int id) => '/api/v1/cart/items/$id';
 

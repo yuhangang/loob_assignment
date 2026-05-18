@@ -8,7 +8,8 @@ import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
-import '../../../cart/presentation/cubit/cart_cubit.dart';
+import '../../../cart/presentation/bloc/cart_bloc.dart';
+import '../../../cart/presentation/bloc/cart_event.dart';
 import '../../../menu/data/models/catalog_model.dart';
 import '../../../orders/data/models/local_order_model.dart';
 
@@ -24,32 +25,6 @@ class OrderAgainSection extends StatelessWidget {
     this.storeId = 0,
   });
 
-  void _showSimulatedAction(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              Icons.check_circle_outline_rounded,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
   /// Fetches the full product, then fast-adds the saved configuration when possible.
   Future<void> _reorder(
     BuildContext context,
@@ -57,7 +32,7 @@ class OrderAgainSection extends StatelessWidget {
   ) async {
     ProductModel fullProduct = orderItem.toProduct();
     try {
-      final cartState = context.read<CartCubit>().state;
+      final cartState = context.read<CartBloc>().state;
       final resolvedStoreId = storeId > 0 ? storeId : cartState.storeId;
       final response = await sl<ApiClient>().dio.get(
         ApiEndpoints.catalogItem(orderItem.menuItemId),
@@ -81,28 +56,26 @@ class OrderAgainSection extends StatelessWidget {
         orderItem,
         savedOptionIds,
       );
-      context.read<CartCubit>().addToCart(
+      context.read<CartBloc>().add(CartItemAdded(
         product: fullProduct,
         selectedOptions: selectedOptions,
         customizationOptionIds: savedOptionIds,
         quantity: orderItem.quantity < 1 ? 1 : orderItem.quantity,
-      );
-      _showSimulatedAction(
-        context,
+      ));
+      context.showSuccessSnackBar(
         context.l10n.addedToCartReorderToast(orderItem.name),
       );
       return;
     }
 
     if (fullProduct.customizationGroups.isEmpty) {
-      context.read<CartCubit>().addToCart(
+      context.read<CartBloc>().add(CartItemAdded(
         product: fullProduct,
         selectedOptions: const [],
         customizationOptionIds: const [],
         quantity: orderItem.quantity < 1 ? 1 : orderItem.quantity,
-      );
-      _showSimulatedAction(
-        context,
+      ));
+      context.showSuccessSnackBar(
         context.l10n.addedToCartReorderToast(orderItem.name),
       );
       return;
@@ -127,15 +100,14 @@ class OrderAgainSection extends StatelessWidget {
         .where((o) => allOptionIds.contains(o.id))
         .toList();
 
-    context.read<CartCubit>().addToCart(
+    context.read<CartBloc>().add(CartItemAdded(
       product: fullProduct,
       selectedOptions: selectedOptions,
       customizationOptionIds: allOptionIds,
       quantity: quantity,
-    );
+    ));
     if (!context.mounted) return;
-    _showSimulatedAction(
-      context,
+    context.showSuccessSnackBar(
       context.l10n.addedToCartReorderToast(orderItem.name),
     );
   }
@@ -222,7 +194,7 @@ class OrderAgainSection extends StatelessWidget {
                         width: 90,
                         height: double.infinity,
                         child: Image.network(
-                          'http://localhost:8080${product.imageUrlSm}',
+                          product.imageUrlSm,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) =>
                               Container(

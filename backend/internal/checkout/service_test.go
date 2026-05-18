@@ -15,7 +15,8 @@ type mockRepository struct {
 	getPricedItems          func(ctx context.Context, storeID int, zoneID string, itemIDs []int) (map[int]PricedItem, error)
 	getOptionPrices         func(ctx context.Context, storeID int, zoneID string, optionIDs []int) (map[int]OptionPrice, error)
 	getCustomizationRules   func(ctx context.Context, menuItemIDs []int) ([]CustomizationGroupRule, map[int]CustomizationOptionRule, error)
-	getVoucher              func(ctx context.Context, countryID, code string) (Voucher, error)
+	getVoucher              func(ctx context.Context, countryID, userID, code string) (Voucher, error)
+	listChargeDefinitions   func(ctx context.Context, countryID string, store Store, fulfillment string) ([]ChargeDefinition, error)
 	findIntentByIdempotency func(ctx context.Context, countryID, userID, key string) (IntentWithPayment, error)
 	createIntentWithPayment func(ctx context.Context, intent Intent, payment PaymentTransaction) error
 	createPaymentIfMissing  func(ctx context.Context, payment PaymentTransaction) (PaymentTransaction, error)
@@ -41,8 +42,14 @@ func (m *mockRepository) GetOptionPrices(ctx context.Context, storeID int, zoneI
 func (m *mockRepository) GetCustomizationRules(ctx context.Context, menuItemIDs []int) ([]CustomizationGroupRule, map[int]CustomizationOptionRule, error) {
 	return m.getCustomizationRules(ctx, menuItemIDs)
 }
-func (m *mockRepository) GetVoucher(ctx context.Context, countryID, code string) (Voucher, error) {
-	return m.getVoucher(ctx, countryID, code)
+func (m *mockRepository) GetVoucher(ctx context.Context, countryID, userID, code string) (Voucher, error) {
+	return m.getVoucher(ctx, countryID, userID, code)
+}
+func (m *mockRepository) ListChargeDefinitions(ctx context.Context, countryID string, store Store, fulfillment string) ([]ChargeDefinition, error) {
+	if m.listChargeDefinitions == nil {
+		return nil, nil
+	}
+	return m.listChargeDefinitions(ctx, countryID, store, fulfillment)
 }
 func (m *mockRepository) FindIntentByIdempotency(ctx context.Context, countryID, userID, key string) (IntentWithPayment, error) {
 	return m.findIntentByIdempotency(ctx, countryID, userID, key)
@@ -150,9 +157,9 @@ func TestValidateCustomizationsEnforcesGroupRules(t *testing.T) {
 
 func TestDiscount(t *testing.T) {
 	repo := &mockRepository{
-		getVoucher: func(ctx context.Context, countryID, code string) (Voucher, error) {
+		getVoucher: func(ctx context.Context, countryID, userID, code string) (Voucher, error) {
 			if code == "PERCENT10" {
-				return Voucher{Code: "PERCENT10", DiscountType: "PERCENTAGE", DiscountValue: 10, MinSpend: 100}, nil
+				return Voucher{Code: "PERCENT10", DiscountType: "PERCENTAGE", DiscountValue: 10, MinSpend: 100, AllowPromoItems: true}, nil
 			}
 			return Voucher{}, ErrNotFound
 		},
@@ -160,7 +167,13 @@ func TestDiscount(t *testing.T) {
 	svc := NewService(repo, nil)
 
 	t.Run("percentage discount", func(t *testing.T) {
-		d, err := svc.discount(context.Background(), "MY", "PERCENT10", 1000, nil)
+		d, err := svc.discount(context.Background(), voucherEligibilityRequest{
+			CountryID: "MY",
+			UserID:    "u1",
+			Code:      "PERCENT10",
+			Subtotal:  1000,
+			Lines:     []pricedCartLine{{MenuItemID: 1, CategoryID: 10, BrandID: 1, Subtotal: 1000}},
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,11 +183,145 @@ func TestDiscount(t *testing.T) {
 	})
 
 	t.Run("below min spend", func(t *testing.T) {
-		_, err := svc.discount(context.Background(), "MY", "PERCENT10", 50, nil)
+		_, err := svc.discount(context.Background(), voucherEligibilityRequest{
+			CountryID: "MY",
+			UserID:    "u1",
+			Code:      "PERCENT10",
+			Subtotal:  50,
+			Lines:     []pricedCartLine{{MenuItemID: 1, CategoryID: 10, BrandID: 1, Subtotal: 50}},
+		})
 		if !errors.Is(err, ErrVoucherNotEligible) {
 			t.Errorf("expected ErrVoucherNotEligible, got %v", err)
 		}
 	})
+}
+
+func TestDiscountEligibilityRules(t *testing.T) {
+	repo := &mockRepository{
+		getVoucher: func(ctx context.Context, countryID, userID, code string) (Voucher, error) {
+			switch code {
+			case "TEAONLY":
+				return Voucher{
+					Code:                     "TEAONLY",
+					BrandID:                  sql.NullInt64{Int64: 1, Valid: true},
+					DiscountType:             "FIXED_AMOUNT",
+					DiscountValue:            300,
+					MinSpend:                 500,
+					AllowPromoItems:          false,
+					ApplicableCategoryIDs:    []int{10},
+					ApplicablePaymentMethods: []string{"EWALLET"},
+					MaxRedemptions:           sql.NullInt64{Int64: 10, Valid: true},
+					MaxRedemptionsPerUser:    sql.NullInt64{Int64: 1, Valid: true},
+				}, nil
+			case "USEDUP":
+				return Voucher{
+					Code:                  "USEDUP",
+					DiscountType:          "FIXED_AMOUNT",
+					DiscountValue:         300,
+					AllowPromoItems:       true,
+					MaxRedemptionsPerUser: sql.NullInt64{Int64: 1, Valid: true},
+					UserRedemptions:       1,
+				}, nil
+			default:
+				return Voucher{}, ErrNotFound
+			}
+		},
+	}
+	svc := NewService(repo, nil)
+
+	discount, err := svc.discount(context.Background(), voucherEligibilityRequest{
+		CountryID:     "MY",
+		UserID:        "u1",
+		Code:          "TEAONLY",
+		StoreID:       1,
+		PaymentMethod: "EWALLET",
+		Subtotal:      2200,
+		Lines: []pricedCartLine{
+			{MenuItemID: 100, CategoryID: 10, BrandID: 1, Subtotal: 900},
+			{MenuItemID: 101, CategoryID: 10, BrandID: 1, Subtotal: 800, IsPromoItem: true},
+			{MenuItemID: 200, CategoryID: 12, BrandID: 2, Subtotal: 500},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if discount != 300 {
+		t.Fatalf("discount = %d, want 300", discount)
+	}
+
+	_, err = svc.discount(context.Background(), voucherEligibilityRequest{
+		CountryID:     "MY",
+		UserID:        "u1",
+		Code:          "TEAONLY",
+		StoreID:       1,
+		PaymentMethod: "CARD",
+		Subtotal:      900,
+		Lines:         []pricedCartLine{{MenuItemID: 100, CategoryID: 10, BrandID: 1, Subtotal: 900}},
+	})
+	if !errors.Is(err, ErrVoucherNotEligible) {
+		t.Fatalf("payment method error = %v, want %v", err, ErrVoucherNotEligible)
+	}
+
+	_, err = svc.discount(context.Background(), voucherEligibilityRequest{
+		CountryID: "MY",
+		UserID:    "u1",
+		Code:      "USEDUP",
+		Subtotal:  900,
+		Lines:     []pricedCartLine{{MenuItemID: 100, CategoryID: 10, BrandID: 1, Subtotal: 900}},
+	})
+	if !errors.Is(err, ErrVoucherNotEligible) {
+		t.Fatalf("used voucher error = %v, want %v", err, ErrVoucherNotEligible)
+	}
+}
+
+func TestCalculateChargesIncludesTaxablePackaging(t *testing.T) {
+	charges := calculateCharges([]ChargeDefinition{
+		{
+			Code:            "PACKAGING_FEE",
+			Name:            "Packaging fee",
+			Scope:           "ORDER",
+			CalculationType: "FIXED_AMOUNT",
+			Amount:          100,
+			Taxable:         true,
+		},
+	}, chargeCalculationRequest{
+		Subtotal: 1000,
+		TaxRate:  0.06,
+	})
+
+	if len(charges) != 1 {
+		t.Fatalf("expected 1 charge, got %d", len(charges))
+	}
+	charge := charges[0]
+	if charge.Code != "PACKAGING_FEE" || charge.Amount != 100 || charge.TaxAmount != 6 || charge.TotalAmount != 106 {
+		t.Fatalf("unexpected packaging charge: %+v", charge)
+	}
+}
+
+func TestCalculateChargesWaivesByMinimumSubtotal(t *testing.T) {
+	charges := calculateCharges([]ChargeDefinition{
+		{
+			Code:              "PACKAGING_FEE",
+			Name:              "Packaging fee",
+			Scope:             "ORDER",
+			CalculationType:   "FIXED_AMOUNT",
+			Amount:            100,
+			Taxable:           true,
+			WaiverMinSubtotal: sql.NullInt64{Int64: 2000, Valid: true},
+			WaiverReason:      sql.NullString{String: "MIN_PURCHASE", Valid: true},
+		},
+	}, chargeCalculationRequest{
+		Subtotal: 2500,
+		TaxRate:  0.06,
+	})
+
+	if len(charges) != 1 {
+		t.Fatalf("expected 1 charge, got %d", len(charges))
+	}
+	charge := charges[0]
+	if !charge.Waived || charge.TotalAmount != 0 || charge.TaxAmount != 0 || charge.WaiverReason != "MIN_PURCHASE" {
+		t.Fatalf("unexpected waived charge: %+v", charge)
+	}
 }
 
 func TestCheckoutRejectsClosedStore(t *testing.T) {
@@ -226,9 +373,10 @@ func TestListOrdersReturnsUserOrders(t *testing.T) {
 					Status:         "PAYMENT_PENDING",
 					PaymentStatus:  sql.NullString{String: "PENDING", Valid: true},
 					Subtotal:       1000,
+					Charges:        []ChargeLine{{Code: "PACKAGING_FEE", Name: "Packaging fee", Scope: "ORDER", Amount: 100, TaxAmount: 6, TotalAmount: 106, Taxable: true}},
 					TaxAmount:      60,
 					DiscountAmount: 0,
-					TotalAmount:    1060,
+					TotalAmount:    1166,
 					CreatedAt:      createdAt,
 					UpdatedAt:      createdAt,
 				},
@@ -246,5 +394,8 @@ func TestListOrdersReturnsUserOrders(t *testing.T) {
 	}
 	if orders[0].TrackingID != "MY-ORDER-001" || orders[0].PaymentStatus != "PENDING" {
 		t.Fatalf("unexpected order response: %+v", orders[0])
+	}
+	if len(orders[0].Charges) != 1 || orders[0].Charges[0].Code != "PACKAGING_FEE" {
+		t.Fatalf("unexpected charge response: %+v", orders[0].Charges)
 	}
 }

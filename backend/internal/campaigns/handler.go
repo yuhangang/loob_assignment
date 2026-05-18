@@ -18,8 +18,8 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func Register(db *sql.DB, g *echo.Group) {
-	h := NewHandler(NewService(NewRepository(db)))
+func Register(db *sql.DB, g *echo.Group, publicBaseURL string) {
+	h := NewHandler(NewService(NewRepository(db), publicBaseURL))
 	campaigns := g.Group("/campaigns")
 	campaigns.GET("/home", h.home)
 }

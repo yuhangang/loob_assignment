@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../features/cart/presentation/cubit/cart_item.dart';
+import '../../features/cart/presentation/bloc/cart_item.dart';
 import '../../features/menu/data/models/catalog_model.dart';
 import '../../features/menu/presentation/product_detail_page.dart';
 import '../../features/cart/presentation/cart_page.dart';

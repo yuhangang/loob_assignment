@@ -7,7 +7,8 @@ import (
 )
 
 type Service struct {
-	repo CatalogRepository
+	repo          CatalogRepository
+	publicBaseURL string
 }
 
 type MenuRequest struct {
@@ -32,8 +33,8 @@ type ItemRequest struct {
 	ItemID      int
 }
 
-func NewService(repo CatalogRepository) *Service {
-	return &Service{repo: repo}
+func NewService(repo CatalogRepository, publicBaseURL string) *Service {
+	return &Service{repo: repo, publicBaseURL: publicBaseURL}
 }
 
 func (s *Service) ListCategories(ctx context.Context, req MenuRequest) (CategoryList, error) {
@@ -74,7 +75,7 @@ func (s *Service) ListCategories(ctx context.Context, req MenuRequest) (Category
 			ID:           category.ID,
 			DisplayOrder: category.DisplayOrder,
 			Name:         localize(category.NameTranslations, language, country.DefaultLanguage),
-			IconURL:      category.IconURL.String,
+			IconURL:      resolveAssetURL(s.publicBaseURL, category.IconURL.String),
 		})
 	}
 
@@ -137,7 +138,7 @@ func (s *Service) ListCategoryItems(ctx context.Context, req CategoryItemsReques
 	}
 
 	language := resolveLanguage(req.Language, country.DefaultLanguage)
-	productsPayload, taxInclusive := buildProducts(products, groups, options, language, country.DefaultLanguage)
+	productsPayload, taxInclusive := buildProducts(products, groups, options, language, country.DefaultLanguage, s.publicBaseURL)
 
 	return CategoryItems{
 		CatalogVersion: "v2",
@@ -201,14 +202,14 @@ func (s *Service) GetItem(ctx context.Context, req ItemRequest) (Product, error)
 	}
 
 	language := resolveLanguage(req.Language, country.DefaultLanguage)
-	productsPayload, _ := buildProducts([]ProductRow{*found}, groups, options, language, country.DefaultLanguage)
+	productsPayload, _ := buildProducts([]ProductRow{*found}, groups, options, language, country.DefaultLanguage, s.publicBaseURL)
 	if len(productsPayload) == 0 {
 		return Product{}, ErrItemNotFound
 	}
 	return productsPayload[0], nil
 }
 
-func buildProducts(products []ProductRow, groups []GroupRow, options []OptionRow, language string, fallback string) ([]Product, bool) {
+func buildProducts(products []ProductRow, groups []GroupRow, options []OptionRow, language string, fallback string, publicBaseURL string) ([]Product, bool) {
 	optionsByGroup := map[int][]CustomizationOption{}
 	for _, option := range options {
 		optionsByGroup[option.GroupID] = append(optionsByGroup[option.GroupID], CustomizationOption{
@@ -246,8 +247,8 @@ func buildProducts(products []ProductRow, groups []GroupRow, options []OptionRow
 			Name:        localize(product.NameTranslations, language, fallback),
 			Description: localize(product.DescTranslations, language, fallback),
 			Media: Media{
-				ImageURLSmall: product.ImageURLSmall,
-				ImageURLLarge: product.ImageURLLarge,
+				ImageURLSmall: resolveAssetURL(publicBaseURL, product.ImageURLSmall),
+				ImageURLLarge: resolveAssetURL(publicBaseURL, product.ImageURLLarge),
 			},
 			BasePrice:           product.BasePrice,
 			DietaryTags:         product.DietaryTags,
@@ -255,6 +256,20 @@ func buildProducts(products []ProductRow, groups []GroupRow, options []OptionRow
 		})
 	}
 	return out, taxInclusive
+}
+
+func resolveAssetURL(publicBaseURL, path string) string {
+	if path == "" {
+		return ""
+	}
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
+	}
+	publicBaseURL = strings.TrimRight(publicBaseURL, "/")
+	if strings.HasPrefix(path, "/") {
+		return publicBaseURL + path
+	}
+	return publicBaseURL + "/" + path
 }
 
 func (s *Service) ListBrands(ctx context.Context) ([]Brand, error) {

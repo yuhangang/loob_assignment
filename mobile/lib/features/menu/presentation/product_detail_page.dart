@@ -5,6 +5,7 @@ import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/widgets/quantity_stepper.dart';
 
 /// Fullscreen premium product details and customization page inspired by HeyTea.
 class ProductDetailPage extends StatefulWidget {
@@ -514,50 +515,14 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     top: false,
                     child: Row(
                       children: [
-                        // Quantity Adjuster
-                        Container(
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: theme.brightness == Brightness.dark
-                                ? theme.colorScheme.surface
-                                : theme.dividerColor.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(
-                              AppSpacing.radiusXl,
-                            ),
-                            border: Border.all(
-                              color: theme.dividerColor.withValues(alpha: 0.08),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              _buildQuantityButton(
-                                icon: Icons.remove_rounded,
-                                onPressed: _quantity > 1
-                                    ? () => setState(() => _quantity--)
-                                    : null,
-                                theme: theme,
-                                compact: widget.isEditingCartItem,
-                              ),
-                              Container(
-                                alignment: Alignment.center,
-                                constraints: BoxConstraints(
-                                  minWidth: widget.isEditingCartItem ? 24 : 32,
-                                ),
-                                child: Text(
-                                  '$_quantity',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                              _buildQuantityButton(
-                                icon: Icons.add_rounded,
-                                onPressed: () => setState(() => _quantity++),
-                                theme: theme,
-                                compact: widget.isEditingCartItem,
-                              ),
-                            ],
-                          ),
+                        QuantityStepper(
+                          quantity: _quantity,
+                          style: QuantityStepperStyle.standard,
+                          compactButtonSize: widget.isEditingCartItem,
+                          onDecrease: _quantity > 1
+                              ? () => setState(() => _quantity--)
+                              : null,
+                          onIncrease: () => setState(() => _quantity++),
                         ),
                         const SizedBox(width: AppSpacing.md),
 
@@ -751,32 +716,6 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               ),
             ],
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuantityButton({
-    required IconData icon,
-    required VoidCallback? onPressed,
-    required ThemeData theme,
-    bool compact = false,
-  }) {
-    final enabled = onPressed != null;
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: compact ? 38 : 48,
-        height: 52,
-        color: Colors.transparent,
-        child: Center(
-          child: Icon(
-            icon,
-            size: 20,
-            color: enabled
-                ? theme.textTheme.bodyMedium?.color
-                : theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.25),
-          ),
         ),
       ),
     );

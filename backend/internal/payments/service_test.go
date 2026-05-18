@@ -6,12 +6,12 @@ import (
 )
 
 type mockRepository struct {
-	applyCallback           func(ctx context.Context, update CallbackUpdate) (TransactionRow, error)
-	get                     func(ctx context.Context, countryID, transactionID string) (TransactionRow, error)
-	resolvePaymentMethod    func(ctx context.Context, countryID string, brandID int, methodCode string, amount int) (MethodRow, error)
+	applyCallback            func(ctx context.Context, update CallbackUpdate) (TransactionRow, error)
+	get                      func(ctx context.Context, countryID, transactionID string) (TransactionRow, error)
+	resolvePaymentMethod     func(ctx context.Context, countryID string, brandID int, methodCode string, amount int) (MethodRow, error)
 	createPendingTransaction func(ctx context.Context, tx PendingTransaction) (TransactionRow, error)
-	listProviders           func(ctx context.Context, includeInactive bool) ([]ProviderRow, error)
-	listMethods             func(ctx context.Context, countryID string, brandID int, includeInactive bool) ([]MethodRow, error)
+	listProviders            func(ctx context.Context, includeInactive bool) ([]ProviderRow, error)
+	listMethods              func(ctx context.Context, countryID string, brandID int, includeInactive bool) ([]MethodRow, error)
 }
 
 func (m *mockRepository) ApplyCallback(ctx context.Context, update CallbackUpdate) (TransactionRow, error) {

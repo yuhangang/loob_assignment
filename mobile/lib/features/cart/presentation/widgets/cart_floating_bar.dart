@@ -7,7 +7,7 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../vouchers/presentation/voucher_wallet_page.dart';
-import '../cubit/cart_state.dart';
+import '../bloc/cart_state.dart';
 
 /// Glassmorphic floating cart bar rendered as a global overlay above all screens.
 ///
@@ -242,6 +242,15 @@ class CartFloatingBar extends StatelessWidget {
                           'Some items unavailable',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: theme.colorScheme.error,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 10,
+                          ),
+                        )
+                      else if (cartState.hasUnavailableOptions)
+                        Text(
+                          context.l10n.someOptionsUnavailable,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: Colors.orange.shade700,
                             fontWeight: FontWeight.w600,
                             fontSize: 10,
                           ),
