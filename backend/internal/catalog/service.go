@@ -2,19 +2,30 @@ package catalog
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"strings"
+	"sync"
+	"time"
+
+	"github.com/loob/backend/internal/database"
 )
 
 type Service struct {
-	repo          CatalogRepository
-	publicBaseURL string
+	repo               CatalogRepository
+	publicBaseURL      string
+	menuCacheTTL       time.Duration
+	storeContextTTL    time.Duration
+	menuRebuildLockTTL time.Duration
 }
 
 type MenuRequest struct {
 	CountryCode string
 	Language    string
 	StoreID     int
+	StoreCode   string
 	BrandID     int
 }
 
@@ -22,6 +33,7 @@ type CategoryItemsRequest struct {
 	CountryCode string
 	Language    string
 	StoreID     int
+	StoreCode   string
 	BrandID     int
 	CategoryID  int
 }
@@ -30,23 +42,94 @@ type ItemRequest struct {
 	CountryCode string
 	Language    string
 	StoreID     int
+	StoreCode   string
 	ItemID      int
 }
 
 func NewService(repo CatalogRepository, publicBaseURL string) *Service {
-	return &Service{repo: repo, publicBaseURL: publicBaseURL}
+	return &Service{
+		repo:               repo,
+		publicBaseURL:      publicBaseURL,
+		menuCacheTTL:       durationEnv("CATALOG_MENU_CACHE_TTL", 24*time.Hour),
+		storeContextTTL:    durationEnv("CATALOG_STORE_CONTEXT_CACHE_TTL", 5*time.Minute),
+		menuRebuildLockTTL: durationEnv("CATALOG_MENU_REBUILD_LOCK_TTL", 10*time.Second),
+	}
+}
+
+func durationEnv(key string, fallback time.Duration) time.Duration {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	value, err := time.ParseDuration(raw)
+	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
+}
+
+func (s *Service) resolveStoreContextCached(ctx context.Context, countryID string, storeID int, storeCode string) (StoreContext, error) {
+	cacheKey := fmt.Sprintf("catalog:storectx:%s:%d:%s", countryID, storeID, storeCode)
+	if database.RedisClientInstance != nil {
+		cached, err := database.RedisClientInstance.Get(ctx, cacheKey)
+		if err == nil {
+			var store StoreContext
+			if err := json.Unmarshal([]byte(cached), &store); err == nil {
+				return store, nil
+			}
+		}
+	}
+
+	store, err := s.repo.ResolveStoreContext(ctx, countryID, storeID, storeCode)
+	if err != nil {
+		return StoreContext{}, err
+	}
+
+	if database.RedisClientInstance != nil {
+		if data, err := json.Marshal(store); err == nil {
+			_ = database.RedisClientInstance.Set(ctx, cacheKey, string(data), s.storeContextTTL)
+		}
+	}
+
+	return store, nil
+}
+
+func (s *Service) getStoreCacheVersion(ctx context.Context, storeIdentifier string) string {
+	if database.RedisClientInstance == nil {
+		return "0"
+	}
+	versionKey := fmt.Sprintf("catalog:menu:version:store:%s", storeIdentifier)
+	ver, err := database.RedisClientInstance.Get(ctx, versionKey)
+	if err != nil || ver == "" {
+		return "0"
+	}
+	return ver
 }
 
 func (s *Service) ListCategories(ctx context.Context, req MenuRequest) (CategoryList, error) {
-	country, err := s.repo.GetCountry(ctx, req.CountryCode)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return CategoryList{}, ErrUnsupportedCountry
+	countryCode := req.CountryCode
+	if req.StoreCode != "" {
+		parts := strings.SplitN(req.StoreCode, "-", 2)
+		if len(parts) >= 2 && len(parts[0]) == 2 {
+			countryCode = strings.ToUpper(parts[0])
 		}
-		return CategoryList{}, err
 	}
 
-	store, err := s.repo.ResolveStoreContext(ctx, req.CountryCode, req.StoreID)
+	var country Country
+	var err error
+	if cachedCountry, ok := CountryConfigMap[countryCode]; ok {
+		country = cachedCountry
+	} else {
+		country, err = s.repo.GetCountry(ctx, countryCode)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return CategoryList{}, ErrUnsupportedCountry
+			}
+			return CategoryList{}, err
+		}
+	}
+
+	store, err := s.resolveStoreContextCached(ctx, countryCode, req.StoreID, req.StoreCode)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return CategoryList{}, ErrStoreNotFound
@@ -60,12 +143,45 @@ func (s *Service) ListCategories(ctx context.Context, req MenuRequest) (Category
 	}
 	language := resolveLanguage(req.Language, country.DefaultLanguage)
 
-	categories, err := s.repo.ListCategories(ctx, brandID)
-	if err != nil {
-		return CategoryList{}, err
+	// Build Versioned Cache Key to avoid expensive wildcard key scans
+	var storeIdentifier string
+	if req.StoreCode != "" {
+		storeIdentifier = req.StoreCode
+	} else {
+		storeIdentifier = fmt.Sprintf("id-%d", store.StoreID)
 	}
 
-	products, err := s.repo.ListProducts(ctx, store.StoreID, store.ZoneID, brandID, 0)
+	version := s.getStoreCacheVersion(ctx, storeIdentifier)
+	cacheKey := fmt.Sprintf("catalog:menu:%s:%s:store:%s:brand:%d:v:%s", countryCode, language, storeIdentifier, brandID, version)
+
+	if database.RedisClientInstance != nil {
+		cached, err := database.RedisClientInstance.Get(ctx, cacheKey)
+		if err == nil {
+			var cachedList CategoryList
+			if err := json.Unmarshal([]byte(cached), &cachedList); err == nil {
+				return cachedList, nil
+			}
+		}
+	}
+
+	unlock, cachedList, ok := s.waitForMenuRebuildSlot(ctx, cacheKey)
+	if ok {
+		return cachedList, nil
+	}
+	if unlock != nil {
+		defer unlock()
+		if database.RedisClientInstance != nil {
+			cached, err := database.RedisClientInstance.Get(ctx, cacheKey)
+			if err == nil {
+				var cachedList CategoryList
+				if err := json.Unmarshal([]byte(cached), &cachedList); err == nil {
+					return cachedList, nil
+				}
+			}
+		}
+	}
+
+	categories, products, err := s.listCategoriesAndProducts(ctx, store, brandID)
 	if err != nil {
 		return CategoryList{}, err
 	}
@@ -122,7 +238,7 @@ func (s *Service) ListCategories(ctx context.Context, req MenuRequest) (Category
 		})
 	}
 
-	return CategoryList{
+	res := CategoryList{
 		CatalogVersion: "v2",
 		Brand:          brand,
 		CountryCode:    country.ID,
@@ -130,19 +246,115 @@ func (s *Service) ListCategories(ctx context.Context, req MenuRequest) (Category
 		TaxInclusive:   taxInclusive,
 		Language:       language,
 		Categories:     catalogCategories,
-	}, nil
+	}
+
+	if database.RedisClientInstance != nil {
+		if data, err := json.Marshal(res); err == nil {
+			_ = database.RedisClientInstance.Set(ctx, cacheKey, string(data), s.menuCacheTTL)
+		}
+	}
+
+	return res, nil
+}
+
+func (s *Service) listCategoriesAndProducts(ctx context.Context, store StoreContext, brandID int) ([]CategoryRow, []ProductRow, error) {
+	queryCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	var categories []CategoryRow
+	var products []ProductRow
+	errCh := make(chan error, 2)
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		rows, err := s.repo.ListCategories(queryCtx, brandID)
+		if err != nil {
+			errCh <- err
+			cancel()
+			return
+		}
+		categories = rows
+	}()
+	go func() {
+		defer wg.Done()
+		rows, err := s.repo.ListProducts(queryCtx, store.StoreID, store.ZoneID, brandID, 0)
+		if err != nil {
+			errCh <- err
+			cancel()
+			return
+		}
+		products = rows
+	}()
+
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return categories, products, nil
+}
+
+func (s *Service) waitForMenuRebuildSlot(ctx context.Context, cacheKey string) (func(), CategoryList, bool) {
+	if database.RedisClientInstance == nil {
+		return nil, CategoryList{}, false
+	}
+	lockKey := "lock:" + cacheKey
+	token := fmt.Sprintf("%d", time.Now().UnixNano())
+	for attempt := 0; attempt < 8; attempt++ {
+		locked, err := database.RedisClientInstance.SetNX(ctx, lockKey, token, s.menuRebuildLockTTL)
+		if err != nil {
+			return nil, CategoryList{}, false
+		}
+		if locked {
+			return func() {
+				_ = database.RedisClientInstance.Del(context.Background(), lockKey)
+			}, CategoryList{}, false
+		}
+		select {
+		case <-ctx.Done():
+			return nil, CategoryList{}, false
+		case <-time.After(75 * time.Millisecond):
+		}
+		cached, err := database.RedisClientInstance.Get(ctx, cacheKey)
+		if err == nil && cached != "" {
+			var cachedList CategoryList
+			if err := json.Unmarshal([]byte(cached), &cachedList); err == nil {
+				return nil, cachedList, true
+			}
+		}
+	}
+	return nil, CategoryList{}, false
 }
 
 func (s *Service) ListCategoryItems(ctx context.Context, req CategoryItemsRequest) (CategoryItems, error) {
-	country, err := s.repo.GetCountry(ctx, req.CountryCode)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return CategoryItems{}, ErrUnsupportedCountry
+	countryCode := req.CountryCode
+	if req.StoreCode != "" {
+		parts := strings.SplitN(req.StoreCode, "-", 2)
+		if len(parts) >= 2 && len(parts[0]) == 2 {
+			countryCode = strings.ToUpper(parts[0])
 		}
-		return CategoryItems{}, err
 	}
 
-	store, err := s.repo.ResolveStoreContext(ctx, req.CountryCode, req.StoreID)
+	var country Country
+	var err error
+	if cachedCountry, ok := CountryConfigMap[countryCode]; ok {
+		country = cachedCountry
+	} else {
+		country, err = s.repo.GetCountry(ctx, countryCode)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return CategoryItems{}, ErrUnsupportedCountry
+			}
+			return CategoryItems{}, err
+		}
+	}
+
+	store, err := s.resolveStoreContextCached(ctx, countryCode, req.StoreID, req.StoreCode)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return CategoryItems{}, ErrStoreNotFound
@@ -196,15 +408,29 @@ func (s *Service) ListCategoryItems(ctx context.Context, req CategoryItemsReques
 }
 
 func (s *Service) GetItem(ctx context.Context, req ItemRequest) (Product, error) {
-	country, err := s.repo.GetCountry(ctx, req.CountryCode)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return Product{}, ErrUnsupportedCountry
+	countryCode := req.CountryCode
+	if req.StoreCode != "" {
+		parts := strings.SplitN(req.StoreCode, "-", 2)
+		if len(parts) >= 2 && len(parts[0]) == 2 {
+			countryCode = strings.ToUpper(parts[0])
 		}
-		return Product{}, err
 	}
 
-	store, err := s.repo.ResolveStoreContext(ctx, req.CountryCode, req.StoreID)
+	var country Country
+	var err error
+	if cachedCountry, ok := CountryConfigMap[countryCode]; ok {
+		country = cachedCountry
+	} else {
+		country, err = s.repo.GetCountry(ctx, countryCode)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return Product{}, ErrUnsupportedCountry
+			}
+			return Product{}, err
+		}
+	}
+
+	store, err := s.resolveStoreContextCached(ctx, countryCode, req.StoreID, req.StoreCode)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return Product{}, ErrStoreNotFound
@@ -212,24 +438,16 @@ func (s *Service) GetItem(ctx context.Context, req ItemRequest) (Product, error)
 		return Product{}, err
 	}
 
-	// Re-use ListProducts with no category filter, scoped to a single item ID.
-	products, err := s.repo.ListProducts(ctx, store.StoreID, store.ZoneID, 0, 0)
+	// Scope query to a single product point lookup directly in DB to optimize detail path under load
+	foundRow, err := s.repo.GetProductByID(ctx, store.StoreID, store.ZoneID, req.ItemID)
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Product{}, ErrItemNotFound
+		}
 		return Product{}, err
 	}
 
-	var found *ProductRow
-	for i := range products {
-		if products[i].ID == req.ItemID {
-			found = &products[i]
-			break
-		}
-	}
-	if found == nil {
-		return Product{}, ErrItemNotFound
-	}
-
-	groups, err := s.repo.ListCustomizationGroups(ctx, []int{found.ID})
+	groups, err := s.repo.ListCustomizationGroups(ctx, []int{foundRow.ID})
 	if err != nil {
 		return Product{}, err
 	}
@@ -245,7 +463,8 @@ func (s *Service) GetItem(ctx context.Context, req ItemRequest) (Product, error)
 	}
 
 	language := resolveLanguage(req.Language, country.DefaultLanguage)
-	productsPayload, _ := buildProducts([]ProductRow{*found}, groups, options, language, country.DefaultLanguage, s.publicBaseURL)
+	productsPayload, _ := buildProducts([]ProductRow{foundRow}, groups, options, language, country.DefaultLanguage, s.publicBaseURL)
+
 	if len(productsPayload) == 0 {
 		return Product{}, ErrItemNotFound
 	}
@@ -403,4 +622,41 @@ func localize(values map[string]string, language, fallback string) string {
 		}
 	}
 	return ""
+}
+
+// InvalidateMenuCache increments the store menu version in Redis.
+func (s *Service) InvalidateMenuCache(ctx context.Context, countryCode, storeCode string) error {
+	// Resolve the store context to obtain storeID
+	var storeIDKey string
+	store, err := s.repo.ResolveStoreContext(ctx, countryCode, 0, storeCode)
+	if err == nil {
+		storeIDKey = fmt.Sprintf("id-%d", store.StoreID)
+	}
+
+	if database.RedisClientInstance == nil {
+		return nil
+	}
+	_ = database.RedisClientInstance.Del(ctx, fmt.Sprintf("catalog:storectx:%s:%d:%s", countryCode, 0, storeCode))
+	if storeIDKey != "" {
+		_ = database.RedisClientInstance.Del(ctx, fmt.Sprintf("catalog:storectx:%s:%d:", countryCode, store.StoreID))
+	}
+
+	if storeCode != "" {
+		versionKey := fmt.Sprintf("catalog:menu:version:store:%s", storeCode)
+		_, err = database.RedisClientInstance.Incr(ctx, versionKey)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Also increment store version for numeric id-{storeID} mapping to support mobile traffic paths
+	if storeIDKey != "" {
+		versionKeyID := fmt.Sprintf("catalog:menu:version:store:%s", storeIDKey)
+		_, err = database.RedisClientInstance.Incr(ctx, versionKeyID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

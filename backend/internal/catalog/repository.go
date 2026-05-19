@@ -10,9 +10,10 @@ import (
 
 type CatalogRepository interface {
 	GetCountry(ctx context.Context, countryID string) (Country, error)
-	ResolveStoreContext(ctx context.Context, countryID string, storeID int) (StoreContext, error)
+	ResolveStoreContext(ctx context.Context, countryID string, storeID int, storeCode string) (StoreContext, error)
 	ListCategories(ctx context.Context, brandID int) ([]CategoryRow, error)
 	ListProducts(ctx context.Context, storeID int, zoneID string, brandID int, categoryID int) ([]ProductRow, error)
+	GetProductByID(ctx context.Context, storeID int, zoneID string, itemID int) (ProductRow, error)
 	ListCustomizationGroups(ctx context.Context, menuItemIDs []int) ([]GroupRow, error)
 	ListCustomizationOptions(ctx context.Context, storeID int, zoneID string, groupIDs []int) ([]OptionRow, error)
 	ListBrands(ctx context.Context) ([]BrandRow, error)
@@ -123,7 +124,23 @@ func (r *mysqlRepository) GetCountry(ctx context.Context, countryID string) (Cou
 	return country, nil
 }
 
-func (r *mysqlRepository) ResolveStoreContext(ctx context.Context, countryID string, storeID int) (StoreContext, error) {
+func (r *mysqlRepository) ResolveStoreContext(ctx context.Context, countryID string, storeID int, storeCode string) (StoreContext, error) {
+	if storeCode != "" {
+		var store StoreContext
+		err := r.db.QueryRowContext(ctx, `
+			SELECT id, zone_id, brand_id
+			FROM stores
+			WHERE store_code = ? AND country_id = ? AND is_active = true
+		`, storeCode, countryID).Scan(&store.StoreID, &store.ZoneID, &store.BrandID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return StoreContext{}, ErrNotFound
+			}
+			return StoreContext{}, err
+		}
+		return store, nil
+	}
+
 	if storeID > 0 {
 		var store StoreContext
 		err := r.db.QueryRowContext(ctx, `
@@ -237,6 +254,43 @@ func (r *mysqlRepository) ListProducts(ctx context.Context, storeID int, zoneID 
 		products = append(products, product)
 	}
 	return products, rows.Err()
+}
+
+func (r *mysqlRepository) GetProductByID(ctx context.Context, storeID int, zoneID string, itemID int) (ProductRow, error) {
+	query := `
+		SELECT mi.id, mi.category_id, mi.sku_code,
+		       COALESCE(smis.is_available, true) AS is_available,
+		       mi.name_translations, mi.desc_translations,
+		       COALESCE(mi.image_url_sm, ''), COALESCE(mi.image_url_lg, ''), COALESCE(mi.dietary_tags, JSON_ARRAY()),
+		       mip.base_price, mip.tax_inclusive
+		FROM menu_items mi
+		INNER JOIN categories c ON c.id = mi.category_id
+		INNER JOIN menu_item_pricing mip ON mip.menu_item_id = mi.id AND mip.zone_id = ?
+		LEFT JOIN store_menu_item_status smis ON smis.store_id = ? AND smis.menu_item_id = mi.id
+		WHERE mi.id = ?
+		  AND mi.item_type = 'MAIN'
+		  AND mi.is_active = true
+		  AND mi.deleted_at IS NULL
+		  AND c.is_active = true
+		  AND COALESCE(smis.is_listed, true) = true
+	`
+	var product ProductRow
+	var nameJSON, descJSON, tagsJSON []byte
+	err := r.db.QueryRowContext(ctx, query, zoneID, storeID, itemID).Scan(
+		&product.ID, &product.CategoryID, &product.SKUCode, &product.IsAvailable,
+		&nameJSON, &descJSON, &product.ImageURLSmall, &product.ImageURLLarge, &tagsJSON,
+		&product.BasePrice, &product.TaxInclusive,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ProductRow{}, ErrNotFound
+		}
+		return ProductRow{}, err
+	}
+	product.NameTranslations = decodeStringMap(nameJSON)
+	product.DescTranslations = decodeStringMap(descJSON)
+	product.DietaryTags = decodeStringSlice(tagsJSON)
+	return product, nil
 }
 
 func (r *mysqlRepository) ListCustomizationGroups(ctx context.Context, menuItemIDs []int) ([]GroupRow, error) {

@@ -38,6 +38,8 @@ func main() {
 		log.Printf("database migrations applied from %s", cfg.MigrationsDir)
 	}
 
+	database.InitRedis()
+
 	e := echo.New()
 	e.HideBanner = true
 	e.HTTPErrorHandler = apierrors.Handler

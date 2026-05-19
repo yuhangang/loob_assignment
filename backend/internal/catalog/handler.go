@@ -3,6 +3,7 @@ package catalog
 import (
 	"errors"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
@@ -23,6 +24,7 @@ func (h *Handler) ListCategories(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "store_id must be a number"})
 	}
+	storeCode := c.QueryParam("store_code")
 	brandID, err := intQuery(c, "brand_id")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "brand_id must be a number"})
@@ -32,6 +34,7 @@ func (h *Handler) ListCategories(c echo.Context) error {
 		CountryCode: rc.CountryCode,
 		Language:    rc.Language,
 		StoreID:     storeID,
+		StoreCode:   storeCode,
 		BrandID:     brandID,
 	})
 	if err != nil {
@@ -51,6 +54,7 @@ func (h *Handler) ListCategoryItems(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "store_id must be a number"})
 	}
+	storeCode := c.QueryParam("store_code")
 	brandID, err := intQuery(c, "brand_id")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "brand_id must be a number"})
@@ -60,6 +64,7 @@ func (h *Handler) ListCategoryItems(c echo.Context) error {
 		CountryCode: rc.CountryCode,
 		Language:    rc.Language,
 		StoreID:     storeID,
+		StoreCode:   storeCode,
 		BrandID:     brandID,
 		CategoryID:  categoryID,
 	})
@@ -80,11 +85,13 @@ func (h *Handler) GetItem(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "store_id must be a number"})
 	}
+	storeCode := c.QueryParam("store_code")
 
 	item, err := h.service.GetItem(c.Request().Context(), ItemRequest{
 		CountryCode: rc.CountryCode,
 		Language:    rc.Language,
 		StoreID:     storeID,
+		StoreCode:   storeCode,
 		ItemID:      itemID,
 	})
 	if err != nil {
@@ -140,4 +147,37 @@ func catalogError(err error, fallback string) error {
 	default:
 		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": fallback})
 	}
+}
+
+type InvalidateRequest struct {
+	CountryCode string `json:"country_code"`
+	StoreCode   string `json:"store_code"`
+}
+
+func (h *Handler) InvalidateMenuCache(c echo.Context) error {
+	// Secure the cache invalidation endpoint (Admin/Internal only)
+	secret := c.Request().Header.Get("X-Internal-Secret")
+	expectedSecret := os.Getenv("INTERNAL_API_SECRET")
+	if expectedSecret == "" {
+		// Fail closed for maximum production security: if secret environment variable is not defined, deny all access.
+		return echo.NewHTTPError(http.StatusForbidden, map[string]string{"error": "admin invalidation is disabled (security configuration missing)"})
+	}
+	if secret != expectedSecret {
+		return echo.NewHTTPError(http.StatusUnauthorized, map[string]string{"error": "unauthorized admin access required"})
+	}
+
+	var req InvalidateRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+	if req.CountryCode == "" || req.StoreCode == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "country_code and store_code are required"})
+	}
+
+	err := h.service.InvalidateMenuCache(c.Request().Context(), req.CountryCode, req.StoreCode)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": "failed to invalidate menu cache"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "menu cache successfully invalidated"})
 }

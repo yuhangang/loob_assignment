@@ -110,6 +110,12 @@ Authenticated user-owned APIs require `Authorization: Bearer <token>`.
 - Send Firebase Auth ID tokens from the mobile app.
 - The backend derives `user_id` from the verified token subject. Client-supplied `user_id` query/body/header values are ignored on protected endpoints.
 
+Catalog Redis cache settings use Go duration strings:
+
+- `CATALOG_MENU_CACHE_TTL`, default `24h`
+- `CATALOG_STORE_CONTEXT_CACHE_TTL`, default `5m`
+- `CATALOG_MENU_REBUILD_LOCK_TTL`, default `10s`
+
 Useful smoke checks:
 
 ```bash

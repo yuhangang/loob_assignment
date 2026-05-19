@@ -58,6 +58,7 @@ func registerRoutes(cfg routesConfig) {
 	catalogGroup.GET("/items/:item_id", cfg.catalogHandler.GetItem)
 	catalogGroup.GET("/brands", cfg.catalogHandler.ListBrands)
 	catalogGroup.GET("/stores", cfg.catalogHandler.ListStores)
+	catalogGroup.POST("/invalidate", cfg.catalogHandler.InvalidateMenuCache)
 
 	// Checkout / Orders routes (Requires Authentication)
 	ordersGroup := v1.Group("/orders", cfg.requireAuth)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -62,20 +63,27 @@ func (r *Repository) EnsureAccount(ctx context.Context, userID string, country C
 }
 
 func (r *Repository) GetProfile(ctx context.Context, userID, countryID string) (Profile, error) {
+	fallbackCurrency := "USD"
+	switch strings.ToUpper(countryID) {
+	case "MY":
+		fallbackCurrency = "MYR"
+	case "TH":
+		fallbackCurrency = "THB"
+	}
+
 	var profile Profile
 	var displayName, email, phone, avatar, registeredCountry sql.NullString
 	var tier sql.NullString
 	err := r.db.QueryRowContext(ctx, `
 		SELECT u.id, u.display_name, u.email, u.phone_number, u.avatar_url,
 		       u.preferred_language, u.registered_country_id, u.marketing_opt_in,
-		       COALESCE(wa.balance, 0), COALESCE(wa.currency_code, c.currency_code),
+		       COALESCE(wa.balance, 0), COALESCE(wa.currency_code, ?),
 		       COALESCE(la.points, 0), COALESCE(la.tier, 'MEMBER')
 		FROM users u
-		INNER JOIN countries c ON c.id = ?
-		LEFT JOIN wallet_accounts wa ON wa.user_id = u.id AND wa.country_id = c.id
-		LEFT JOIN loyalty_accounts la ON la.user_id = u.id AND la.country_id = c.id
+		LEFT JOIN wallet_accounts wa ON wa.user_id = u.id AND wa.country_id = ?
+		LEFT JOIN loyalty_accounts la ON la.user_id = u.id AND la.country_id = ?
 		WHERE u.id = ?
-	`, countryID, userID).Scan(
+	`, fallbackCurrency, countryID, countryID, userID).Scan(
 		&profile.UserID,
 		&displayName,
 		&email,
