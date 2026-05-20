@@ -197,6 +197,27 @@ class LocalOrderItemModel {
     );
   }
 
+  factory LocalOrderItemModel.fromOrderStatusItem(OrderStatusItemModel item) {
+    final optionIds =
+        item.customizationOptions.map((option) => option.id).toList()..sort();
+    return LocalOrderItemModel(
+      menuItemId: item.menuItemId,
+      skuCode: '',
+      name: item.name,
+      description: '',
+      imageUrlSm: '',
+      imageUrlLg: '',
+      basePrice: item.basePrice,
+      quantity: item.quantity,
+      isAvailable: true,
+      dietaryTags: const [],
+      customizationOptionIds: optionIds,
+      customizationOptions: item.customizationOptions
+          .map(LocalOrderOptionModel.fromOrderStatusOption)
+          .toList(),
+    );
+  }
+
   ProductModel toProduct() {
     return ProductModel(
       id: menuItemId,
@@ -265,6 +286,18 @@ class LocalOrderOptionModel {
       name: option.name,
       priceAdjustment: option.priceAdjustment,
       isAvailable: option.isAvailable,
+    );
+  }
+
+  factory LocalOrderOptionModel.fromOrderStatusOption(
+    OrderStatusItemOptionModel option,
+  ) {
+    return LocalOrderOptionModel(
+      id: option.id,
+      code: '',
+      name: option.name,
+      priceAdjustment: option.priceAdjustment,
+      isAvailable: true,
     );
   }
 

@@ -25,6 +25,7 @@ type mockRepository struct {
 	getStatus               func(ctx context.Context, countryID, trackingID string) (Status, error)
 	getStatusForUser        func(ctx context.Context, countryID, userID, trackingID string) (Status, error)
 	listStatusesByUser      func(ctx context.Context, countryID, userID string, statuses []string, limit, offset int) ([]Status, error)
+	listReorderProductRows  func(ctx context.Context, countryID, userID string, statuses []string, orderLimit, rowLimit int) ([]ReorderProductRow, error)
 	getMenuItemNames        func(ctx context.Context, itemIDs []int) (map[int]string, error)
 	getOptionNames          func(ctx context.Context, optionIDs []int) (map[int]string, error)
 	markOrderCollected      func(ctx context.Context, countryID, userID, trackingID string) error
@@ -89,6 +90,9 @@ func (m *mockRepository) GetStatusForUser(ctx context.Context, countryID, userID
 }
 func (m *mockRepository) ListStatusesByUser(ctx context.Context, countryID, userID string, statuses []string, limit, offset int) ([]Status, error) {
 	return m.listStatusesByUser(ctx, countryID, userID, statuses, limit, offset)
+}
+func (m *mockRepository) ListReorderProductRows(ctx context.Context, countryID, userID string, statuses []string, orderLimit, rowLimit int) ([]ReorderProductRow, error) {
+	return m.listReorderProductRows(ctx, countryID, userID, statuses, orderLimit, rowLimit)
 }
 func (m *mockRepository) GetMenuItemNames(ctx context.Context, itemIDs []int) (map[int]string, error) {
 	if m.getMenuItemNames != nil {
@@ -602,5 +606,86 @@ func TestListOrdersPassesNormalizedStatusFilters(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestListReorderItemsReturnsDedupedProductsOnly(t *testing.T) {
+	repo := &mockRepository{
+		listReorderProductRows: func(ctx context.Context, countryID, userID string, statuses []string, orderLimit, rowLimit int) ([]ReorderProductRow, error) {
+			if countryID != "MY" || userID != "u1" {
+				t.Fatalf("unexpected scope country=%s user=%s", countryID, userID)
+			}
+			wantStatuses := []string{"READY_TO_COLLECT", "COMPLETED"}
+			if len(statuses) != len(wantStatuses) {
+				t.Fatalf("statuses = %+v, want %+v", statuses, wantStatuses)
+			}
+			for i := range wantStatuses {
+				if statuses[i] != wantStatuses[i] {
+					t.Fatalf("statuses = %+v, want %+v", statuses, wantStatuses)
+				}
+			}
+			if orderLimit != 3 || rowLimit != 12 {
+				t.Fatalf("unexpected limits order=%d row=%d", orderLimit, rowLimit)
+			}
+			return []ReorderProductRow{
+				{
+					StoreID:          1,
+					ZoneID:           "KLANG",
+					MenuItemID:       100,
+					SKUCode:          "MY-TL-PMT",
+					IsAvailable:      true,
+					NameTranslations: map[string]string{"en-US": "Pearl Milk Tea"},
+					DescTranslations: map[string]string{"en-US": "Milk tea"},
+					ImageURLSmall:    "/cdn/my-tl-pmt.png",
+					ImageURLLarge:    "/cdn/my-tl-pmt.png",
+					DietaryTags:      []string{"halal"},
+					BasePrice:        800,
+					Quantity:         2,
+					OptionIDs:        []int{5, 1},
+				},
+				{
+					StoreID:          1,
+					ZoneID:           "KLANG",
+					MenuItemID:       100,
+					SKUCode:          "MY-TL-PMT",
+					IsAvailable:      true,
+					NameTranslations: map[string]string{"en-US": "Pearl Milk Tea"},
+					BasePrice:        800,
+					Quantity:         1,
+					OptionIDs:        []int{1, 5},
+				},
+			}, nil
+		},
+		getOptionNames: func(ctx context.Context, optionIDs []int) (map[int]string, error) {
+			return map[int]string{1: "Regular", 5: "Pearl"}, nil
+		},
+		getOptionPrices: func(ctx context.Context, storeID int, zoneID string, optionIDs []int) (map[int]OptionPrice, error) {
+			if storeID != 1 || zoneID != "KLANG" {
+				t.Fatalf("unexpected option price scope store=%d zone=%s", storeID, zoneID)
+			}
+			return map[int]OptionPrice{
+				1: {ID: 1, GroupID: 1, PriceAdjustment: 0},
+				5: {ID: 5, GroupID: 2, PriceAdjustment: 100},
+			}, nil
+		},
+	}
+	svc := NewService(repo, nil)
+
+	res, err := svc.ListReorderItems(context.Background(), "MY", "u1", ReorderItemsRequest{Limit: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Items) != 1 {
+		t.Fatalf("expected 1 deduped item, got %+v", res.Items)
+	}
+	item := res.Items[0]
+	if item.MenuItemID != 100 || item.SKUCode != "MY-TL-PMT" || item.Name != "Pearl Milk Tea" {
+		t.Fatalf("unexpected item: %+v", item)
+	}
+	if len(item.CustomizationOptionIDs) != 2 || item.CustomizationOptionIDs[0] != 1 || item.CustomizationOptionIDs[1] != 5 {
+		t.Fatalf("unexpected option ids: %+v", item.CustomizationOptionIDs)
+	}
+	if len(item.CustomizationOptions) != 2 || item.CustomizationOptions[1].PriceAdjustment != 100 {
+		t.Fatalf("unexpected options: %+v", item.CustomizationOptions)
 	}
 }

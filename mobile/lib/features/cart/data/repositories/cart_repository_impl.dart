@@ -4,6 +4,7 @@ import '../models/checkout_response_model.dart';
 import '../models/order_status_model.dart';
 import '../models/payment_method_model.dart';
 import '../../../orders/data/models/order_list_page_model.dart';
+import '../../../orders/data/models/local_order_model.dart';
 
 class CartRepositoryImpl implements ICartRepository {
   final CartRemoteDataSource _remote;
@@ -51,6 +52,17 @@ class CartRepositoryImpl implements ICartRepository {
     page: page,
     limit: limit,
     statuses: statuses,
+  );
+
+  @override
+  Future<List<LocalOrderItemModel>> listReorderItems({
+    required String userId,
+    required String countryCode,
+    int limit = 8,
+  }) => _remote.listReorderItems(
+    userId: userId,
+    countryCode: countryCode,
+    limit: limit,
   );
 
   @override

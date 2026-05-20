@@ -2,6 +2,7 @@ import '../../data/models/checkout_response_model.dart';
 import '../../data/models/order_status_model.dart';
 import '../../data/models/payment_method_model.dart';
 import '../../../orders/data/models/order_list_page_model.dart';
+import '../../../orders/data/models/local_order_model.dart';
 
 abstract class ICartRepository {
   Future<List<PaymentMethodModel>> listPaymentMethods({
@@ -25,6 +26,12 @@ abstract class ICartRepository {
     int page = 1,
     int limit = 20,
     List<String> statuses = const [],
+  });
+
+  Future<List<LocalOrderItemModel>> listReorderItems({
+    required String userId,
+    required String countryCode,
+    int limit = 8,
   });
 
   Future<OrderStatusModel> getOrderStatus(String trackingId);

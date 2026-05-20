@@ -16,5 +16,8 @@ abstract class IOrderRepository {
     int limit = 20,
     List<String> statuses = const [],
   });
-  List<LocalOrderItemModel> loadOrderAgainItems();
+  Future<List<LocalOrderItemModel>> loadOrderAgainItems({
+    String? countryCode,
+    int limit = 8,
+  });
 }

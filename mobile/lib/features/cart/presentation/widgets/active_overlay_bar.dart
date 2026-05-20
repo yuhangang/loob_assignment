@@ -20,7 +20,11 @@ class ActiveOverlayBar extends StatelessWidget {
   final CartState cartState;
   final OrderStatusModel? activeOrder;
 
-  const ActiveOverlayBar({super.key, required this.cartState, this.activeOrder});
+  const ActiveOverlayBar({
+    super.key,
+    required this.cartState,
+    this.activeOrder,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -31,14 +35,14 @@ class ActiveOverlayBar extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if (activeOrder != null) ...[
-          _buildActiveOrderBar(context, theme, activeOrder!),
-          const SizedBox(height: AppSpacing.md),
-        ],
         if (showCartBar) ...[
           _buildVoucherButton(context, theme),
           const SizedBox(height: AppSpacing.md),
           _buildBar(context, theme),
+        ],
+        if (activeOrder != null) ...[
+          _buildActiveOrderBar(context, theme, activeOrder!),
+          const SizedBox(height: AppSpacing.md),
         ],
       ],
     );

@@ -7,7 +7,6 @@ import '../domain/repositories/home_repository.dart';
 import '../../campaigns/data/models/campaign_model.dart';
 import '../../campaigns/data/models/home_feed_model.dart';
 import '../../campaigns/domain/repositories/campaign_repository.dart';
-import '../../menu/data/models/catalog_model.dart';
 import '../../orders/data/models/local_order_model.dart';
 import '../../orders/domain/repositories/order_repository.dart';
 import '../../../core/config/app_config.dart';
@@ -71,7 +70,11 @@ class HomeCubit extends Cubit<HomeState> {
        _appConfig = appConfig ?? sl<AppConfig>(),
        super(HomeInitial());
 
-  Future<void> loadHome({String? countryCode, String? language, int? brandId}) async {
+  Future<void> loadHome({
+    String? countryCode,
+    String? language,
+    int? brandId,
+  }) async {
     emit(HomeLoading());
     try {
       final results = await Future.wait([
@@ -82,18 +85,15 @@ class HomeCubit extends Cubit<HomeState> {
           language: language ?? _appConfig.defaultLanguage,
           brandId: brandId,
         ),
+        _loadOrderAgainItems(countryCode ?? _appConfig.defaultCountryCode),
       ]);
       final config = results[0] as AppConfigModel;
       final feed = results[1];
       final campaignFeed = results[2] as HomeFeedModel;
+      final recentOrders = results[3] as List<LocalOrderItemModel>;
 
       // Feed returns a FeedResponseModel but we only expose items.
       final feedItems = (feed as dynamic).items as List<FeedItemModel>;
-
-      final storedOrderItems = _orderRepository.loadOrderAgainItems();
-      final recentOrders = storedOrderItems.isNotEmpty
-          ? storedOrderItems
-          : _getMockRecentOrders(brandId);
 
       emit(
         HomeLoaded(
@@ -108,87 +108,16 @@ class HomeCubit extends Cubit<HomeState> {
     }
   }
 
-  List<LocalOrderItemModel> _getMockRecentOrders(int? brandId) {
-    final mockTealive1 = ProductModel(
-      id: 100,
-      skuCode: 'MY-TL-PMT',
-      isAvailable: true,
-      name: 'Signature Pearl Milk Tea',
-      description: 'Classic milk tea finished with chewy pearls.',
-      media: const MediaModel(
-        imageUrlSm: '/cdn/promo_tealive.png',
-        imageUrlLg: '/cdn/promo_tealive.png',
-      ),
-      basePrice: 800,
-      dietaryTags: const ['halal', 'contains_dairy', 'caffeine'],
-      customizationGroups: const [],
-    );
-
-    final mockTealive2 = ProductModel(
-      id: 101,
-      skuCode: 'MY-TL-GMT',
-      isAvailable: true,
-      name: 'Grass Jelly Milk Tea',
-      description: 'Milk tea with grass jelly and a mellow finish.',
-      media: const MediaModel(
-        imageUrlSm: '/cdn/promo_tealive.png',
-        imageUrlLg: '/cdn/promo_tealive.png',
-      ),
-      basePrice: 850,
-      dietaryTags: const ['halal', 'contains_dairy', 'caffeine'],
-      customizationGroups: const [],
-    );
-
-    final mockBaskbear1 = ProductModel(
-      id: 103,
-      skuCode: 'MY-BB-LAT',
-      isAvailable: true,
-      name: 'Sea Salt Oat Latte',
-      description: 'Smooth espresso latte with oat milk.',
-      media: const MediaModel(
-        imageUrlSm: '/cdn/promo_baskbear.png',
-        imageUrlLg: '/cdn/promo_baskbear.png',
-      ),
-      basePrice: 1100,
-      dietaryTags: const ['halal', 'caffeine'],
-      customizationGroups: const [],
-    );
-
-    final mockBaskbear2 = ProductModel(
-      id: 102,
-      skuCode: 'MY-BB-CHZ',
-      isAvailable: true,
-      name: 'Cheesy Chicken Toastie',
-      description: 'Grilled toastie with chicken and cheese.',
-      media: const MediaModel(
-        imageUrlSm: '/cdn/promo_baskbear.png',
-        imageUrlLg: '/cdn/promo_baskbear.png',
-      ),
-      basePrice: 1200,
-      dietaryTags: const ['halal'],
-      customizationGroups: const [],
-    );
-
-    if (brandId == 1) {
-      return [_mockOrderItem(mockTealive1), _mockOrderItem(mockTealive2)];
-    } else if (brandId == 2) {
-      return [_mockOrderItem(mockBaskbear1), _mockOrderItem(mockBaskbear2)];
-    } else {
-      return [
-        _mockOrderItem(mockTealive1),
-        _mockOrderItem(mockBaskbear1),
-        _mockOrderItem(mockTealive2),
-        _mockOrderItem(mockBaskbear2),
-      ];
+  Future<List<LocalOrderItemModel>> _loadOrderAgainItems(
+    String countryCode,
+  ) async {
+    try {
+      return await _orderRepository.loadOrderAgainItems(
+        countryCode: countryCode,
+        limit: 8,
+      );
+    } catch (_) {
+      return const [];
     }
-  }
-
-  LocalOrderItemModel _mockOrderItem(ProductModel product) {
-    return LocalOrderItemModel.fromProduct(
-      product: product,
-      quantity: 1,
-      customizationOptionIds: const [],
-      customizationOptions: const [],
-    );
   }
 }

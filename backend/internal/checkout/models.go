@@ -110,3 +110,35 @@ type OrderListResponse struct {
 	Limit   int           `json:"limit"`
 	HasMore bool          `json:"has_more"`
 }
+
+type ReorderItemsRequest struct {
+	Limit int
+}
+
+type ReorderItemOption struct {
+	ID              int    `json:"id"`
+	Code            string `json:"code"`
+	Name            string `json:"name"`
+	PriceAdjustment int    `json:"price_adjustment"`
+	IsAvailable     bool   `json:"is_available"`
+}
+
+type ReorderItem struct {
+	MenuItemID             int                 `json:"menu_item_id"`
+	SKUCode                string              `json:"sku_code"`
+	Name                   string              `json:"name"`
+	Description            string              `json:"description"`
+	ImageURLSmall          string              `json:"image_url_sm"`
+	ImageURLLarge          string              `json:"image_url_lg"`
+	BasePrice              int                 `json:"base_price"`
+	Quantity               int                 `json:"quantity"`
+	IsAvailable            bool                `json:"is_available"`
+	DietaryTags            []string            `json:"dietary_tags"`
+	CustomizationOptionIDs []int               `json:"customization_option_ids"`
+	CustomizationOptions   []ReorderItemOption `json:"customization_options"`
+}
+
+type ReorderItemsResponse struct {
+	Items []ReorderItem `json:"items"`
+	Limit int           `json:"limit"`
+}

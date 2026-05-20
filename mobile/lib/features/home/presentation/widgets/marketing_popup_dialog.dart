@@ -95,7 +95,7 @@ class MarketingPopupDialog extends StatelessWidget {
                       ),
                     ),
                     onPressed: () {
-                      Navigator.pop(context);
+                      Navigator.pop(context, true);
                       context.showSuccessSnackBar(
                         context.l10n.eventClaimedToast,
                       );

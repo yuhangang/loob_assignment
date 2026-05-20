@@ -38,6 +38,23 @@ func (h *Handler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, orders)
 }
 
+func (h *Handler) ReorderItems(c echo.Context) error {
+	if err := contextx.RequireCountryHeader(c); err != nil {
+		return err
+	}
+	rc := contextx.FromEcho(c)
+	items, err := h.service.ListReorderItems(c.Request().Context(), rc.CountryCode, rc.UserID, ReorderItemsRequest{
+		Limit: parsePositiveInt(c.QueryParam("limit")),
+	})
+	if err != nil {
+		if errors.Is(err, ErrUserRequired) {
+			return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "user_id is required"})
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": "failed to load reorder items"})
+	}
+	return c.JSON(http.StatusOK, items)
+}
+
 func parseStatusFilters(values []string) []string {
 	statuses := []string{}
 	for _, value := range values {

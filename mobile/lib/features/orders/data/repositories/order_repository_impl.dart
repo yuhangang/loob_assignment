@@ -61,7 +61,17 @@ class OrderRepositoryImpl implements IOrderRepository {
   }
 
   @override
-  List<LocalOrderItemModel> loadOrderAgainItems() {
-    return const [];
+  Future<List<LocalOrderItemModel>> loadOrderAgainItems({
+    String? countryCode,
+    int limit = 8,
+  }) async {
+    final userId = _authService.currentUser?.uid ?? '';
+    if (userId.isEmpty || limit < 1) return const [];
+
+    return _cartRepository.listReorderItems(
+      userId: userId,
+      countryCode: countryCode ?? _config.defaultCountryCode,
+      limit: limit,
+    );
   }
 }

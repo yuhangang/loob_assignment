@@ -16,7 +16,7 @@ The implementation contract lives in [`../docs/architecture/BACKEND_ARCHITECTURE
 - **Language:** Go
 - **Framework:** Echo v4
 - **Database:** MySQL 8 locally, Aurora MySQL-compatible in the target cloud design
-- **Persistence:** Raw SQL via `database/sql`; `sqlc` planned for typed query generation
+- **Persistence:** Raw SQL via `database/sql`;
 - **Caching/status:** Redis
 - **Queue:** AWS SQS FIFO as the target cloud adapter for post-payment order processing
 - **Authentication:** Firebase ID token verification, with explicit local mock mode for assessment runs
@@ -24,11 +24,8 @@ The implementation contract lives in [`../docs/architecture/BACKEND_ARCHITECTURE
 
 ## Local Setup
 
-### Prerequisites
-*   Go 1.25 or higher
-*   Docker & Docker Compose
-
 ### Installation
+
 1. Navigate to the backend directory:
    ```bash
    cd backend
@@ -80,7 +77,6 @@ To run tests for a specific module (e.g., catalog):
 ```bash
 go test ./internal/catalog/...
 ```
-
 
 ### Database Seeding
 

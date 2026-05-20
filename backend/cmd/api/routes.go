@@ -63,6 +63,7 @@ func registerRoutes(cfg routesConfig) {
 	// Checkout / Orders routes (Requires Authentication)
 	ordersGroup := v1.Group("/orders", cfg.requireAuth)
 	ordersGroup.GET("", cfg.checkoutHandler.List)
+	ordersGroup.GET("/reorder-items", cfg.checkoutHandler.ReorderItems)
 	ordersGroup.POST("/checkout", cfg.checkoutHandler.Checkout)
 	ordersGroup.GET("/:tracking_id/status", cfg.checkoutHandler.Status)
 	ordersGroup.POST("/:tracking_id/collect", cfg.checkoutHandler.Collect)

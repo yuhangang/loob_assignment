@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/auth/bloc/auth_bloc.dart';
+import '../../../core/auth/bloc/auth_state.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/localization/language_cubit.dart';
 import '../../../core/theme/brand.dart';
@@ -37,6 +39,7 @@ class _HomePageState extends State<HomePage> {
   late final HomeCubit _homeCubit;
   late final ScrollController _scrollController;
   bool _isHeaderCollapsed = false; // Tracks whether SliverAppBar is collapsed
+  bool _isPromoClaimed = false; // Tracks whether the promo/event has been claimed
 
   // expandedHeight(210) - toolbarHeight(66) = 144 — the scroll offset at which
   // the header is fully collapsed and we swap to the compact title bar.
@@ -74,12 +77,37 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  void _showMarketingPopup(BuildContext context, MarketingPopupModel popup) {
-    showDialog(
+  void _showMarketingPopup(BuildContext context, MarketingPopupModel popup) async {
+    final claimed = await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (context) => MarketingPopupDialog(popup: popup),
     );
+    if (claimed == true && mounted) {
+      setState(() => _isPromoClaimed = true);
+    }
+  }
+
+  void _reloadHome(BuildContext context) {
+    final lang = context.read<LanguageCubit>().state.languageCode;
+    final brand = context.read<ThemeCubit>().state;
+    final country = context.read<CartBloc>().state.countryCode;
+    _homeCubit.loadHome(
+      countryCode: country,
+      language: lang,
+      brandId: brand.brandId,
+    );
+  }
+
+  bool _authScopeChanged(AuthState previous, AuthState current) {
+    final previousUser = previous is Authenticated ? previous.user.uid : '';
+    final currentUser = current is Authenticated ? current.user.uid : '';
+    final authBoundaryChanged =
+        previous is Authenticated ||
+        current is Authenticated ||
+        current is Unauthenticated;
+    return previousUser != currentUser ||
+        (previous.runtimeType != current.runtimeType && authBoundaryChanged);
   }
 
   String _greeting(BuildContext context) {
@@ -97,37 +125,25 @@ class _HomePageState extends State<HomePage> {
       listeners: [
         BlocListener<ThemeCubit, LoobBrand>(
           listener: (context, brandState) {
-            final lang = context.read<LanguageCubit>().state.languageCode;
-            final country = context.read<CartBloc>().state.countryCode;
-            _homeCubit.loadHome(
-              countryCode: country,
-              language: lang,
-              brandId: brandState.brandId,
-            );
+            _reloadHome(context);
           },
         ),
         BlocListener<LanguageCubit, Locale>(
           listener: (context, localeState) {
-            final brandState = context.read<ThemeCubit>().state;
-            final country = context.read<CartBloc>().state.countryCode;
-            _homeCubit.loadHome(
-              countryCode: country,
-              language: localeState.languageCode,
-              brandId: brandState.brandId,
-            );
+            _reloadHome(context);
+          },
+        ),
+        BlocListener<AuthBloc, AuthState>(
+          listenWhen: _authScopeChanged,
+          listener: (context, authState) {
+            _reloadHome(context);
           },
         ),
         BlocListener<CartBloc, CartState>(
           listenWhen: (previous, current) =>
               previous.countryCode != current.countryCode,
           listener: (context, cartState) {
-            final lang = context.read<LanguageCubit>().state.languageCode;
-            final brandState = context.read<ThemeCubit>().state;
-            _homeCubit.loadHome(
-              countryCode: cartState.countryCode,
-              language: lang,
-              brandId: brandState.brandId,
-            );
+            _reloadHome(context);
           },
         ),
       ],
@@ -137,7 +153,9 @@ class _HomePageState extends State<HomePage> {
           final config = state is HomeLoaded ? state.config : null;
 
           return Scaffold(
-            floatingActionButton: config != null && config.marketingPopup.active
+            floatingActionButton: config != null &&
+                    config.marketingPopup.active &&
+                    !_isPromoClaimed
                 ? FloatingActionButton.extended(
                     onPressed: () =>
                         _showMarketingPopup(context, config.marketingPopup),

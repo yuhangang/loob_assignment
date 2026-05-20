@@ -21,6 +21,7 @@ class ApiEndpoints {
 
   // ── Checkout / Orders ───────────────────────────────────────────────────────
   static const String orders = '/api/v1/orders';
+  static const String orderReorderItems = '/api/v1/orders/reorder-items';
   static const String ordersCheckout = '/api/v1/orders/checkout';
   static String orderStatus(String trackingId) =>
       '/api/v1/orders/$trackingId/status';

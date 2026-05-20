@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/loob/backend/internal/payments"
@@ -25,6 +27,7 @@ type CheckoutRepository interface {
 	GetStatus(ctx context.Context, countryID, trackingID string) (Status, error)
 	GetStatusForUser(ctx context.Context, countryID, userID, trackingID string) (Status, error)
 	ListStatusesByUser(ctx context.Context, countryID, userID string, statuses []string, limit, offset int) ([]Status, error)
+	ListReorderProductRows(ctx context.Context, countryID, userID string, statuses []string, orderLimit, rowLimit int) ([]ReorderProductRow, error)
 	GetMenuItemNames(ctx context.Context, itemIDs []int) (map[int]string, error)
 	GetOptionNames(ctx context.Context, optionIDs []int) (map[int]string, error)
 	MarkOrderCollected(ctx context.Context, countryID, userID, trackingID string) error
@@ -587,6 +590,138 @@ func (s *Service) ListOrders(ctx context.Context, countryID, userID string, req 
 		Limit:   limit,
 		HasMore: hasMore,
 	}, nil
+}
+
+func (s *Service) ListReorderItems(ctx context.Context, countryID, userID string, req ReorderItemsRequest) (ReorderItemsResponse, error) {
+	if strings.TrimSpace(userID) == "" {
+		return ReorderItemsResponse{}, ErrUserRequired
+	}
+	limit := req.Limit
+	if limit < 1 {
+		limit = 8
+	}
+	if limit > 20 {
+		limit = 20
+	}
+	rows, err := s.repo.ListReorderProductRows(
+		ctx,
+		countryID,
+		userID,
+		[]string{"READY_TO_COLLECT", "COMPLETED"},
+		limit,
+		limit*4,
+	)
+	if err != nil {
+		return ReorderItemsResponse{}, err
+	}
+
+	selectedRows := make([]ReorderProductRow, 0, limit)
+	selectedOptionIDs := []int{}
+	seen := map[string]struct{}{}
+	for _, row := range rows {
+		optionIDs := append([]int(nil), row.OptionIDs...)
+		sort.Ints(optionIDs)
+		key := reorderItemKey(row.MenuItemID, optionIDs)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		row.OptionIDs = optionIDs
+		selectedRows = append(selectedRows, row)
+		selectedOptionIDs = append(selectedOptionIDs, optionIDs...)
+		if len(selectedRows) >= limit {
+			break
+		}
+	}
+
+	selectedOptionIDs = uniqueInts(selectedOptionIDs)
+	optionNames, _ := s.repo.GetOptionNames(ctx, selectedOptionIDs)
+	optionPriceCache := map[string]map[int]OptionPrice{}
+
+	items := make([]ReorderItem, 0, len(selectedRows))
+	for _, row := range selectedRows {
+		optionPrices := map[int]OptionPrice{}
+		if len(row.OptionIDs) > 0 {
+			cacheKey := strconv.Itoa(row.StoreID) + ":" + row.ZoneID
+			var ok bool
+			optionPrices, ok = optionPriceCache[cacheKey]
+			if !ok {
+				optionPrices, _ = s.repo.GetOptionPrices(ctx, row.StoreID, row.ZoneID, selectedOptionIDs)
+				optionPriceCache[cacheKey] = optionPrices
+			}
+		}
+		options := make([]ReorderItemOption, 0, len(row.OptionIDs))
+		for _, optionID := range row.OptionIDs {
+			option := ReorderItemOption{
+				ID:          optionID,
+				Name:        optionNames[optionID],
+				IsAvailable: true,
+			}
+			if price, ok := optionPrices[optionID]; ok {
+				option.PriceAdjustment = price.PriceAdjustment
+			} else {
+				option.IsAvailable = false
+			}
+			options = append(options, option)
+		}
+
+		items = append(items, ReorderItem{
+			MenuItemID:             row.MenuItemID,
+			SKUCode:                row.SKUCode,
+			Name:                   localizedValue(row.NameTranslations),
+			Description:            localizedValue(row.DescTranslations),
+			ImageURLSmall:          row.ImageURLSmall,
+			ImageURLLarge:          row.ImageURLLarge,
+			BasePrice:              row.BasePrice,
+			Quantity:               row.Quantity,
+			IsAvailable:            row.IsAvailable,
+			DietaryTags:            row.DietaryTags,
+			CustomizationOptionIDs: row.OptionIDs,
+			CustomizationOptions:   options,
+		})
+	}
+
+	return ReorderItemsResponse{Items: items, Limit: limit}, nil
+}
+
+func uniqueInts(values []int) []int {
+	if len(values) == 0 {
+		return nil
+	}
+	sort.Ints(values)
+	unique := values[:0]
+	var last int
+	for i, value := range values {
+		if i == 0 || value != last {
+			unique = append(unique, value)
+			last = value
+		}
+	}
+	return unique
+}
+
+func reorderItemKey(menuItemID int, optionIDs []int) string {
+	parts := make([]string, 0, len(optionIDs)+1)
+	parts = append(parts, strconv.Itoa(menuItemID))
+	for _, optionID := range optionIDs {
+		parts = append(parts, strconv.Itoa(optionID))
+	}
+	return strings.Join(parts, ":")
+}
+
+func localizedValue(values map[string]string) string {
+	if value := strings.TrimSpace(values["en-US"]); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(values["en"]); value != "" {
+		return value
+	}
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func normalizeOrderStatusFilters(statuses []string) []string {

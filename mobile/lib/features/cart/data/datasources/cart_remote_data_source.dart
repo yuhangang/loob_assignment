@@ -8,6 +8,7 @@ import '../models/checkout_response_model.dart';
 import '../models/order_status_model.dart';
 import '../models/payment_method_model.dart';
 import '../../../orders/data/models/order_list_page_model.dart';
+import '../../../orders/data/models/local_order_model.dart';
 
 /// Remote data source for cart/checkout/payments endpoints.
 ///
@@ -248,6 +249,30 @@ class CartRemoteDataSource {
     }
   }
 
+  Future<List<LocalOrderItemModel>> listReorderItems({
+    required String userId,
+    required String countryCode,
+    int limit = 8,
+  }) async {
+    try {
+      final response = await _client.dio.get(
+        ApiEndpoints.orderReorderItems,
+        queryParameters: {'limit': limit},
+        options: Options(headers: {'X-Country-Code': countryCode}),
+      );
+      final data = response.data as Map<String, dynamic>;
+      final items = data['items'] as List<dynamic>? ?? const [];
+      return items
+          .map(
+            (item) =>
+                LocalOrderItemModel.fromJson(item as Map<String, dynamic>),
+          )
+          .toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
   Future<OrderStatusModel> getOrderStatus(String trackingId) async {
     try {
       final response = await _client.dio.get(
@@ -277,15 +302,8 @@ class CartRemoteDataSource {
     try {
       await _client.dio.post(
         ApiEndpoints.paymentMockCallback,
-        data: {
-          'transaction_id': transactionId,
-          'status': 'SUCCESS',
-        },
-        options: Options(
-          headers: {
-            'X-Mock-Gateway-Secret': secret,
-          },
-        ),
+        data: {'transaction_id': transactionId, 'status': 'SUCCESS'},
+        options: Options(headers: {'X-Mock-Gateway-Secret': secret}),
       );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);

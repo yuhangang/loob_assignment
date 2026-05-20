@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/localization/app_localizations.dart';
-import '../../../../core/localization/language_cubit.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/widgets/user_profile_avatar.dart';
-import '../../../cart/presentation/bloc/cart_bloc.dart';
 import '../../../settings/data/models/user_profile_model.dart';
 
 class HomeHeaderProfileRow extends StatelessWidget {
@@ -21,7 +18,6 @@ class HomeHeaderProfileRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final activeCountry = context.watch<CartBloc>().state.countryCode;
     final isGuest = profile == null;
     final displayName = profile?.displayName.trim().isNotEmpty == true
         ? profile!.displayName

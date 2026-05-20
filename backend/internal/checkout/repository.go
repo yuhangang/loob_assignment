@@ -52,6 +52,22 @@ type OptionPrice struct {
 	TaxInclusive    bool
 }
 
+type ReorderProductRow struct {
+	StoreID          int
+	ZoneID           string
+	MenuItemID       int
+	SKUCode          string
+	IsAvailable      bool
+	NameTranslations map[string]string
+	DescTranslations map[string]string
+	ImageURLSmall    string
+	ImageURLLarge    string
+	DietaryTags      []string
+	BasePrice        int
+	Quantity         int
+	OptionIDs        []int
+}
+
 type CustomizationGroupRule struct {
 	ID            int
 	MenuItemID    int
@@ -677,6 +693,95 @@ func (r *Repository) ListStatusesByUser(ctx context.Context, countryID, userID s
 	return rowsStatuses, rows.Err()
 }
 
+func (r *Repository) ListReorderProductRows(ctx context.Context, countryID, userID string, statuses []string, orderLimit, rowLimit int) ([]ReorderProductRow, error) {
+	statusClause := ""
+	args := []any{countryID, userID}
+	if len(statuses) > 0 {
+		placeholders := strings.TrimRight(strings.Repeat("?,", len(statuses)), ",")
+		statusClause = " AND oi.status IN (" + placeholders + ")"
+		for _, status := range statuses {
+			args = append(args, status)
+		}
+	}
+	args = append(args, orderLimit)
+
+	rows, err := r.db.QueryContext(ctx, `
+		WITH recent_orders AS (
+			SELECT oi.tracking_id, oi.store_id, oi.cart_payload, oi.created_at
+			FROM order_intents oi
+			WHERE oi.country_id = ? AND oi.user_id = ?`+statusClause+`
+			ORDER BY oi.created_at DESC
+			LIMIT ?
+		),
+		order_products AS (
+			SELECT ro.store_id, ro.created_at, jt.line_number, jt.menu_item_id,
+			       GREATEST(COALESCE(jt.quantity, 1), 1) AS quantity,
+			       COALESCE(jt.option_ids, JSON_ARRAY()) AS option_ids
+			FROM recent_orders ro
+			JOIN JSON_TABLE(
+				ro.cart_payload,
+				'$[*]' COLUMNS (
+					line_number FOR ORDINALITY,
+					menu_item_id INT PATH '$.menu_item_id',
+					quantity INT PATH '$.quantity',
+					option_ids JSON PATH '$.customization_option_ids'
+				)
+			) jt
+		)
+		SELECT op.store_id, s.zone_id, op.menu_item_id, mi.sku_code,
+		       COALESCE(smis.is_available, true) AS is_available,
+		       mi.name_translations, COALESCE(mi.desc_translations, JSON_OBJECT()),
+		       COALESCE(mi.image_url_sm, ''), COALESCE(mi.image_url_lg, ''),
+		       COALESCE(mi.dietary_tags, JSON_ARRAY()), mip.base_price,
+		       op.quantity, CAST(op.option_ids AS CHAR)
+		FROM order_products op
+		INNER JOIN stores s ON s.id = op.store_id AND s.country_id = ?
+		INNER JOIN menu_items mi ON mi.id = op.menu_item_id
+		INNER JOIN categories c ON c.id = mi.category_id AND c.is_active = true
+		INNER JOIN menu_item_pricing mip ON mip.menu_item_id = mi.id AND mip.zone_id = s.zone_id
+		LEFT JOIN store_menu_item_status smis ON smis.store_id = op.store_id AND smis.menu_item_id = mi.id
+		WHERE mi.item_type = 'MAIN'
+		  AND mi.is_active = true
+		  AND mi.deleted_at IS NULL
+		  AND COALESCE(smis.is_listed, true) = true
+		ORDER BY op.created_at DESC, op.line_number
+		LIMIT ?
+	`, append(args, countryID, rowLimit)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	productRows := []ReorderProductRow{}
+	for rows.Next() {
+		var row ReorderProductRow
+		var nameJSON, descJSON, tagsJSON, optionIDsJSON []byte
+		if err := rows.Scan(
+			&row.StoreID,
+			&row.ZoneID,
+			&row.MenuItemID,
+			&row.SKUCode,
+			&row.IsAvailable,
+			&nameJSON,
+			&descJSON,
+			&row.ImageURLSmall,
+			&row.ImageURLLarge,
+			&tagsJSON,
+			&row.BasePrice,
+			&row.Quantity,
+			&optionIDsJSON,
+		); err != nil {
+			return nil, err
+		}
+		row.NameTranslations = decodeStringMap(nameJSON)
+		row.DescTranslations = decodeStringMap(descJSON)
+		row.DietaryTags = decodeStringList(tagsJSON)
+		row.OptionIDs = decodeIntList(optionIDsJSON)
+		productRows = append(productRows, row)
+	}
+	return productRows, rows.Err()
+}
+
 func (r *Repository) MarkOrderCollected(ctx context.Context, countryID, userID, trackingID string) error {
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE order_intents
@@ -805,6 +910,17 @@ func decodeIntList(raw []byte) []int {
 		return values
 	}
 	return nil
+}
+
+func decodeStringMap(raw []byte) map[string]string {
+	if len(raw) == 0 {
+		return map[string]string{}
+	}
+	values := map[string]string{}
+	if err := json.Unmarshal(raw, &values); err == nil {
+		return values
+	}
+	return map[string]string{}
 }
 
 func decodeStringList(raw []byte) []string {
