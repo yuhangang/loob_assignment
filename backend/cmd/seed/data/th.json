@@ -108,6 +108,7 @@
   "items": [
     {
       "id": 200,
+      "is_promo": true,
       "bid": 1,
       "cid": 20,
       "item_type": "MAIN",
@@ -122,7 +123,8 @@
       },
       "dietary_tags": [
         "contains_dairy",
-        "caffeine"
+        "caffeine",
+        "vegetarian"
       ],
       "price_min": 6500,
       "price_max": 8500,
@@ -263,7 +265,8 @@
       },
       "dietary_tags": [
         "contains_dairy",
-        "caffeine"
+        "caffeine",
+        "vegetarian"
       ],
       "price_min": 7000,
       "price_max": 9000,
@@ -286,7 +289,8 @@
       },
       "dietary_tags": [
         "contains_dairy",
-        "caffeine"
+        "caffeine",
+        "vegetarian"
       ],
       "price_min": 6500,
       "price_max": 8500,
@@ -309,7 +313,8 @@
       },
       "dietary_tags": [
         "contains_dairy",
-        "caffeine"
+        "caffeine",
+        "vegetarian"
       ],
       "price_min": 7500,
       "price_max": 9500,
@@ -318,6 +323,7 @@
     },
     {
       "id": 206,
+      "is_promo": true,
       "bid": 1,
       "cid": 21,
       "item_type": "MAIN",
@@ -331,7 +337,9 @@
         "th-TH": "ชามะนาวโซดาซาบซ่าสดชื่นลงตัว"
       },
       "dietary_tags": [
-        "caffeine"
+        "caffeine",
+        "vegan",
+        "gluten_free"
       ],
       "price_min": 6000,
       "price_max": 8000,
@@ -353,7 +361,9 @@
         "th-TH": "ชาเขียวโซดารสพีชหวานหอมสดชื่น"
       },
       "dietary_tags": [
-        "caffeine"
+        "caffeine",
+        "vegan",
+        "gluten_free"
       ],
       "price_min": 6500,
       "price_max": 8500,
@@ -375,7 +385,8 @@
         "th-TH": "นมสดแท้ราดบนไข่มุกบราวน์ชูการ์เคี่ยวอุ่นๆ"
       },
       "dietary_tags": [
-        "contains_dairy"
+        "contains_dairy",
+        "vegetarian"
       ],
       "price_min": 8000,
       "price_max": 10000,
@@ -396,7 +407,10 @@
         "en-US": "Ice-blended sweet mango and assorted berries for a healthy kick.",
         "th-TH": "มะม่วงผสมเบอร์รี่รวมปั่นเย็นชื่นใจ"
       },
-      "dietary_tags": [],
+      "dietary_tags": [
+        "vegan",
+        "gluten_free"
+      ],
       "price_min": 8500,
       "price_max": 11000,
       "image_url_sm": "/cdn/th-tl-mbs.png",
@@ -404,6 +418,7 @@
     },
     {
       "id": 202,
+      "is_promo": true,
       "bid": 2,
       "cid": 22,
       "item_type": "MAIN",
@@ -416,7 +431,11 @@
         "en-US": "Crisp toastie with honey butter glaze.",
         "th-TH": "โทสต์กรอบเคลือบเนยน้ำผึ้ง"
       },
-      "dietary_tags": [],
+      "dietary_tags": [
+        "contains_dairy",
+        "contains_gluten",
+        "vegetarian"
+      ],
       "price_min": 9500,
       "price_max": 12000,
       "image_url_sm": "/cdn/th-bb-hny.png",
@@ -436,7 +455,10 @@
         "en-US": "Crisp toast stuffed with crunchy chicken cutlet, fried egg, and cheese.",
         "th-TH": "โทสต์เนยกรอบสอดไส้ไก่ทอดกรอบ ไข่ดาว และชีสเยิ้ม"
       },
-      "dietary_tags": [],
+      "dietary_tags": [
+        "contains_dairy",
+        "contains_gluten"
+      ],
       "price_min": 12000,
       "price_max": 14500,
       "image_url_sm": "/cdn/th-bb-cct.png",
@@ -456,7 +478,10 @@
         "en-US": "Unique fusion of spicy Tom Yum chicken spread inside a perfectly grilled toastie.",
         "th-TH": "โทสต์แซนด์วิชฟิวชั่นไก่รสซอสต้มยำรสจัดจ้านเข้มข้น"
       },
-      "dietary_tags": [],
+      "dietary_tags": [
+        "contains_dairy",
+        "contains_gluten"
+      ],
       "price_min": 13000,
       "price_max": 15500,
       "image_url_sm": "/cdn/th-bb-tlt.png",
@@ -464,6 +489,7 @@
     },
     {
       "id": 203,
+      "is_promo": true,
       "bid": 2,
       "cid": 23,
       "item_type": "MAIN",
@@ -477,7 +503,8 @@
         "th-TH": "ลาเต้เอสเปรสโซพร้อมตัวเลือกนมโอ๊ต"
       },
       "dietary_tags": [
-        "caffeine"
+        "caffeine",
+        "vegetarian"
       ],
       "price_min": 9000,
       "price_max": 11500,
@@ -599,7 +626,9 @@
         "th-TH": "เอสเปรสโซ่ช็อตเข้มข้นจากเมล็ดกาแฟสูตรพิเศษ"
       },
       "dietary_tags": [
-        "caffeine"
+        "caffeine",
+        "vegan",
+        "gluten_free"
       ],
       "price_min": 7000,
       "price_max": 8500,
@@ -620,7 +649,11 @@
         "en-US": "Flaky croissant dough pressed waffle-style, finished with a sweet sugar glaze.",
         "th-TH": "ครอฟเฟิลแป้งครัวซองต์กรอบนอกนุ่มในเคลือบน้ำตาลหวานพอดี"
       },
-      "dietary_tags": [],
+      "dietary_tags": [
+        "contains_dairy",
+        "contains_gluten",
+        "vegetarian"
+      ],
       "price_min": 8500,
       "price_max": 10500,
       "image_url_sm": "/cdn/th-bb-crf.png",
@@ -628,6 +661,7 @@
     },
     {
       "id": 214,
+      "is_promo": true,
       "bid": 2,
       "cid": 27,
       "item_type": "MAIN",
@@ -640,7 +674,9 @@
         "en-US": "Classic Thai street food: spicy minced chicken stir-fried with holy basil, served with rice and fried egg.",
         "th-TH": "กะเพราไก่สับรสจัดจ้านยอดนิยม เสิร์ฟพร้อมข้าวสวยและไข่ดาวกรอบ"
       },
-      "dietary_tags": [],
+      "dietary_tags": [
+        "contains_gluten"
+      ],
       "price_min": 13500,
       "price_max": 16000,
       "image_url_sm": "/cdn/th-bb-pst.png",
@@ -660,7 +696,10 @@
         "en-US": "Chewy tapioca pearls.",
         "th-TH": "ไข่มุกหนึบ"
       },
-      "dietary_tags": [],
+      "dietary_tags": [
+        "vegan",
+        "gluten_free"
+      ],
       "price_min": 800,
       "price_max": 800
     },
@@ -678,7 +717,10 @@
         "en-US": "Cooling grass jelly topping.",
         "th-TH": "ท็อปปิ้งเฉาก๊วย"
       },
-      "dietary_tags": [],
+      "dietary_tags": [
+        "vegan",
+        "gluten_free"
+      ],
       "price_min": 800,
       "price_max": 800
     },
@@ -696,7 +738,10 @@
         "en-US": "Chewy coconut jelly pieces.",
         "th-TH": "ท็อปปิ้งวุ้นมะพร้าวเคี้ยวหนึบ"
       },
-      "dietary_tags": [],
+      "dietary_tags": [
+        "vegan",
+        "gluten_free"
+      ],
       "price_min": 1000,
       "price_max": 1000
     },
@@ -714,7 +759,9 @@
         "en-US": "Oat milk substitute.",
         "th-TH": "ตัวเลือกนมโอ๊ต"
       },
-      "dietary_tags": [],
+      "dietary_tags": [
+        "vegan"
+      ],
       "price_min": 1200,
       "price_max": 1200
     },
@@ -733,7 +780,9 @@
         "th-TH": "เพิ่มช็อตกาแฟเพื่อความกระปรี้กระเปร่า"
       },
       "dietary_tags": [
-        "caffeine"
+        "caffeine",
+        "vegan",
+        "gluten_free"
       ],
       "price_min": 2000,
       "price_max": 2000
@@ -753,7 +802,8 @@
         "th-TH": "ชีสสไลซ์สองแผ่นละลายหอมกรุ่น"
       },
       "dietary_tags": [
-        "contains_dairy"
+        "contains_dairy",
+        "vegetarian"
       ],
       "price_min": 1500,
       "price_max": 1500

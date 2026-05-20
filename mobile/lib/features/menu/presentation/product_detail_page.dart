@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:loob_app/features/menu/data/models/catalog_model.dart';
 import 'dart:ui';
@@ -8,6 +9,8 @@ import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/quantity_stepper.dart';
+import '../../cart/presentation/bloc/cart_bloc.dart';
+import '../../cart/presentation/bloc/cart_state.dart';
 
 /// Fullscreen premium product details and customization page inspired by HeyTea.
 class ProductDetailPage extends StatefulWidget {
@@ -482,6 +485,71 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     ),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
+                ),
+              ),
+            ),
+          ),
+
+          // Premium Floating Glassmorphic Cart Button with Badge
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            right: AppSpacing.pageHorizontal,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: BlocBuilder<CartBloc, CartState>(
+                  builder: (context, cartState) {
+                    final count = cartState.totalQuantity;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: theme.brightness == Brightness.dark
+                                ? AppColors.white.withValues(alpha: 0.1)
+                                : AppColors.black.withValues(alpha: 0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.shopping_bag_outlined,
+                              color: AppColors.white,
+                              size: 20,
+                            ),
+                            onPressed: () => context.push(AppRouter.cart),
+                          ),
+                        ),
+                        if (count > 0)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 16,
+                                minHeight: 16,
+                              ),
+                              child: Text(
+                                '$count',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),

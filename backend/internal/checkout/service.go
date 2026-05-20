@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"math"
 	"strings"
 
 	"github.com/loob/backend/internal/payments"
@@ -113,27 +112,42 @@ func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req Checkout
 		return CheckoutResponse{}, err
 	}
 
+	taxRateBps := taxRateBasisPoints(country.TaxRate)
 	subtotal := 0
 	lines := make([]pricedCartLine, 0, len(req.Items))
 	for _, item := range req.Items {
 		pricedItem := pricedItems[item.MenuItemID]
 		lineUnitPrice := pricedItem.BasePrice
+		lineInclusiveUnitPrice := 0
+		lineExclusiveUnitPrice := 0
+		if pricedItem.TaxInclusive {
+			lineInclusiveUnitPrice += pricedItem.BasePrice
+		} else {
+			lineExclusiveUnitPrice += pricedItem.BasePrice
+		}
 		for _, optionID := range item.CustomizationIDs {
 			option := optionPrices[optionID]
 			if option.MenuItemID != item.MenuItemID {
 				return CheckoutResponse{}, ErrInvalidCustomization
 			}
 			lineUnitPrice += option.PriceAdjustment
+			if option.TaxInclusive {
+				lineInclusiveUnitPrice += option.PriceAdjustment
+			} else {
+				lineExclusiveUnitPrice += option.PriceAdjustment
+			}
 		}
 		lineSubtotal := lineUnitPrice * item.Quantity
 		subtotal += lineSubtotal
 		lines = append(lines, pricedCartLine{
-			MenuItemID:  item.MenuItemID,
-			CategoryID:  pricedItem.CategoryID,
-			BrandID:     pricedItem.BrandID,
-			Quantity:    item.Quantity,
-			Subtotal:    lineSubtotal,
-			IsPromoItem: pricedItem.IsPromoItem,
+			MenuItemID:        item.MenuItemID,
+			CategoryID:        pricedItem.CategoryID,
+			BrandID:           pricedItem.BrandID,
+			Quantity:          item.Quantity,
+			Subtotal:          lineSubtotal,
+			TaxInclusiveGross: lineInclusiveUnitPrice * item.Quantity,
+			TaxExclusiveNet:   lineExclusiveUnitPrice * item.Quantity,
+			IsPromoItem:       pricedItem.IsPromoItem,
 		})
 	}
 
@@ -154,27 +168,23 @@ func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req Checkout
 		}
 	}
 
-	netItemAmount := subtotal - discount
-	if netItemAmount < 0 {
-		netItemAmount = 0
-	}
 	chargeDefinitions, err := s.repo.ListChargeDefinitions(ctx, rc.CountryCode, store, req.Fulfillment)
 	if err != nil {
 		return CheckoutResponse{}, err
 	}
 	charges := calculateCharges(chargeDefinitions, chargeCalculationRequest{
-		Subtotal: subtotal,
-		TaxRate:  country.TaxRate,
+		Subtotal:   subtotal,
+		TaxRateBps: taxRateBps,
 	})
-	itemTaxAmount := int(math.Round(float64(netItemAmount) * country.TaxRate))
+	itemTotals := calculateItemTotals(lines, subtotal, discount, taxRateBps)
 	chargeTotalAmount := 0
 	chargeTaxAmount := 0
 	for _, charge := range charges {
 		chargeTotalAmount += charge.TotalAmount
 		chargeTaxAmount += charge.TaxAmount
 	}
-	taxAmount := itemTaxAmount + chargeTaxAmount
-	total := netItemAmount + itemTaxAmount + chargeTotalAmount
+	taxAmount := itemTotals.TaxAmount + chargeTaxAmount
+	total := itemTotals.TotalAmount + chargeTotalAmount
 
 	paymentReq := payments.StartPaymentRequest{
 		CountryID:    rc.CountryCode,
@@ -290,9 +300,73 @@ func (s *Service) createMissingPayment(ctx context.Context, intent Intent, metho
 	return responseFromIntent(IntentWithPayment{Intent: intent, Payment: payment}), nil
 }
 
+type itemTotals struct {
+	TaxAmount   int
+	TotalAmount int
+}
+
+func calculateItemTotals(lines []pricedCartLine, subtotal int, discount int, taxRateBps int) itemTotals {
+	discountedSubtotal := subtotal - discount
+	if discountedSubtotal < 0 {
+		discountedSubtotal = 0
+	}
+	if subtotal <= 0 {
+		return itemTotals{}
+	}
+
+	inclusiveGross := 0
+	exclusiveNet := 0
+	for _, line := range lines {
+		inclusiveGross += line.TaxInclusiveGross
+		exclusiveNet += line.TaxExclusiveNet
+	}
+
+	discountedInclusiveGross := prorateAmount(inclusiveGross, discountedSubtotal, subtotal)
+	discountedExclusiveNet := discountedSubtotal - discountedInclusiveGross
+	if discountedExclusiveNet < 0 {
+		discountedExclusiveNet = 0
+	}
+
+	inclusiveTax := discountedInclusiveGross - netFromTaxInclusive(discountedInclusiveGross, taxRateBps)
+	exclusiveTax := taxFromNet(discountedExclusiveNet, taxRateBps)
+	return itemTotals{
+		TaxAmount:   inclusiveTax + exclusiveTax,
+		TotalAmount: discountedInclusiveGross + discountedExclusiveNet + exclusiveTax,
+	}
+}
+
+func taxRateBasisPoints(rate float64) int {
+	if rate <= 0 {
+		return 0
+	}
+	return int(rate*10000 + 0.5)
+}
+
+func taxFromNet(amount int, taxRateBps int) int {
+	if amount <= 0 || taxRateBps <= 0 {
+		return 0
+	}
+	return (amount*taxRateBps + 5000) / 10000
+}
+
+func netFromTaxInclusive(gross int, taxRateBps int) int {
+	if gross <= 0 || taxRateBps <= 0 {
+		return gross
+	}
+	denominator := 10000 + taxRateBps
+	return (gross*10000 + denominator/2) / denominator
+}
+
+func prorateAmount(amount int, numerator int, denominator int) int {
+	if amount <= 0 || numerator <= 0 || denominator <= 0 {
+		return 0
+	}
+	return (amount*numerator + denominator/2) / denominator
+}
+
 type chargeCalculationRequest struct {
-	Subtotal int
-	TaxRate  float64
+	Subtotal   int
+	TaxRateBps int
 }
 
 func calculateCharges(definitions []ChargeDefinition, req chargeCalculationRequest) []ChargeLine {
@@ -316,7 +390,7 @@ func calculateCharges(definitions []ChargeDefinition, req chargeCalculationReque
 		}
 		if definition.Taxable && definition.TaxInclusive {
 			gross := definition.Amount
-			net := int(math.Round(float64(gross) / (1 + req.TaxRate)))
+			net := netFromTaxInclusive(gross, req.TaxRateBps)
 			line.Amount = net
 			line.TaxableAmount = net
 			line.TaxAmount = gross - net
@@ -328,7 +402,7 @@ func calculateCharges(definitions []ChargeDefinition, req chargeCalculationReque
 		line.TotalAmount = definition.Amount
 		if definition.Taxable {
 			line.TaxableAmount = definition.Amount
-			line.TaxAmount = int(math.Round(float64(definition.Amount) * req.TaxRate))
+			line.TaxAmount = taxFromNet(definition.Amount, req.TaxRateBps)
 			line.TotalAmount += line.TaxAmount
 		}
 		lines = append(lines, line)
@@ -620,12 +694,14 @@ func (s *Service) ValidateVoucher(ctx context.Context, rc CheckoutContext, req V
 }
 
 type pricedCartLine struct {
-	MenuItemID  int
-	CategoryID  int
-	BrandID     int
-	Quantity    int
-	Subtotal    int
-	IsPromoItem bool
+	MenuItemID        int
+	CategoryID        int
+	BrandID           int
+	Quantity          int
+	Subtotal          int
+	TaxInclusiveGross int
+	TaxExclusiveNet   int
+	IsPromoItem       bool
 }
 
 type voucherEligibilityRequest struct {
@@ -673,7 +749,7 @@ func (s *Service) discount(ctx context.Context, req voucherEligibilityRequest) (
 	var discount int
 	switch voucher.DiscountType {
 	case "PERCENTAGE":
-		discount = int(math.Round(float64(eligibleSubtotal) * float64(voucher.DiscountValue) / 100))
+		discount = (eligibleSubtotal*voucher.DiscountValue + 50) / 100
 		if voucher.MaxDiscountCap.Valid && discount > int(voucher.MaxDiscountCap.Int64) {
 			discount = int(voucher.MaxDiscountCap.Int64)
 		}
@@ -735,13 +811,13 @@ func orderStatusFromRow(status Status) OrderStatus {
 		PaymentStatus:        status.PaymentStatus.String,
 		PaymentTransactionID: status.TransactionID.String,
 		Subtotal:             status.Subtotal,
-		Charges:        chargeLineResponses(status.Charges),
-		TaxAmount:      status.TaxAmount,
-		DiscountAmount: status.DiscountAmount,
-		TotalAmount:    status.TotalAmount,
-		CreatedAt:      status.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:      status.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		Items:          []OrderStatusItem{},
+		Charges:              chargeLineResponses(status.Charges),
+		TaxAmount:            status.TaxAmount,
+		DiscountAmount:       status.DiscountAmount,
+		TotalAmount:          status.TotalAmount,
+		CreatedAt:            status.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:            status.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		Items:                []OrderStatusItem{},
 	}
 }
 

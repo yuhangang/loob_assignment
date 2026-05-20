@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
+import '../../../../core/router/app_router.dart';
+import '../../cart/presentation/bloc/cart_bloc.dart';
+import '../../cart/presentation/bloc/cart_state.dart';
 import '../data/models/store_model.dart';
 
 /// Full-screen outlet selector featuring an interactive mock map and detailed store cards.
@@ -93,6 +97,54 @@ class _SelectOutletPageState extends State<SelectOutletPage> {
             letterSpacing: 0.8,
           ),
         ),
+        actions: [
+          // Dynamic Cart Button with Badge
+          BlocBuilder<CartBloc, CartState>(
+            builder: (context, cartState) {
+              final count = cartState.totalQuantity;
+              return Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.shopping_bag_outlined,
+                      color: primaryColor,
+                      size: 24,
+                    ),
+                    onPressed: () => context.push(AppRouter.cart),
+                  ),
+                  if (count > 0)
+                    Positioned(
+                      right: 4,
+                      top: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          '$count',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(width: AppSpacing.sm),
+        ],
       ),
       body: Column(
         children: [
@@ -644,8 +696,7 @@ class _MapPainter extends CustomPainter {
       final innerCirclePaint = Paint()..color = AppColors.white;
       canvas.drawCircle(Offset(loc.dx, loc.dy - 14), 4, innerCirclePaint);
 
-      final symbolColorPaint = Paint()
-        ..color = AppColors.warning;
+      final symbolColorPaint = Paint()..color = AppColors.warning;
 
       canvas.drawCircle(Offset(loc.dx, loc.dy - 14), 2.5, symbolColorPaint);
     }

@@ -48,7 +48,7 @@ func registerRoutes(cfg routesConfig) {
 	paymentsGroup := v1.Group("/payments")
 	paymentsGroup.GET("/providers", cfg.paymentHandler.ListProviders)
 	paymentsGroup.GET("/methods", cfg.paymentHandler.ListMethods)
-	paymentsGroup.GET("/:transaction_id", cfg.paymentHandler.Get)
+	paymentsGroup.GET("/:transaction_id", cfg.paymentHandler.Get, cfg.requireAuth)
 	paymentsGroup.POST("/mock-gateway/callback", cfg.paymentHandler.MockGatewayCallback)
 
 	// Catalog routes

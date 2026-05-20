@@ -80,7 +80,7 @@ class SidebarCategoryTab extends StatelessWidget {
           border: Border(
             left: BorderSide(
               color: isSelected ? primaryColor : AppColors.transparent,
-              width: 4,
+              width: 2,
             ),
           ),
         ),

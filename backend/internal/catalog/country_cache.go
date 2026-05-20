@@ -13,6 +13,6 @@ var CountryConfigMap = map[string]Country{
 		ID:              "TH",
 		CurrencyCode:    "THB",
 		TaxRate:         0.07,
-		DefaultLanguage: "th-TH",
+		DefaultLanguage: "en-US",
 	},
 }

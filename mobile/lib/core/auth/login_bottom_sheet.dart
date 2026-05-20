@@ -19,6 +19,7 @@ class LoginBottomSheet extends StatefulWidget {
   }) {
     return showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.transparent,
       barrierColor: AppColors.black.withValues(alpha: 0.5),

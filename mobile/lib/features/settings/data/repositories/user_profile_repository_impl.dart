@@ -3,6 +3,7 @@ import '../../../../core/config/app_config.dart';
 import '../../domain/repositories/user_profile_repository.dart';
 import '../datasources/user_profile_remote_data_source.dart';
 import '../models/user_profile_model.dart';
+import '../models/wallet_topup_response_model.dart';
 
 class UserProfileRepositoryImpl implements IUserProfileRepository {
   final UserProfileRemoteDataSource _remote;
@@ -34,8 +35,20 @@ class UserProfileRepositoryImpl implements IUserProfileRepository {
   }
 
   @override
-  Future<WalletHistoryModel> topUpWallet(int amount) {
-    return _remote.topUpWallet(userId: currentUserId, amount: amount);
+  Future<WalletTopUpResponseModel> topUpWallet(int amount, String paymentMethod) {
+    return _remote.topUpWallet(
+      userId: currentUserId,
+      amount: amount,
+      paymentMethod: paymentMethod,
+    );
+  }
+
+  @override
+  Future<void> confirmMockPayment(String transactionId) {
+    return _remote.confirmMockPayment(
+      transactionId: transactionId,
+      secret: _config.mockGatewaySecret,
+    );
   }
 
   @override

@@ -95,6 +95,7 @@ type ItemData struct {
 	ImageURLSmall       string                   `json:"image_url_sm"`
 	ImageURLLarge       string                   `json:"image_url_lg"`
 	DietaryTags         []string                 `json:"dietary_tags"`
+	IsPromo             bool                     `json:"is_promo"`
 	PriceMin            int                      `json:"price_min"`
 	PriceMax            int                      `json:"price_max"`
 	CustomizationGroups []CustomizationGroupData `json:"customization_groups"`
@@ -421,8 +422,8 @@ func seedRegional(db *sql.DB, cid string, data RegionalData) {
 		}
 		itemIDsBySKU[it.SKU] = it.ID
 		_, _ = db.ExecContext(ctx, `
-			INSERT INTO menu_items (id, category_id, brand_id, item_type, sku_code, name_translations, desc_translations, image_url_sm, image_url_lg, dietary_tags)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO menu_items (id, category_id, brand_id, item_type, sku_code, name_translations, desc_translations, image_url_sm, image_url_lg, dietary_tags, is_promo)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON DUPLICATE KEY UPDATE
 				category_id = VALUES(category_id),
 				brand_id = VALUES(brand_id),
@@ -432,9 +433,10 @@ func seedRegional(db *sql.DB, cid string, data RegionalData) {
 				image_url_sm = VALUES(image_url_sm),
 				image_url_lg = VALUES(image_url_lg),
 				dietary_tags = VALUES(dietary_tags),
+				is_promo = VALUES(is_promo),
 				deleted_at = NULL,
 				is_active = true
-		`, it.ID, it.CID, it.BID, itemType, it.SKU, names, desc, it.ImageURLSmall, it.ImageURLLarge, tags)
+		`, it.ID, it.CID, it.BID, itemType, it.SKU, names, desc, it.ImageURLSmall, it.ImageURLLarge, tags, it.IsPromo)
 
 		for _, z := range data.Zones {
 			price := it.PriceMin + rand.Intn(it.PriceMax-it.PriceMin+1)

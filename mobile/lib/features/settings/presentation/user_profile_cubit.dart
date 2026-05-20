@@ -1,8 +1,9 @@
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:loob_app/features/cart/data/models/checkout_response_model.dart';
 
-import '../../../core/di/injection.dart';
 import '../../../core/auth/auth_service.dart';
+import '../../../core/di/injection.dart';
 import '../../../core/network/api_exception.dart';
 import '../data/models/user_profile_model.dart';
 import '../domain/repositories/user_profile_repository.dart';
@@ -29,13 +30,34 @@ class UserProfileLoaded extends UserProfileState {
   final WalletHistoryModel walletHistory;
   final LoyaltyHistoryModel loyaltyHistory;
   final bool isTopUpSubmitting;
+  final PaymentTransactionResponseModel? pendingPayment;
 
   const UserProfileLoaded(
     this.profile, {
     required this.walletHistory,
     required this.loyaltyHistory,
     this.isTopUpSubmitting = false,
+    this.pendingPayment,
   });
+
+  UserProfileLoaded copyWith({
+    UserProfileModel? profile,
+    WalletHistoryModel? walletHistory,
+    LoyaltyHistoryModel? loyaltyHistory,
+    bool? isTopUpSubmitting,
+    PaymentTransactionResponseModel? pendingPayment,
+    bool clearPendingPayment = false,
+  }) {
+    return UserProfileLoaded(
+      profile ?? this.profile,
+      walletHistory: walletHistory ?? this.walletHistory,
+      loyaltyHistory: loyaltyHistory ?? this.loyaltyHistory,
+      isTopUpSubmitting: isTopUpSubmitting ?? this.isTopUpSubmitting,
+      pendingPayment: clearPendingPayment
+          ? null
+          : (pendingPayment ?? this.pendingPayment),
+    );
+  }
 
   @override
   List<Object?> get props => [
@@ -43,6 +65,7 @@ class UserProfileLoaded extends UserProfileState {
     walletHistory,
     loyaltyHistory,
     isTopUpSubmitting,
+    pendingPayment,
   ];
 }
 
@@ -114,7 +137,7 @@ class UserProfileCubit extends Cubit<UserProfileState> {
         ),
       );
     } catch (e) {
-      emit(_errorState(e));
+      rethrow;
     }
   }
 
@@ -133,35 +156,62 @@ class UserProfileCubit extends Cubit<UserProfileState> {
         ),
       );
     } catch (e) {
-      emit(_errorState(e));
+      rethrow;
     }
   }
 
-  Future<void> topUpWallet(int amount) async {
+  Future<PaymentTransactionResponseModel?> topUpWallet(
+    int amount, {
+    String paymentMethod = 'ONLINE_BANKING',
+  }) async {
+    final currentState = state;
+    if (currentState is! UserProfileLoaded) return null;
+
+    emit(currentState.copyWith(isTopUpSubmitting: true));
+    try {
+      final response = await _repository.topUpWallet(amount, paymentMethod);
+      emit(
+        currentState.copyWith(
+          isTopUpSubmitting: false,
+        ),
+      );
+      return response.payment;
+    } catch (e) {
+      emit(currentState.copyWith(isTopUpSubmitting: false));
+      rethrow;
+    }
+  }
+
+  void clearPendingPayment() {
+    final currentState = state;
+    if (currentState is! UserProfileLoaded) return;
+    emit(currentState.copyWith(clearPendingPayment: true));
+  }
+
+  Future<void> confirmMockPayment(String transactionId) async {
     final currentState = state;
     if (currentState is! UserProfileLoaded) return;
 
-    emit(
-      UserProfileLoaded(
-        currentState.profile,
-        walletHistory: currentState.walletHistory,
-        loyaltyHistory: currentState.loyaltyHistory,
-        isTopUpSubmitting: true,
-      ),
-    );
+    emit(currentState.copyWith(isTopUpSubmitting: true));
     try {
-      final walletHistory = await _repository.topUpWallet(amount);
+      await _repository.confirmMockPayment(transactionId);
+      await Future.delayed(const Duration(milliseconds: 1500));
+
       final profile = await _repository.getProfile();
+      final walletHistory = await _repository.getWalletHistory();
       final loyaltyHistory = await _repository.getLoyaltyHistory();
       emit(
         UserProfileLoaded(
           profile,
           walletHistory: walletHistory,
           loyaltyHistory: loyaltyHistory,
+          isTopUpSubmitting: false,
+          pendingPayment: null,
         ),
       );
     } catch (e) {
-      emit(_errorState(e));
+      emit(currentState.copyWith(isTopUpSubmitting: false));
+      rethrow;
     }
   }
 

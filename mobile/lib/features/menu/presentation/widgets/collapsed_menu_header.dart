@@ -11,11 +11,13 @@ class CollapsedMenuHeader extends StatelessWidget {
     required this.selectedStore,
     required this.primaryColor,
     required this.onChangeOutlet,
+    this.onSearchTap,
   });
 
   final StoreModel selectedStore;
   final Color primaryColor;
   final VoidCallback onChangeOutlet;
+  final VoidCallback? onSearchTap;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +55,7 @@ class CollapsedMenuHeader extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Icon(Icons.edit_outlined, color: primaryColor, size: 14),
+                      Icon(Icons.location_on, color: primaryColor, size: 14),
                     ],
                   ),
                 ],
@@ -61,9 +63,7 @@ class CollapsedMenuHeader extends StatelessWidget {
             ),
           ),
           IconButton(
-            onPressed: () {
-              // Action for search if needed
-            },
+            onPressed: onSearchTap,
             icon: Icon(Icons.search_rounded, color: primaryColor, size: 24),
             style: IconButton.styleFrom(
               backgroundColor: primaryColor.withValues(alpha: 0.1),

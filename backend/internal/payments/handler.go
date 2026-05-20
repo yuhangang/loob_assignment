@@ -50,7 +50,7 @@ func (h *Handler) Get(c echo.Context) error {
 		return err
 	}
 	rc := contextx.FromEcho(c)
-	transaction, err := h.service.Get(c.Request().Context(), rc.CountryCode, c.Param("transaction_id"))
+	transaction, err := h.service.GetForUser(c.Request().Context(), rc.CountryCode, rc.UserID, c.Param("transaction_id"))
 	if err != nil {
 		if errors.Is(err, ErrTransactionNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, map[string]string{"error": "payment transaction not found"})

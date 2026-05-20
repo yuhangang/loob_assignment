@@ -1,5 +1,7 @@
 package users
 
+import "github.com/loob/backend/internal/payments"
+
 type Profile struct {
 	UserID              string `json:"user_id"`
 	DisplayName         string `json:"display_name"`
@@ -65,8 +67,13 @@ type UpdateProfileRequest struct {
 }
 
 type WalletTopUpRequest struct {
-	Amount      int    `json:"amount"`
-	Description string `json:"description"`
+	Amount        int    `json:"amount"`
+	Description   string `json:"description"`
+	PaymentMethod string `json:"payment_method"`
+}
+
+type WalletTopUpResponse struct {
+	Payment *payments.Transaction `json:"payment,omitempty"`
 }
 
 type ProfileUpdate struct {

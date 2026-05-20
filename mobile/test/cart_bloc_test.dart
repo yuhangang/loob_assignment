@@ -1,5 +1,8 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
+import 'package:loob_app/core/auth/auth_service.dart';
+import 'package:loob_app/core/auth/mock_auth_service.dart';
 import 'package:loob_app/core/config/app_config.dart';
 import 'package:loob_app/core/network/api_client.dart';
 import 'package:loob_app/features/cart/data/datasources/cart_remote_data_source.dart';
@@ -29,7 +32,23 @@ class FakeCartRemoteDataSource extends CartRemoteDataSource {
   }
 }
 
+class FakeAuthService extends MockAuthService {
+  @override
+  AuthUser? get currentUser => const AuthUser(uid: 'u1', phoneNumber: '+60123456789');
+  @override
+  bool get isAuthenticated => true;
+  @override
+  Future<String?> getIdToken({bool forceRefresh = false}) async => 'mock-jwt';
+}
+
 void main() {
+  setUp(() {
+    final sl = GetIt.instance;
+    if (!sl.isRegistered<AuthService>()) {
+      sl.registerSingleton<AuthService>(FakeAuthService());
+    }
+  });
+
   ProductModel product() {
     const regular = CustomizationOptionModel(
       code: 'REG',

@@ -14,7 +14,7 @@
       "code": "TH",
       "name": "Thailand",
       "currency_code": "THB",
-      "languages": ["th", "en"],
+      "languages": ["en"],
       "tax_rate": 0.07,
       "timezone": "Asia/Bangkok"
     },

@@ -20,6 +20,9 @@ import 'bloc/cart_item.dart';
 import 'bloc/cart_state.dart';
 import 'bloc/checkout_cubit.dart';
 import 'bloc/checkout_state.dart';
+import '../../../core/widgets/loob_error_dialog.dart';
+import '../../../core/widgets/loob_loading_overlay.dart';
+import '../../../core/widgets/loob_skeleton.dart';
 import 'widgets/checkout_amount_row.dart';
 import 'widgets/checkout_collection_card.dart';
 import 'widgets/checkout_item_tile.dart';
@@ -233,46 +236,71 @@ class _CheckoutPageState extends State<CheckoutPage> {
             context.read<CartBloc>().state.countryCode,
             context.l10n.unableLoadPaymentMethods,
           ),
-      child: BlocBuilder<CheckoutCubit, CheckoutState>(
-        builder: (context, state) {
-          return BlocBuilder<CartBloc, CartState>(
-            builder: (context, cart) {
-              final checkout = state.checkout;
-              return PopScope(
-                canPop: checkout == null,
-                onPopInvokedWithResult: (didPop, result) {
-                  if (didPop) return;
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-                child: Scaffold(
-                  appBar: AppBar(
-                    title: Text(
-                      checkout == null
-                          ? context.l10n.checkoutTitle
-                          : context.l10n.paymentTitle,
-                    ),
-                  ),
-                  body: checkout == null
-                      ? _buildCheckoutForm(context, cart, state)
-                      : _buildPaymentResult(
-                          context,
-                          checkout,
-                          cart.currency,
-                          state,
-                        ),
-                  bottomNavigationBar:
-                      checkout == null &&
-                          state
-                              .getItems(cart)
-                              .where((item) => item.isAvailable)
-                              .isNotEmpty
-                      ? _buildFloatingCheckoutButton(context, cart, state)
-                      : null,
-                ),
-              );
-            },
-          );
+      child: BlocListener<CheckoutCubit, CheckoutState>(
+        listenWhen: (previous, current) =>
+            previous.isCheckingOut != current.isCheckingOut ||
+            previous.error != current.error,
+        listener: (context, state) {
+          if (state.isCheckingOut) {
+            LoobLoadingOverlay.show(
+              context,
+              message: state.checkout == null
+                  ? 'Securing your order...'
+                  : 'Verifying payment...',
+            );
+          } else {
+            LoobLoadingOverlay.hide(context);
+          }
+
+          if (state.error != null) {
+            LoobErrorDialog.show(
+              context,
+              title: state.checkout == null ? 'Checkout Failed' : 'Payment Failed',
+              message: state.error!,
+            );
+          }
         },
+        child: BlocBuilder<CheckoutCubit, CheckoutState>(
+          builder: (context, state) {
+            return BlocBuilder<CartBloc, CartState>(
+              builder: (context, cart) {
+                final checkout = state.checkout;
+                return PopScope(
+                  canPop: checkout == null,
+                  onPopInvokedWithResult: (didPop, result) {
+                    if (didPop) return;
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  },
+                  child: Scaffold(
+                    appBar: AppBar(
+                      title: Text(
+                        checkout == null
+                            ? context.l10n.checkoutTitle
+                            : context.l10n.paymentTitle,
+                      ),
+                    ),
+                    body: checkout == null
+                        ? _buildCheckoutForm(context, cart, state)
+                        : _buildPaymentResult(
+                            context,
+                            checkout,
+                            cart.currency,
+                            state,
+                          ),
+                    bottomNavigationBar:
+                        checkout == null &&
+                            state
+                                .getItems(cart)
+                                .where((item) => item.isAvailable)
+                                .isNotEmpty
+                        ? _buildFloatingCheckoutButton(context, cart, state)
+                        : null,
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -644,11 +672,50 @@ class _CheckoutPageState extends State<CheckoutPage> {
         CheckoutSection(
           title: context.l10n.paymentTitle,
           child: state.isLoadingMethods
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(AppSpacing.lg),
-                    child: CircularProgressIndicator(),
-                  ),
+              ? Column(
+                  children: [
+                    for (int i = 0; i < 2; i++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.sm,
+                          horizontal: AppSpacing.md,
+                        ),
+                        child: Row(
+                          children: [
+                            const LoobSkeleton(
+                              width: 24,
+                              height: 24,
+                              borderRadius: 12,
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const LoobSkeleton(
+                                    width: 120,
+                                    height: 16,
+                                    borderRadius: 4,
+                                  ),
+                                  const SizedBox(height: AppSpacing.xs),
+                                  const LoobSkeleton(
+                                    width: 180,
+                                    height: 12,
+                                    borderRadius: 4,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            const LoobSkeleton(
+                              width: 24,
+                              height: 24,
+                              borderRadius: 6,
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 )
               : methods.isEmpty
               ? Text(
@@ -845,6 +912,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     showModalBottomSheet(
       context: parentContext,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: theme.colorScheme.surface,
       shape: const RoundedRectangleBorder(
@@ -923,11 +991,71 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final theme = Theme.of(context);
 
     if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(AppSpacing.xl),
-          child: CircularProgressIndicator(),
-        ),
+      return ListView(
+        controller: scrollController,
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        children: [
+          for (int i = 0; i < 3; i++)
+            Card(
+              margin: const EdgeInsets.only(bottom: AppSpacing.md),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                side: BorderSide(
+                  color: theme.dividerColor.withValues(alpha: 0.08),
+                ),
+              ),
+              elevation: 0,
+              child: const Padding(
+                padding: EdgeInsets.all(AppSpacing.cardPadding),
+                child: Row(
+                  children: [
+                    LoobSkeleton(
+                      width: 64,
+                      height: 64,
+                      borderRadius: AppSpacing.radiusMd,
+                      // The custom shimmer will render concentric skeleton card structure
+                    ),
+                    SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          LoobSkeleton(
+                            width: 140,
+                            height: 16,
+                            borderRadius: 4,
+                          ),
+                          SizedBox(height: AppSpacing.sm),
+                          LoobSkeleton(
+                            width: 200,
+                            height: 12,
+                            borderRadius: 4,
+                          ),
+                          SizedBox(height: AppSpacing.xs),
+                          LoobSkeleton(
+                            width: 160,
+                            height: 12,
+                            borderRadius: 4,
+                          ),
+                          SizedBox(height: AppSpacing.md),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              LoobSkeleton(
+                                width: 80,
+                                height: 20,
+                                borderRadius: 4,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       );
     }
 

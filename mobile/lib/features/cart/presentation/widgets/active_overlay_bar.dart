@@ -24,49 +24,23 @@ class ActiveOverlayBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: AppRouter.isDialogOpenNotifier,
-      builder: (context, isDialogOpen, _) {
-        if (isDialogOpen) {
-          return const IgnorePointer(ignoring: true, child: SizedBox.shrink());
-        }
-        return ValueListenableBuilder<String?>(
-          valueListenable: AppRouter.currentRouteNotifier,
-          builder: (context, currentRoute, child) {
-            if (currentRoute == AppRouter.cart ||
-                currentRoute == AppRouter.checkout ||
-                currentRoute == AppRouter.orderStatus ||
-                currentRoute == AppRouter.barcode ||
-                currentRoute == AppRouter.productDetail ||
-                currentRoute == AppRouter.selectOutlet) {
-              return const IgnorePointer(
-                ignoring: true,
-                child: SizedBox.shrink(),
-              );
-            }
+    final theme = Theme.of(context);
+    final showCartBar = cartState.totalQuantity > 0;
 
-            final theme = Theme.of(context);
-            final showVoucherButton = currentRoute != AppRouter.vouchers;
-            final showCartBar = cartState.totalQuantity > 0;
-
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (activeOrder != null) ...[
-                  _buildActiveOrderBar(context, theme, activeOrder!),
-                  const SizedBox(height: AppSpacing.md),
-                ],
-                if (showVoucherButton && showCartBar) ...[
-                  _buildVoucherButton(context, theme),
-                  const SizedBox(height: AppSpacing.md),
-                ],
-                if (showCartBar) _buildBar(context, theme),
-              ],
-            );
-          },
-        );
-      },
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (activeOrder != null) ...[
+          _buildActiveOrderBar(context, theme, activeOrder!),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        if (showCartBar) ...[
+          _buildVoucherButton(context, theme),
+          const SizedBox(height: AppSpacing.md),
+          _buildBar(context, theme),
+        ],
+      ],
     );
   }
 

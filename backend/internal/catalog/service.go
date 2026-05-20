@@ -515,6 +515,7 @@ func buildProducts(products []ProductRow, groups []GroupRow, options []OptionRow
 			BasePrice:           product.BasePrice,
 			DietaryTags:         product.DietaryTags,
 			CustomizationGroups: groupsByProduct[product.ID],
+			IsPromo:             product.IsPromo,
 		})
 	}
 	return out, taxInclusive

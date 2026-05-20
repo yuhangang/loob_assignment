@@ -228,15 +228,16 @@ class ProductCard extends StatelessWidget {
               alignment: WrapAlignment.center,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Text(
-                  originalPriceText,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.grey400,
-                    decoration: TextDecoration.lineThrough,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                if (product.isPromo)
+                  Text(
+                    originalPriceText,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppColors.grey400,
+                      decoration: TextDecoration.lineThrough,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
                 Text(
                   currentPriceText,
                   style: theme.textTheme.titleMedium?.copyWith(

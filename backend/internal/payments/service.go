@@ -11,6 +11,7 @@ import (
 type PaymentRepository interface {
 	ApplyCallback(ctx context.Context, update CallbackUpdate) (TransactionRow, error)
 	Get(ctx context.Context, countryID, transactionID string) (TransactionRow, error)
+	GetForUser(ctx context.Context, countryID, userID, transactionID string) (TransactionRow, error)
 	ResolvePaymentMethod(ctx context.Context, countryID string, brandID int, methodCode string, amount int) (PaymentMethod, error)
 	CreatePendingTransaction(ctx context.Context, tx PendingTransaction) (TransactionRow, error)
 	ListProviders(ctx context.Context, includeInactive bool) ([]ProviderRow, error)
@@ -75,6 +76,17 @@ func (s *Service) ApplyMockGatewayCallback(ctx context.Context, req MockGatewayC
 
 func (s *Service) Get(ctx context.Context, countryID, transactionID string) (Transaction, error) {
 	row, err := s.repo.Get(ctx, countryID, transactionID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Transaction{}, ErrTransactionNotFound
+		}
+		return Transaction{}, err
+	}
+	return toDomain(row), nil
+}
+
+func (s *Service) GetForUser(ctx context.Context, countryID, userID, transactionID string) (Transaction, error) {
+	row, err := s.repo.GetForUser(ctx, countryID, userID, transactionID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return Transaction{}, ErrTransactionNotFound

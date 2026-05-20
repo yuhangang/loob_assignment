@@ -15,11 +15,13 @@ type Config struct {
 	PublicBaseURL      string
 	MockGatewaySecret  string
 	FirebaseProjectID  string
+	AuthMode           string
 	WorkerPollInterval time.Duration
 	WorkerBatchSize    int
 }
 
 func Load() Config {
+	firebaseProjectID := strings.TrimSpace(os.Getenv("FIREBASE_PROJECT_ID"))
 	return Config{
 		HTTPAddr:           getEnv("HTTP_ADDR", ":8080"),
 		DatabaseDSN:        databaseDSN(),
@@ -27,9 +29,25 @@ func Load() Config {
 		AutoMigrate:        getBoolEnv("AUTO_MIGRATE", true),
 		PublicBaseURL:      strings.TrimRight(getEnv("PUBLIC_BASE_URL", "http://localhost:8080"), "/"),
 		MockGatewaySecret:  getEnv("MOCK_GATEWAY_SECRET", "change-me-local-only"),
-		FirebaseProjectID:  getEnv("FIREBASE_PROJECT_ID", "mock-project-id"),
+		FirebaseProjectID:  firebaseProjectID,
+		AuthMode:           authMode(firebaseProjectID),
 		WorkerPollInterval: getDurationEnv("WORKER_POLL_INTERVAL", 2*time.Second),
 		WorkerBatchSize:    getIntEnv("WORKER_BATCH_SIZE", 25),
+	}
+}
+
+func authMode(firebaseProjectID string) string {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("AUTH_MODE")))
+	switch mode {
+	case "firebase", "mock":
+		return mode
+	case "":
+		if strings.TrimSpace(firebaseProjectID) != "" {
+			return "firebase"
+		}
+		return "mock"
+	default:
+		return "firebase"
 	}
 }
 

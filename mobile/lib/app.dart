@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:loob_app/features/cart/presentation/bloc/cart_state.dart';
 import 'core/auth/bloc/auth_bloc.dart';
 import 'core/auth/bloc/auth_state.dart';
 import 'core/auth/widgets/session_timeout_dialog.dart';
@@ -14,7 +15,6 @@ import 'core/theme/brand.dart';
 import 'core/theme/theme_cubit.dart';
 import 'features/cart/presentation/bloc/cart_bloc.dart';
 import 'features/cart/presentation/bloc/cart_event.dart';
-import 'features/cart/presentation/overlay/active_overlay_manager.dart';
 import 'features/menu/domain/repositories/menu_repository.dart';
 import 'features/settings/presentation/user_profile_cubit.dart';
 
@@ -30,6 +30,24 @@ class LoobApp extends StatelessWidget {
     return AppProviders(
       child: MultiBlocListener(
         listeners: [
+          BlocListener<CartBloc, CartState>(
+            listenWhen: (previous, current) =>
+                previous.countryCode != current.countryCode,
+            listener: (context, state) {
+              if (state.countryCode == 'TH') {
+                final languageCubit = context.read<LanguageCubit>();
+                if (languageCubit.state.languageCode != 'en') {
+                  languageCubit.switchLanguage('en');
+
+                  final userProfileCubit = context.read<UserProfileCubit>();
+                  final authState = context.read<AuthBloc>().state;
+                  if (authState is Authenticated) {
+                    userProfileCubit.updatePreferredLanguage('en');
+                  }
+                }
+              }
+            },
+          ),
           BlocListener<AuthBloc, AuthState>(
             listener: (context, state) {
               if (state is Unauthenticated) {
@@ -114,10 +132,7 @@ class LoobApp extends StatelessWidget {
                       GlobalCupertinoLocalizations.delegate,
                     ],
                     routerConfig: AppRouter.router,
-                    // The ActiveOverlayBar is injected into the Navigator overlay
-                    // (via ActiveOverlayManager) so it renders above bottom sheets.
-                    builder: (context, child) =>
-                        ActiveOverlayManager(child: child!),
+                    builder: (context, child) => child!,
                   ),
                 );
               },

@@ -26,6 +26,7 @@ const firebaseCertURL = "https://www.googleapis.com/robot/v1/metadata/x509/secur
 
 type Config struct {
 	FirebaseProjectID string
+	AuthMode          string
 }
 
 type Authenticator struct {
@@ -35,6 +36,7 @@ type Authenticator struct {
 	cacheMu        sync.Mutex
 	cachedKeys     map[string]crypto.PublicKey
 	cacheExpiresAt time.Time
+	mockMode       bool
 }
 
 type Claims struct {
@@ -45,10 +47,16 @@ type Claims struct {
 }
 
 func New(cfg Config) *Authenticator {
+	projectID := strings.TrimSpace(cfg.FirebaseProjectID)
+	mockMode := strings.EqualFold(strings.TrimSpace(cfg.AuthMode), "mock")
+	if mockMode && projectID == "" {
+		projectID = "mock-project-id"
+	}
 	return &Authenticator{
-		projectID:  strings.TrimSpace(cfg.FirebaseProjectID),
+		projectID:  projectID,
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		certsURL:   firebaseCertURL,
+		mockMode:   mockMode,
 	}
 }
 
@@ -101,8 +109,8 @@ func (a *Authenticator) verifyFirebaseIDToken(ctx context.Context, token string)
 	if err := decodeSegment(segments[0], &header); err != nil {
 		return Claims{}, err
 	}
-	
-	isMock := header.Alg == "none" || segments[2] == "mock-signature" || a.projectID == "mock-project-id"
+
+	isMock := a.mockMode && (header.Alg == "none" || segments[2] == "mock-signature")
 
 	if !isMock && (header.Alg != "RS256" || header.Kid == "") {
 		return Claims{}, ErrInvalidToken

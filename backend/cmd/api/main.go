@@ -61,21 +61,25 @@ func main() {
 	// Initialize repositories, services, and handlers
 	authenticator := auth.New(auth.Config{
 		FirebaseProjectID: cfg.FirebaseProjectID,
+		AuthMode:          cfg.AuthMode,
 	})
+	if cfg.AuthMode == "mock" {
+		log.Printf("auth mode is mock; use AUTH_MODE=firebase and FIREBASE_PROJECT_ID for Firebase token verification")
+	}
 	requireAuth := authenticator.Required()
 	ps := payments.Init(db, cfg.MockGatewaySecret)
 
 	paymentHandler := payments.NewHandler(ps)
 	catalogHandler := catalog.NewHandler(catalog.NewService(catalog.NewRepository(db), cfg.PublicBaseURL))
-	
+
 	checkoutService := checkout.NewService(checkout.NewRepository(db), ps)
 	checkoutHandler := checkout.NewHandler(checkoutService)
-	
+
 	cartHandler := cart.NewHandler(cart.NewService(cart.NewRepository(db), cfg.PublicBaseURL))
 	campaignsHandler := campaigns.NewHandler(campaigns.NewService(campaigns.NewRepository(db), cfg.PublicBaseURL))
-	
+
 	voucherHandler := vouchers.NewHandler(vouchers.NewService(vouchers.NewRepository(db)), checkoutService)
-	usersHandler := users.NewHandler(users.NewService(users.NewRepository(db), cfg.PublicBaseURL))
+	usersHandler := users.NewHandler(users.NewService(users.NewRepository(db), ps, cfg.PublicBaseURL))
 	appconfigHandler := appconfig.NewHandler(cfg.PublicBaseURL)
 
 	// Register routes

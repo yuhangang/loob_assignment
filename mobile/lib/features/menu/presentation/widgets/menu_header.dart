@@ -15,6 +15,7 @@ class MenuHeader extends StatelessWidget {
     required this.primaryColor,
     required this.onFulfillmentChanged,
     required this.onChangeOutlet,
+    this.onSearchTap,
   });
 
   final String brandName;
@@ -23,6 +24,7 @@ class MenuHeader extends StatelessWidget {
   final Color primaryColor;
   final ValueChanged<bool> onFulfillmentChanged;
   final VoidCallback onChangeOutlet;
+  final VoidCallback? onSearchTap;
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +35,7 @@ class MenuHeader extends StatelessWidget {
         AppSpacing.pageHorizontal,
         AppSpacing.md,
         AppSpacing.pageHorizontal,
-        AppSpacing.md,
+        0,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,7 +177,7 @@ class MenuHeader extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Icon(Icons.edit_outlined, color: primaryColor, size: 16),
+                  Icon(Icons.location_on, color: primaryColor, size: 16),
                 ],
               ),
             ),
@@ -185,9 +187,7 @@ class MenuHeader extends StatelessWidget {
           // Row 3: Outlined Search Bar with Boba cup prefix
           TextField(
             readOnly: true,
-            onTap: () {
-              // Action if search was tapped
-            },
+            onTap: onSearchTap,
             decoration: InputDecoration(
               hintText: context.l10n.searchBobaPlaceholder,
               hintStyle: TextStyle(

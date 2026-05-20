@@ -213,6 +213,27 @@ class AppLocalizations {
       'processing_payment_btn': 'Processing Payment...',
       'active_order_warning_title': 'Active Order Detected',
       'active_order_warning_content': 'You already have an active order. Are you sure you want to place another separate order?',
+      'mock_payment_gateway': 'Mock Payment Gateway',
+      'simulate_payment_wallet_topup': 'Simulate a payment to complete your wallet top-up.',
+      'transaction_id': 'Transaction ID',
+      'payment_method': 'Payment Method',
+      'amount': 'Amount',
+      'confirming': 'Confirming...',
+      'confirm_mock_payment_btn': 'Confirm Mock Payment',
+      'wallet_activity': 'Wallet activity',
+      'points_activity': 'Points activity',
+      'wallet_top_up_amount': 'Top up RM 10.00',
+      'wallet_top_up': 'Wallet top-up',
+      'wallet_spend': 'Wallet spend',
+      'wallet_refund': 'Wallet refund',
+      'wallet_adjustment': 'Wallet adjustment',
+      'no_wallet_activity': 'No wallet activity yet',
+      'no_points_activity': 'No points activity yet',
+      'points_earned': 'Points earned',
+      'points_redeemed': 'Points redeemed',
+      'points_expired': 'Points expired',
+      'points_adjusted': 'Points adjusted',
+      'tier': 'Tier',
     },
     'ms': {
       'home': 'Utama',
@@ -412,6 +433,27 @@ class AppLocalizations {
       'processing_payment_btn': 'Memproses Pembayaran...',
       'active_order_warning_title': 'Pesanan Aktif Dikesan',
       'active_order_warning_content': 'Anda sudah mempunyai pesanan aktif. Adakah anda pasti mahu membuat satu lagi pesanan berasingan?',
+      'mock_payment_gateway': 'Pintu Laluan Pembayaran Olok-olok',
+      'simulate_payment_wallet_topup': 'Simulasikan pembayaran untuk melengkapkan tambah nilai dompet anda.',
+      'transaction_id': 'ID Transaksi',
+      'payment_method': 'Kaedah Pembayaran',
+      'amount': 'Jumlah',
+      'confirming': 'Mengesahkan...',
+      'confirm_mock_payment_btn': 'Sahkan Pembayaran Olok-olok',
+      'wallet_activity': 'Aktiviti dompet',
+      'points_activity': 'Aktiviti mata',
+      'wallet_top_up_amount': 'Tambah nilai RM 10.00',
+      'wallet_top_up': 'Tambah nilai dompet',
+      'wallet_spend': 'Belanja dompet',
+      'wallet_refund': 'Bayaran balik dompet',
+      'wallet_adjustment': 'Pelarasan dompet',
+      'no_wallet_activity': 'Tiada aktiviti dompet lagi',
+      'no_points_activity': 'Tiada aktiviti mata lagi',
+      'points_earned': 'Mata ganjaran diperoleh',
+      'points_redeemed': 'Mata ganjaran ditebus',
+      'points_expired': 'Mata ganjaran tamat tempoh',
+      'points_adjusted': 'Mata ganjaran dilaraskan',
+      'tier': 'Tahap',
     },
   };
 
@@ -618,6 +660,29 @@ class AppLocalizations {
   String get processingPaymentBtn => _translate('processing_payment_btn');
   String get activeOrderWarningTitle => _translate('active_order_warning_title');
   String get activeOrderWarningContent => _translate('active_order_warning_content');
+
+  String get mockPaymentGateway => _translate('mock_payment_gateway');
+  String get simulatePaymentWalletTopup => _translate('simulate_payment_wallet_topup');
+  String get transactionIdLabel => _translate('transaction_id');
+  String get paymentMethodLabel => _translate('payment_method');
+  String get amountLabel => _translate('amount');
+  String get confirming => _translate('confirming');
+  String get confirmMockPaymentBtn => _translate('confirm_mock_payment_btn');
+  String get walletActivity => _translate('wallet_activity');
+  String get pointsActivity => _translate('points_activity');
+  String get walletTopUpAmount => _translate('wallet_top_up_amount');
+  String get walletTopUp => _translate('wallet_top_up');
+  String get walletSpend => _translate('wallet_spend');
+  String get walletRefund => _translate('wallet_refund');
+  String get walletAdjustment => _translate('wallet_adjustment');
+  String get noWalletActivity => _translate('no_wallet_activity');
+  String get noPointsActivity => _translate('no_points_activity');
+
+  String get pointsEarned => _translate('points_earned');
+  String get pointsRedeemed => _translate('points_redeemed');
+  String get pointsExpired => _translate('points_expired');
+  String get pointsAdjusted => _translate('points_adjusted');
+  String get tier => _translate('tier');
 
   String otpSentTo(String phone) {
     return _translate('otp_sent_to').replaceAll('{}', phone);

@@ -20,6 +20,9 @@ func (m *mockRepository) ApplyCallback(ctx context.Context, update CallbackUpdat
 func (m *mockRepository) Get(ctx context.Context, countryID, transactionID string) (TransactionRow, error) {
 	return m.get(ctx, countryID, transactionID)
 }
+func (m *mockRepository) GetForUser(ctx context.Context, countryID, userID, transactionID string) (TransactionRow, error) {
+	return m.get(ctx, countryID, transactionID)
+}
 func (m *mockRepository) ResolvePaymentMethod(ctx context.Context, countryID string, brandID int, methodCode string, amount int) (MethodRow, error) {
 	return m.resolvePaymentMethod(ctx, countryID, brandID, methodCode, amount)
 }

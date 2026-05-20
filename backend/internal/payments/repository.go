@@ -19,6 +19,7 @@ func NewRepository(db *sql.DB) *Repository {
 type TransactionRow struct {
 	ID                string
 	OrderTrackingID   string
+	UserID            string
 	Provider          string
 	MethodCode        sql.NullString
 	ProviderReference sql.NullString
@@ -104,9 +105,9 @@ func (r *Repository) ApplyCallback(ctx context.Context, update CallbackUpdate) (
 	var voucherCode sql.NullString
 	if err := tx.QueryRowContext(ctx, `
 		SELECT pt.provider, pt.user_id, pt.country_id, COALESCE(pt.payment_method_code, ''),
-		       pt.currency_code, pt.amount, pt.order_tracking_id, oi.voucher_code
+		       pt.currency_code, pt.amount, COALESCE(pt.order_tracking_id, ''), oi.voucher_code
 		FROM payment_transactions pt
-		INNER JOIN order_intents oi ON oi.tracking_id = pt.order_tracking_id
+		LEFT JOIN order_intents oi ON oi.tracking_id = pt.order_tracking_id
 		WHERE pt.id = ?
 		FOR UPDATE
 	`, update.TransactionID).Scan(&provider, &userID, &countryID, &methodCode, &currencyCode, &amount, &orderTrackingID, &voucherCode); err != nil {
@@ -183,6 +184,46 @@ type capturedPaymentEffect struct {
 }
 
 func applyCapturedPaymentEffects(ctx context.Context, tx *sql.Tx, effect capturedPaymentEffect) error {
+	if effect.OrderTrackingID == "" {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT IGNORE INTO wallet_accounts (user_id, country_id, balance, currency_code)
+			VALUES (?, ?, 0, ?)
+		`, effect.UserID, effect.CountryID, effect.CurrencyCode); err != nil {
+			return err
+		}
+
+		var balance int
+		if err := tx.QueryRowContext(ctx, `
+			SELECT balance
+			FROM wallet_accounts
+			WHERE user_id = ? AND country_id = ?
+			FOR UPDATE
+		`, effect.UserID, effect.CountryID).Scan(&balance); err != nil {
+			return err
+		}
+		balance += effect.Amount
+
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE wallet_accounts
+			SET balance = ?
+			WHERE user_id = ? AND country_id = ?
+		`, balance, effect.UserID, effect.CountryID); err != nil {
+			return err
+		}
+
+		description := "Wallet top-up via " + effect.MethodCode
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO wallet_transactions (
+				user_id, country_id, transaction_type, amount, balance_after, currency_code, reference_type, reference_id, description
+			)
+			VALUES (?, ?, 'TOPUP', ?, ?, ?, 'PAYMENT', ?, ?)
+		`, effect.UserID, effect.CountryID, effect.Amount, balance, effect.CurrencyCode, effect.TransactionID, description); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
 	if effect.MethodCode == "EWALLET" {
 		var existing int
 		if err := tx.QueryRowContext(ctx, `
@@ -306,6 +347,17 @@ func (r *Repository) Get(ctx context.Context, countryID, transactionID string) (
 	return transaction, nil
 }
 
+func (r *Repository) GetForUser(ctx context.Context, countryID, userID, transactionID string) (TransactionRow, error) {
+	transaction, err := getTransactionForUser(ctx, r.db, countryID, userID, transactionID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return TransactionRow{}, ErrNotFound
+		}
+		return TransactionRow{}, err
+	}
+	return transaction, nil
+}
+
 func (r *Repository) ResolvePaymentMethod(ctx context.Context, countryID string, brandID int, methodCode string, amount int) (PaymentMethod, error) {
 	query := `
 		SELECT code, provider_code, currency_code, min_amount, max_amount
@@ -340,7 +392,7 @@ func (r *Repository) CreatePendingTransaction(ctx context.Context, payment Pendi
 		INSERT INTO payment_transactions (
 			id, order_tracking_id, country_id, user_id, provider, payment_method_code, status, currency_code, amount
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?)
 	`, payment.ID, payment.OrderTrackingID, payment.CountryID, payment.UserID, payment.Provider, payment.MethodCode, payment.Status, payment.CurrencyCode, payment.Amount)
 	if err != nil {
 		return TransactionRow{}, err
@@ -420,6 +472,7 @@ func getTransactionTx(ctx context.Context, tx *sql.Tx, transactionID string) (Tr
 	err := tx.QueryRowContext(ctx, transactionQuery(), transactionID).Scan(
 		&transaction.ID,
 		&transaction.OrderTrackingID,
+		&transaction.UserID,
 		&transaction.Provider,
 		&transaction.MethodCode,
 		&transaction.ProviderReference,
@@ -437,6 +490,25 @@ func getTransaction(ctx context.Context, db *sql.DB, countryID, transactionID st
 	err := db.QueryRowContext(ctx, transactionQuery()+` AND pt.country_id = ?`, transactionID, countryID).Scan(
 		&transaction.ID,
 		&transaction.OrderTrackingID,
+		&transaction.UserID,
+		&transaction.Provider,
+		&transaction.MethodCode,
+		&transaction.ProviderReference,
+		&transaction.Status,
+		&transaction.OrderStatus,
+		&transaction.CurrencyCode,
+		&transaction.Amount,
+		&transaction.UpdatedAt,
+	)
+	return transaction, err
+}
+
+func getTransactionForUser(ctx context.Context, db *sql.DB, countryID, userID, transactionID string) (TransactionRow, error) {
+	var transaction TransactionRow
+	err := db.QueryRowContext(ctx, transactionQuery()+` AND pt.country_id = ? AND pt.user_id = ?`, transactionID, countryID, userID).Scan(
+		&transaction.ID,
+		&transaction.OrderTrackingID,
+		&transaction.UserID,
 		&transaction.Provider,
 		&transaction.MethodCode,
 		&transaction.ProviderReference,
@@ -451,10 +523,10 @@ func getTransaction(ctx context.Context, db *sql.DB, countryID, transactionID st
 
 func transactionQuery() string {
 	return `
-		SELECT pt.id, pt.order_tracking_id, pt.provider, pt.payment_method_code, pt.provider_reference,
-		       pt.status, oi.status, pt.currency_code, pt.amount, pt.updated_at
+			SELECT pt.id, COALESCE(pt.order_tracking_id, ''), pt.user_id, pt.provider, COALESCE(pt.payment_method_code, ''), pt.provider_reference,
+			       pt.status, COALESCE(oi.status, ''), pt.currency_code, pt.amount, pt.updated_at
 		FROM payment_transactions pt
-		INNER JOIN order_intents oi ON oi.tracking_id = pt.order_tracking_id
+		LEFT JOIN order_intents oi ON oi.tracking_id = pt.order_tracking_id
 		WHERE pt.id = ?
 	`
 }

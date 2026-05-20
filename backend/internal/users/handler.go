@@ -68,11 +68,11 @@ func (h *Handler) TopUpWallet(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return apierrors.New(http.StatusBadRequest, CodeInvalidWalletTopUp, "invalid wallet top-up payload")
 	}
-	history, err := h.service.TopUpWallet(c.Request().Context(), rc.CountryCode, rc.UserID, req)
+	resp, err := h.service.TopUpWallet(c.Request().Context(), rc.CountryCode, rc.UserID, req)
 	if err != nil {
 		return profileError(err, CodeWalletTopUpFailed, "failed to top up wallet")
 	}
-	return c.JSON(http.StatusOK, history)
+	return c.JSON(http.StatusOK, resp)
 }
 
 func (h *Handler) LoyaltyHistory(c echo.Context) error {

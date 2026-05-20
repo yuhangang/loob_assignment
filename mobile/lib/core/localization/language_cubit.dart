@@ -19,17 +19,25 @@ class LanguageCubit extends Cubit<Locale> {
     required String defaultLanguage,
   })  : _prefs = prefs,
         _apiClient = apiClient,
-        super(Locale(prefs.getString(_prefsKey) ?? defaultLanguage)) {
+        super(Locale(() {
+          final savedCountry = prefs.getString('user_preferred_country');
+          if (savedCountry == 'TH') {
+            return 'en';
+          }
+          return prefs.getString(_prefsKey) ?? defaultLanguage;
+        }())) {
     // Synchronize network client header on startup
     _apiClient.setLanguage(state.languageCode);
   }
 
   /// Change application language dynamically and persist the choice.
   Future<void> switchLanguage(String languageCode) async {
-    if (languageCode == state.languageCode) return;
+    final activeCountry = _prefs.getString('user_preferred_country');
+    final targetLang = activeCountry == 'TH' ? 'en' : languageCode;
+    if (targetLang == state.languageCode) return;
     
-    await _prefs.setString(_prefsKey, languageCode);
-    _apiClient.setLanguage(languageCode);
-    emit(Locale(languageCode));
+    await _prefs.setString(_prefsKey, targetLang);
+    _apiClient.setLanguage(targetLang);
+    emit(Locale(targetLang));
   }
 }

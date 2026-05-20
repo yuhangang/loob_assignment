@@ -122,6 +122,7 @@
   "items": [
     {
       "id": 100,
+      "is_promo": true,
       "bid": 1,
       "cid": 10,
       "item_type": "MAIN",
@@ -135,9 +136,9 @@
         "ms-MY": "Teh susu klasik dengan mutiara kenyal."
       },
       "dietary_tags": [
-        "halal",
         "contains_dairy",
-        "caffeine"
+        "caffeine",
+        "vegetarian"
       ],
       "price_min": 800,
       "price_max": 1200,
@@ -287,9 +288,9 @@
         "ms-MY": "Teh susu dengan cincau dan rasa yang lembut."
       },
       "dietary_tags": [
-        "halal",
         "contains_dairy",
-        "caffeine"
+        "caffeine",
+        "vegetarian"
       ],
       "price_min": 850,
       "price_max": 1300,
@@ -386,9 +387,9 @@
         "ms-MY": "Teh susu pekat dengan sirap gula perang karamel dan mutiara."
       },
       "dietary_tags": [
-        "halal",
         "contains_dairy",
-        "caffeine"
+        "caffeine",
+        "vegetarian"
       ],
       "price_min": 900,
       "price_max": 1300,
@@ -485,9 +486,9 @@
         "ms-MY": "Teh susu panggang wangi dihidangkan dengan cincau sejuk."
       },
       "dietary_tags": [
-        "halal",
         "contains_dairy",
-        "caffeine"
+        "caffeine",
+        "vegetarian"
       ],
       "price_min": 850,
       "price_max": 1250,
@@ -530,6 +531,7 @@
     },
     {
       "id": 106,
+      "is_promo": true,
       "bid": 1,
       "cid": 11,
       "item_type": "MAIN",
@@ -543,7 +545,9 @@
         "ms-MY": "Teh hijau menyegarkan diadun dengan puri mangga manis dan jeli kelapa."
       },
       "dietary_tags": [
-        "halal"
+        "caffeine",
+        "vegan",
+        "gluten_free"
       ],
       "price_min": 950,
       "price_max": 1350,
@@ -599,8 +603,9 @@
         "ms-MY": "Campuran teh hitam, oren segar, markisa, dan hiasan epal."
       },
       "dietary_tags": [
-        "halal",
-        "caffeine"
+        "caffeine",
+        "vegan",
+        "gluten_free"
       ],
       "price_min": 1000,
       "price_max": 1400,
@@ -622,9 +627,9 @@
         "ms-MY": "Matcha Nishio Jepun premium dipukul bersama susu segar."
       },
       "dietary_tags": [
-        "halal",
         "contains_dairy",
-        "caffeine"
+        "caffeine",
+        "vegetarian"
       ],
       "price_min": 1050,
       "price_max": 1450,
@@ -680,8 +685,8 @@
         "ms-MY": "Coklat Belgium premium yang pekat dan lazat dengan susu segar."
       },
       "dietary_tags": [
-        "halal",
-        "contains_dairy"
+        "contains_dairy",
+        "vegetarian"
       ],
       "price_min": 1000,
       "price_max": 1400,
@@ -690,6 +695,7 @@
     },
     {
       "id": 102,
+      "is_promo": true,
       "bid": 2,
       "cid": 12,
       "item_type": "MAIN",
@@ -703,7 +709,8 @@
         "ms-MY": "Roti bakar panas dengan ayam dan keju."
       },
       "dietary_tags": [
-        "halal"
+        "contains_dairy",
+        "contains_gluten"
       ],
       "price_min": 1200,
       "price_max": 1500,
@@ -725,7 +732,8 @@
         "ms-MY": "Roti bakar dengan daging bacon lembu, keju cheddar dan sos istimewa."
       },
       "dietary_tags": [
-        "halal"
+        "contains_dairy",
+        "contains_gluten"
       ],
       "price_min": 1350,
       "price_max": 1650,
@@ -747,8 +755,9 @@
         "ms-MY": "Roti bakar sihat dimuatkan dengan avokado lecek, telur hancur gebu dan keju."
       },
       "dietary_tags": [
-        "halal",
-        "contains_dairy"
+        "contains_dairy",
+        "contains_gluten",
+        "vegetarian"
       ],
       "price_min": 1400,
       "price_max": 1750,
@@ -770,8 +779,8 @@
         "ms-MY": "Latte espresso lembut dengan pilihan susu oat."
       },
       "dietary_tags": [
-        "halal",
-        "caffeine"
+        "caffeine",
+        "vegetarian"
       ],
       "price_min": 1100,
       "price_max": 1450,
@@ -922,6 +931,7 @@
     },
     {
       "id": 112,
+      "is_promo": true,
       "bid": 2,
       "cid": 13,
       "item_type": "MAIN",
@@ -935,8 +945,9 @@
         "ms-MY": "Kopi espresso terkenal kami dimaniskan dengan gula kabung Aren yang wangi semula jadi."
       },
       "dietary_tags": [
-        "halal",
-        "caffeine"
+        "caffeine",
+        "contains_dairy",
+        "vegetarian"
       ],
       "price_min": 1000,
       "price_max": 1350,
@@ -992,8 +1003,9 @@
         "ms-MY": "Kuki berkrim dan susu kisar ais, dihiasi krim putar."
       },
       "dietary_tags": [
-        "halal",
-        "contains_dairy"
+        "contains_dairy",
+        "contains_gluten",
+        "vegetarian"
       ],
       "price_min": 1300,
       "price_max": 1600,
@@ -1015,9 +1027,9 @@
         "ms-MY": "Kombinasi unik teh hijau matcha Jepun, susu dan gula kabung Aren."
       },
       "dietary_tags": [
-        "halal",
         "contains_dairy",
-        "caffeine"
+        "caffeine",
+        "vegetarian"
       ],
       "price_min": 1400,
       "price_max": 1700,
@@ -1026,6 +1038,7 @@
     },
     {
       "id": 115,
+      "is_promo": true,
       "bid": 2,
       "cid": 17,
       "item_type": "MAIN",
@@ -1039,7 +1052,8 @@
         "ms-MY": "Nasi lemak wangi dihidangkan dengan sambal pedas, bilis rangup, telur rebus dan ayam goreng."
       },
       "dietary_tags": [
-        "halal"
+        "contains_peanuts",
+        "contains_gluten"
       ],
       "price_min": 1690,
       "price_max": 1990,
@@ -1061,8 +1075,8 @@
         "ms-MY": "Spageti digaul dengan sos putih berkrim bersama cendawan dan ham ayam."
       },
       "dietary_tags": [
-        "halal",
-        "contains_dairy"
+        "contains_dairy",
+        "contains_gluten"
       ],
       "price_min": 1590,
       "price_max": 1890,
@@ -1084,7 +1098,8 @@
         "ms-MY": "Mutiara ubi kayu kenyal."
       },
       "dietary_tags": [
-        "halal"
+        "vegan",
+        "gluten_free"
       ],
       "price_min": 120,
       "price_max": 120
@@ -1104,7 +1119,8 @@
         "ms-MY": "Add-on cincau yang menyegarkan."
       },
       "dietary_tags": [
-        "halal"
+        "vegan",
+        "gluten_free"
       ],
       "price_min": 120,
       "price_max": 120
@@ -1124,8 +1140,8 @@
         "ms-MY": "Add-on puding lembut."
       },
       "dietary_tags": [
-        "halal",
-        "contains_dairy"
+        "contains_dairy",
+        "vegetarian"
       ],
       "price_min": 150,
       "price_max": 150
@@ -1145,7 +1161,8 @@
         "ms-MY": "Kiub jeli kelapa manis dan kenyal."
       },
       "dietary_tags": [
-        "halal"
+        "vegan",
+        "gluten_free"
       ],
       "price_min": 150,
       "price_max": 150
@@ -1165,7 +1182,8 @@
         "ms-MY": "Kepingan aloe vera yang segar."
       },
       "dietary_tags": [
-        "halal"
+        "vegan",
+        "gluten_free"
       ],
       "price_min": 150,
       "price_max": 150
@@ -1185,7 +1203,7 @@
         "ms-MY": "Pengganti susu oat."
       },
       "dietary_tags": [
-        "halal"
+        "vegan"
       ],
       "price_min": 200,
       "price_max": 200
@@ -1205,7 +1223,9 @@
         "ms-MY": "Tambahan satu shot espresso."
       },
       "dietary_tags": [
-        "caffeine"
+        "caffeine",
+        "vegan",
+        "gluten_free"
       ],
       "price_min": 250,
       "price_max": 250
@@ -1225,7 +1245,8 @@
         "ms-MY": "Add-on krim putar."
       },
       "dietary_tags": [
-        "contains_dairy"
+        "contains_dairy",
+        "vegetarian"
       ],
       "price_min": 180,
       "price_max": 180
@@ -1245,8 +1266,8 @@
         "ms-MY": "Kepingan keju cheddar cair untuk peminat tegar keju."
       },
       "dietary_tags": [
-        "halal",
-        "contains_dairy"
+        "contains_dairy",
+        "vegetarian"
       ],
       "price_min": 150,
       "price_max": 150
@@ -1266,7 +1287,7 @@
         "ms-MY": "Curahan sos karamel manis."
       },
       "dietary_tags": [
-        "halal"
+        "vegetarian"
       ],
       "price_min": 120,
       "price_max": 120
@@ -1329,7 +1350,9 @@
       "max_redemptions_per_user": 2,
       "allow_promo_items": true,
       "applicable_store_ids": null,
-      "applicable_category_ids": [1],
+      "applicable_category_ids": [
+        1
+      ],
       "applicable_item_ids": null,
       "applicable_payment_methods": null
     },
@@ -1348,7 +1371,9 @@
       "applicable_store_ids": null,
       "applicable_category_ids": null,
       "applicable_item_ids": null,
-      "applicable_payment_methods": ["EWALLET"]
+      "applicable_payment_methods": [
+        "EWALLET"
+      ]
     },
     {
       "code": "LOOBDELIGHT",

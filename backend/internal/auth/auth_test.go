@@ -38,7 +38,7 @@ func TestVerifyRequiresFirebaseProject(t *testing.T) {
 }
 
 func TestVerifyMockToken(t *testing.T) {
-	a := New(Config{FirebaseProjectID: "mock-project-id"})
+	a := New(Config{AuthMode: "mock"})
 
 	// Construct a mock token: header + payload + signature
 	// Header: {"alg":"none"} => base64: eyJhbGciOiJub25lIn0
@@ -57,5 +57,18 @@ func TestVerifyMockToken(t *testing.T) {
 	}
 	if claims.PhoneNumber != "+60123456789" {
 		t.Fatalf("expected PhoneNumber '+60123456789', got %q", claims.PhoneNumber)
+	}
+}
+
+func TestVerifyRejectsUnsignedTokenWithoutMockMode(t *testing.T) {
+	a := New(Config{FirebaseProjectID: "mock-project-id", AuthMode: "firebase"})
+
+	headerStr := "eyJhbGciOiJub25lIn0"
+	payloadJSON := `{"aud":"mock-project-id","iss":"https://securetoken.google.com/mock-project-id","sub":"mock_user_001","exp":2900000000,"iat":1500000000}`
+	payloadStr := base64.RawURLEncoding.EncodeToString([]byte(payloadJSON))
+	token := headerStr + "." + payloadStr + ".mock-signature"
+
+	if _, err := a.Verify(t.Context(), token); err != ErrInvalidToken {
+		t.Fatalf("expected ErrInvalidToken, got %v", err)
 	}
 }

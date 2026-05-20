@@ -13,6 +13,7 @@ import '../../features/home/presentation/barcode_page.dart';
 import '../../features/vouchers/presentation/voucher_wallet_page.dart';
 import '../../features/home/presentation/home_page.dart';
 import '../../features/menu/presentation/menu_page.dart';
+import '../../features/menu/presentation/menu_search_page.dart';
 import '../../features/orders/presentation/orders_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
 import '../../shell.dart';
@@ -44,6 +45,7 @@ class AppRouter {
   static const String settings = '/settings';
   static const String barcode = '/barcode';
   static const String selectOutlet = '/menu/select-outlet';
+  static const String menuSearch = '/menu/search';
 
   static final GoRouter router = GoRouter(
     navigatorKey: navigatorKey,
@@ -155,6 +157,26 @@ class AppRouter {
           return SelectOutletPage(
             stores: stores,
             selectedStoreId: selectedStoreId,
+          );
+        },
+      ),
+      GoRoute(
+        path: menuSearch,
+        name: menuSearch,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          final catalog = extra['catalog'] as CatalogModel;
+          final currency = extra['currency'] as String;
+          final favouritedIds = extra['favouritedIds'] as Set<int>? ?? const {};
+          final onFavouriteToggled = extra['onFavouriteToggled'] as ValueChanged<int>;
+          final initialSelectedDietaryTags =
+              extra['initialSelectedDietaryTags'] as Set<String>? ?? const {};
+          return MenuSearchPage(
+            catalog: catalog,
+            currency: currency,
+            initialFavouritedIds: favouritedIds,
+            onFavouriteToggled: onFavouriteToggled,
+            initialSelectedDietaryTags: initialSelectedDietaryTags,
           );
         },
       ),

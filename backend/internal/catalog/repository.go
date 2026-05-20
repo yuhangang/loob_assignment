@@ -61,6 +61,7 @@ type ProductRow struct {
 	DietaryTags      []string
 	BasePrice        int
 	TaxInclusive     bool
+	IsPromo          bool
 }
 
 type GroupRow struct {
@@ -213,7 +214,7 @@ func (r *mysqlRepository) ListProducts(ctx context.Context, storeID int, zoneID 
 		       COALESCE(smis.is_available, true) AS is_available,
 		       mi.name_translations, mi.desc_translations,
 		       COALESCE(mi.image_url_sm, ''), COALESCE(mi.image_url_lg, ''), COALESCE(mi.dietary_tags, JSON_ARRAY()),
-		       mip.base_price, mip.tax_inclusive
+		       mip.base_price, mip.tax_inclusive, COALESCE(mi.is_promo, false)
 		FROM menu_items mi
 		INNER JOIN categories c ON c.id = mi.category_id
 		INNER JOIN menu_item_pricing mip ON mip.menu_item_id = mi.id AND mip.zone_id = ?
@@ -245,7 +246,7 @@ func (r *mysqlRepository) ListProducts(ctx context.Context, storeID int, zoneID 
 	for rows.Next() {
 		var product ProductRow
 		var nameJSON, descJSON, tagsJSON []byte
-		if err := rows.Scan(&product.ID, &product.CategoryID, &product.SKUCode, &product.IsAvailable, &nameJSON, &descJSON, &product.ImageURLSmall, &product.ImageURLLarge, &tagsJSON, &product.BasePrice, &product.TaxInclusive); err != nil {
+		if err := rows.Scan(&product.ID, &product.CategoryID, &product.SKUCode, &product.IsAvailable, &nameJSON, &descJSON, &product.ImageURLSmall, &product.ImageURLLarge, &tagsJSON, &product.BasePrice, &product.TaxInclusive, &product.IsPromo); err != nil {
 			return nil, err
 		}
 		product.NameTranslations = decodeStringMap(nameJSON)
@@ -262,7 +263,7 @@ func (r *mysqlRepository) GetProductByID(ctx context.Context, storeID int, zoneI
 		       COALESCE(smis.is_available, true) AS is_available,
 		       mi.name_translations, mi.desc_translations,
 		       COALESCE(mi.image_url_sm, ''), COALESCE(mi.image_url_lg, ''), COALESCE(mi.dietary_tags, JSON_ARRAY()),
-		       mip.base_price, mip.tax_inclusive
+		       mip.base_price, mip.tax_inclusive, COALESCE(mi.is_promo, false)
 		FROM menu_items mi
 		INNER JOIN categories c ON c.id = mi.category_id
 		INNER JOIN menu_item_pricing mip ON mip.menu_item_id = mi.id AND mip.zone_id = ?
@@ -279,7 +280,7 @@ func (r *mysqlRepository) GetProductByID(ctx context.Context, storeID int, zoneI
 	err := r.db.QueryRowContext(ctx, query, zoneID, storeID, itemID).Scan(
 		&product.ID, &product.CategoryID, &product.SKUCode, &product.IsAvailable,
 		&nameJSON, &descJSON, &product.ImageURLSmall, &product.ImageURLLarge, &tagsJSON,
-		&product.BasePrice, &product.TaxInclusive,
+		&product.BasePrice, &product.TaxInclusive, &product.IsPromo,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

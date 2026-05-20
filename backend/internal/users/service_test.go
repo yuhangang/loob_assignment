@@ -76,7 +76,7 @@ func (m *mockProfileRepository) TopUpWallet(ctx context.Context, userID string, 
 }
 
 func TestProfileRequiresUserID(t *testing.T) {
-	svc := NewService(&mockProfileRepository{country: Country{ID: "MY"}}, "")
+	svc := NewService(&mockProfileRepository{country: Country{ID: "MY"}}, nil, "")
 	_, err := svc.Profile(context.Background(), "MY", " ")
 	if !errors.Is(err, ErrUserIDRequired) {
 		t.Fatalf("expected ErrUserIDRequired, got %v", err)
@@ -94,7 +94,7 @@ func TestUpdateProfilePreservesUnspecifiedFields(t *testing.T) {
 			MarketingOptIn:    false,
 		},
 	}
-	svc := NewService(repo, "")
+	svc := NewService(repo, nil, "")
 
 	name := "Jane"
 	optIn := true
@@ -118,7 +118,7 @@ func TestUpdateProfilePreservesUnspecifiedFields(t *testing.T) {
 }
 
 func TestTopUpWalletRequiresPositiveAmount(t *testing.T) {
-	svc := NewService(&mockProfileRepository{country: Country{ID: "MY", CurrencyCode: "MYR"}}, "")
+	svc := NewService(&mockProfileRepository{country: Country{ID: "MY", CurrencyCode: "MYR"}}, nil, "")
 	_, err := svc.TopUpWallet(context.Background(), "MY", "user1", WalletTopUpRequest{Amount: 0})
 	if !errors.Is(err, ErrInvalidTopUpAmount) {
 		t.Fatalf("expected ErrInvalidTopUpAmount, got %v", err)

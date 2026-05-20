@@ -129,6 +129,7 @@ class ProductModel {
   final int basePrice;
   final List<String> dietaryTags;
   final List<CustomizationGroupModel> customizationGroups;
+  final bool isPromo;
 
   const ProductModel({
     required this.id,
@@ -140,6 +141,7 @@ class ProductModel {
     required this.basePrice,
     required this.dietaryTags,
     required this.customizationGroups,
+    this.isPromo = false,
   });
 
   factory ProductModel.fromJson(Map<String, dynamic> json) {
@@ -159,6 +161,7 @@ class ProductModel {
             (e) => CustomizationGroupModel.fromJson(e as Map<String, dynamic>),
           )
           .toList(),
+      isPromo: json['is_promo'] as bool? ?? false,
     );
   }
 }

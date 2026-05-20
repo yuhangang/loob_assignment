@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -5,6 +6,39 @@ import 'package:loob_app/core/auth/auth_service.dart';
 import 'package:loob_app/core/auth/bloc/auth_bloc.dart';
 import 'package:loob_app/core/config/app_config.dart';
 import 'package:loob_app/core/network/api_client.dart';
+
+class MockHttpClientAdapter implements HttpClientAdapter {
+  int requestCount = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requestCount++;
+    if (requestCount == 1) {
+      return ResponseBody.fromString(
+        '{"error": "invalid bearer token"}',
+        401,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    } else {
+      return ResponseBody.fromString(
+        '{"status": "success"}',
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    }
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
 
 class FakeAuthService extends AuthService {
   int refreshCount = 0;
@@ -46,9 +80,9 @@ void main() {
   late FakeAuthService fakeAuth;
   late ApiClient apiClient;
 
-  setUp(() {
+  setUp(() async {
     final sl = GetIt.instance;
-    sl.reset();
+    await sl.reset();
     fakeAuth = FakeAuthService();
     sl.registerSingleton<AuthService>(fakeAuth);
     sl.registerSingleton<AuthBloc>(AuthBloc(authService: fakeAuth));
@@ -57,36 +91,8 @@ void main() {
 
   group('ApiClient Interceptor Tests', () {
     test('Intercepts 401 invalid token, refreshes token and retries successfully', () async {
-      int requestCount = 0;
-      apiClient.dio.interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (options, handler) {
-            requestCount++;
-            if (requestCount == 1) {
-              // Return 401 unauthorized invalid token on first request
-              handler.reject(
-                DioException(
-                  requestOptions: options,
-                  response: Response(
-                    requestOptions: options,
-                    statusCode: 401,
-                    data: {'error': 'invalid bearer token'},
-                  ),
-                ),
-              );
-            } else {
-              // Return 200 OK on retry
-              handler.resolve(
-                Response(
-                  requestOptions: options,
-                  statusCode: 200,
-                  data: {'status': 'success'},
-                ),
-              );
-            }
-          },
-        ),
-      );
+      final mockAdapter = MockHttpClientAdapter();
+      apiClient.dio.httpClientAdapter = mockAdapter;
 
       final response = await apiClient.dio.get('/test-endpoint');
       expect(response.statusCode, 200);

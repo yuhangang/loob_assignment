@@ -15,7 +15,7 @@ This document is the implementation contract for the Loob assessment backend. It
 | Module | Requirement | Current architecture decision |
 | --- | --- | --- |
 | Menu | Category browsing, localized names/descriptions, country pricing/currency, customizations, dietary tags, availability by country or outlet. | `catalog` exposes categories-first reads (`/catalog/categories`, `/catalog/categories/:category_id/items`). MySQL stores translation JSON, zone pricing, dietary tags, customization groups/options, and outlet item status; the API resolves one lean country/language payload for the mobile app. |
-| Ordering | Cart management, checkout for dine-in/takeaway/delivery, status/history, and peak-load handling. | `cart` owns persisted cart lines; `checkout` validates cart, customization, voucher, payment method, idempotency, charges, and tax; `payments` moves paid orders to `QUEUED`; `ordering` worker claims queued intents and completes them asynchronously. The local implementation uses MySQL as the queue of record, while the cloud target keeps SQS FIFO as the burst buffer. |
+| Ordering | Cart management, checkout for dine-in/takeaway/delivery, status/history, and peak-load handling. | `cart` owns persisted cart lines; `checkout` validates cart, customization, voucher, payment method, idempotency, charges, and tax; the assignment runtime creates a `PAYMENT_PENDING` intent plus pending payment transaction atomically, then `payments` moves successful mock-gateway callbacks to `READY_TO_COLLECT`. The cloud target can add SQS FIFO between payment capture and kitchen/order processing when burst buffering is required. |
 | Vouchers | Listing/redemption, percentage/fixed discounts, minimum spend, per-user limits, expiry, country availability, and stacking decision. | `vouchers` lists active country-scoped wallet vouchers. `checkout` supports one voucher per order, validates discount type, minimum spend, cap, brand/store/category/item/payment scope, max redemption count, max per-user count, expiry, and promo-item rules. Captured payment marks the user voucher as used. Voucher stacking is intentionally disabled for this assessment to keep discount liability deterministic and avoid ambiguous ordering of cart, brand, shipping, and payment-method promotions. |
 | Multi-country | Country onboarding, localized content, region flags, tax rules, timezone handling. | `contextx` resolves `X-Country-Code` and `Accept-Language`; countries carry currency, default language, tax rate, and timezone; feature flags and checkout charge definitions are country/zone/brand scoped. Checkout/status/history require an explicit country header. All monetary values stay integer minor units. |
 
@@ -131,20 +131,20 @@ Handlers must not read raw headers repeatedly. They should consume a typed reque
 5. Service resolves translations, zone pricing, tax display, and availability.
 6. API returns a lean mobile payload with only the selected language.
 
-### Checkout Ingestion Flow
+### Checkout And Payment Flow
 
 1. Client submits cart, store, fulfillment type, voucher code, and idempotency key.
 2. Checkout service authenticates user and validates country/store/brand availability.
 3. Service performs fast checks:
    - cart shape and item availability
    - voucher eligibility
-   - Redis inventory or campaign quota decrement when relevant
    - idempotency key reuse
-4. Service creates an `OrderIntent` with a generated tracking id and trace id.
-5. API sends the intent to SQS FIFO.
-6. API returns `202 Accepted` with `order_tracking_id` and current status URL.
+4. Service resolves payment method, charges, tax, and total.
+5. Service creates an `OrderIntent` plus pending `payment_transactions` row in one transaction.
+6. API returns `202 Accepted` with `PAYMENT_PENDING`, `order_tracking_id`, `status_url`, and payment transaction details.
+7. The mock gateway callback captures, fails, or cancels the payment. Successful capture moves the order to `READY_TO_COLLECT`, marks vouchers as used, applies wallet spend or top-up effects, and awards loyalty points.
 
-If SQS is unavailable, checkout must fail closed with a retryable error. The API must not claim an order is processing unless the queue accepted the message.
+For this assessment, payment-first checkout keeps the runtime executable without AWS credentials. A production flash-sale path can add a queue adapter after payment capture; the API must not claim kitchen processing unless the durable queue write succeeds.
 
 ### Order Worker Flow
 
@@ -204,13 +204,13 @@ Redis is not the source of truth for completed orders.
 
 ### SQS FIFO
 
-SQS FIFO is the cloud peak-load adapter for order intents:
+SQS FIFO is the optional cloud peak-load adapter for paid order processing:
 
 - `MessageGroupId`: country or store id, depending on desired ordering scope.
-- `MessageDeduplicationId`: checkout idempotency key or tracking id.
-- message body includes schema version, trace id, country, user, store, cart snapshot, voucher snapshot, and totals.
+- `MessageDeduplicationId`: tracking id or payment transaction id.
+- message body includes schema version, trace id, country, user, store, cart snapshot, voucher snapshot, totals, and payment transaction id.
 
-The current local implementation uses MySQL `order_intents` as the executable queue so the assessment can run without AWS credentials. The adapter boundary remains: checkout must only return an accepted/queued state after the durable queue write succeeds, and the worker must process by country-scoped tracking id.
+The current local implementation uses MySQL `order_intents` as the executable order-state store so the assessment can run without AWS credentials. The adapter boundary remains: a future worker must process by country-scoped tracking id and keep retries idempotent.
 
 ## API Surface
 
@@ -247,7 +247,8 @@ No checkout or worker error should be logged without `trace_id`, `country_code`,
 | Unsupported language | Fallback to country default language and include resolved language in response. |
 | Redis down during catalog read | Fall back to MySQL and log degraded cache. |
 | Redis down during flash-sale checkout | Fail closed for quota-protected campaigns; allow normal checkout only if DB-safe validation exists. |
-| SQS send fails | Return retryable error; do not return `202`. |
+| Payment callback duplicated | Ignore duplicated gateway event effects and return the current transaction state. |
+| SQS send fails in future queued flow | Return retryable error; do not claim kitchen/order processing. |
 | Worker crashes mid-message | SQS visibility timeout makes message retry. |
 | Duplicate checkout submit | Return the existing tracking id for the idempotency key. |
 | Poison message | Retry up to queue policy, then move to DLQ. |
@@ -275,14 +276,14 @@ No checkout or worker error should be logged without `trace_id`, `country_code`,
 
 - Define checkout request/response DTOs.
 - Add validation, tax calculation, voucher lookup, and idempotency.
-- Add queue producer interface.
-- Send real `OrderIntent` messages.
+- Create order intent plus pending payment atomically.
+- Use mock gateway callbacks to transition paid orders.
 - Add order status polling endpoint.
 
 ### Phase 4: Ordering Worker
 
-- Add local MySQL queue consumer for runnable assessment behavior.
-- Add SQS consumer adapter for cloud burst handling.
+- Add local MySQL worker only for post-payment processing flows that need background work.
+- Add SQS consumer adapter for cloud burst handling when the assignment runtime evolves beyond direct `READY_TO_COLLECT` callbacks.
 - Persist completed order summaries and order items transactionally when the order history model needs to evolve beyond `order_intents`.
 - Update Redis order status when the cache layer is introduced.
 - Add retry/DLQ-aware logging for the SQS adapter.

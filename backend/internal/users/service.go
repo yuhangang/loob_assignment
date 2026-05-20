@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+
+	"github.com/loob/backend/internal/payments"
 )
 
 type ProfileRepository interface {
@@ -18,11 +20,12 @@ type ProfileRepository interface {
 
 type Service struct {
 	repo          ProfileRepository
+	payments      *payments.Service
 	publicBaseURL string
 }
 
-func NewService(repo ProfileRepository, publicBaseURL string) *Service {
-	return &Service{repo: repo, publicBaseURL: publicBaseURL}
+func NewService(repo ProfileRepository, pm *payments.Service, publicBaseURL string) *Service {
+	return &Service{repo: repo, payments: pm, publicBaseURL: publicBaseURL}
 }
 
 func (s *Service) Profile(ctx context.Context, countryID, userID string) (Profile, error) {
@@ -169,25 +172,47 @@ func (s *Service) LoyaltyHistory(ctx context.Context, countryID, userID string) 
 	return s.repo.ListLoyaltyTransactions(ctx, userID, country.ID, defaultHistoryLimit)
 }
 
-func (s *Service) TopUpWallet(ctx context.Context, countryID, userID string, req WalletTopUpRequest) (WalletHistory, error) {
+func (s *Service) TopUpWallet(ctx context.Context, countryID, userID string, req WalletTopUpRequest) (WalletTopUpResponse, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return WalletHistory{}, ErrUserIDRequired
+		return WalletTopUpResponse{}, ErrUserIDRequired
 	}
 	if req.Amount <= 0 {
-		return WalletHistory{}, ErrInvalidTopUpAmount
+		return WalletTopUpResponse{}, ErrInvalidTopUpAmount
 	}
 	country, err := s.repo.GetCountry(ctx, countryID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			return WalletHistory{}, ErrUnsupportedCountry
+			return WalletTopUpResponse{}, ErrUnsupportedCountry
 		}
-		return WalletHistory{}, err
+		return WalletTopUpResponse{}, err
 	}
 	if err := s.repo.EnsureAccount(ctx, userID, country); err != nil {
-		return WalletHistory{}, err
+		return WalletTopUpResponse{}, err
 	}
-	return s.repo.TopUpWallet(ctx, userID, country, req.Amount, strings.TrimSpace(req.Description))
+
+	methodCode := strings.TrimSpace(req.PaymentMethod)
+	if methodCode == "" {
+		methodCode = "FPX"
+	}
+
+	paymentReq := payments.StartPaymentRequest{
+		CountryID:    country.ID,
+		UserID:       userID,
+		BrandID:      0,
+		MethodCode:   methodCode,
+		CurrencyCode: country.CurrencyCode,
+		Amount:       req.Amount,
+	}
+
+	tx, err := s.payments.StartPayment(ctx, paymentReq)
+	if err != nil {
+		return WalletTopUpResponse{}, err
+	}
+
+	return WalletTopUpResponse{
+		Payment: &tx,
+	}, nil
 }
 
 var (

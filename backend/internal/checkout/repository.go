@@ -36,11 +36,12 @@ func (s Store) AcceptsOrders() bool {
 }
 
 type PricedItem struct {
-	MenuItemID  int
-	CategoryID  int
-	BasePrice   int
-	BrandID     int
-	IsPromoItem bool
+	MenuItemID   int
+	CategoryID   int
+	BasePrice    int
+	TaxInclusive bool
+	BrandID      int
+	IsPromoItem  bool
 }
 
 type OptionPrice struct {
@@ -48,6 +49,7 @@ type OptionPrice struct {
 	MenuItemID      int
 	GroupID         int
 	PriceAdjustment int
+	TaxInclusive    bool
 }
 
 type CustomizationGroupRule struct {
@@ -254,7 +256,7 @@ func (r *Repository) GetPricedItems(ctx context.Context, storeID int, zoneID str
 		return map[int]PricedItem{}, nil
 	}
 	query, args := inQuery(`
-		SELECT mi.id, mi.category_id, mip.base_price, mi.brand_id, COALESCE(mi.is_promo, false)
+		SELECT mi.id, mi.category_id, mip.base_price, mip.tax_inclusive, mi.brand_id, COALESCE(mi.is_promo, false)
 		FROM menu_items mi
 		INNER JOIN menu_item_pricing mip ON mip.menu_item_id = mi.id AND mip.zone_id = ?
 		LEFT JOIN store_menu_item_status smis ON smis.store_id = ? AND smis.menu_item_id = mi.id
@@ -278,7 +280,7 @@ func (r *Repository) GetPricedItems(ctx context.Context, storeID int, zoneID str
 	items := map[int]PricedItem{}
 	for rows.Next() {
 		var item PricedItem
-		if err := rows.Scan(&item.MenuItemID, &item.CategoryID, &item.BasePrice, &item.BrandID, &item.IsPromoItem); err != nil {
+		if err := rows.Scan(&item.MenuItemID, &item.CategoryID, &item.BasePrice, &item.TaxInclusive, &item.BrandID, &item.IsPromoItem); err != nil {
 			return nil, err
 		}
 		items[item.MenuItemID] = item
@@ -291,7 +293,8 @@ func (r *Repository) GetOptionPrices(ctx context.Context, storeID int, zoneID st
 		return map[int]OptionPrice{}, nil
 	}
 	query, args := inQuery(`
-		SELECT co.id, cg.menu_item_id, cg.id, co.price_adjustment + COALESCE(mip.base_price, 0)
+		SELECT co.id, cg.menu_item_id, cg.id, co.price_adjustment + COALESCE(mip.base_price, 0),
+		       COALESCE(mip.tax_inclusive, true)
 		FROM customization_options co
 		INNER JOIN customization_groups cg ON cg.id = co.group_id
 		LEFT JOIN stores s ON s.id = ?
@@ -323,7 +326,7 @@ func (r *Repository) GetOptionPrices(ctx context.Context, storeID int, zoneID st
 	options := map[int]OptionPrice{}
 	for rows.Next() {
 		var option OptionPrice
-		if err := rows.Scan(&option.ID, &option.MenuItemID, &option.GroupID, &option.PriceAdjustment); err != nil {
+		if err := rows.Scan(&option.ID, &option.MenuItemID, &option.GroupID, &option.PriceAdjustment, &option.TaxInclusive); err != nil {
 			return nil, err
 		}
 		options[option.ID] = option

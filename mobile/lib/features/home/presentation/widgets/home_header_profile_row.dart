@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/localization/language_cubit.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/widgets/user_profile_avatar.dart';
+import '../../../cart/presentation/bloc/cart_bloc.dart';
 import '../../../settings/data/models/user_profile_model.dart';
 
 class HomeHeaderProfileRow extends StatelessWidget {
@@ -19,6 +20,7 @@ class HomeHeaderProfileRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final activeCountry = context.watch<CartBloc>().state.countryCode;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -60,33 +62,34 @@ class HomeHeaderProfileRow extends StatelessWidget {
             ),
           ],
         ),
-        GestureDetector(
-          onTap: () {
-            final currentLang = context.read<LanguageCubit>().state.languageCode;
-            context.read<LanguageCubit>().switchLanguage(
-                  currentLang == 'en' ? 'ms' : 'en',
-                );
-          },
-          child: Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                width: 1,
+        if (activeCountry != 'TH')
+          GestureDetector(
+            onTap: () {
+              final currentLang = context.read<LanguageCubit>().state.languageCode;
+              context.read<LanguageCubit>().switchLanguage(
+                    currentLang == 'en' ? 'ms' : 'en',
+                  );
+            },
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                  width: 1,
+                ),
               ),
-            ),
-            child: Center(
-              child: Icon(
-                Icons.settings_outlined,
-                color: theme.colorScheme.primary,
-                size: 16,
+              child: Center(
+                child: Icon(
+                  Icons.settings_outlined,
+                  color: theme.colorScheme.primary,
+                  size: 16,
+                ),
               ),
             ),
           ),
-        ),
       ],
     );
   }

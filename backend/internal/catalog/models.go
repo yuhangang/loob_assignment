@@ -39,6 +39,7 @@ type Product struct {
 	BasePrice           int                  `json:"base_price"`
 	DietaryTags         []string             `json:"dietary_tags"`
 	CustomizationGroups []CustomizationGroup `json:"customization_groups"`
+	IsPromo             bool                 `json:"is_promo"`
 }
 
 type Media struct {

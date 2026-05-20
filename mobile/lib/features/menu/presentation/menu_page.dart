@@ -19,7 +19,10 @@ import '../data/models/catalog_model.dart';
 import '../data/models/store_model.dart';
 import 'menu_bloc.dart';
 import 'menu_page_cubit.dart';
+import 'widgets/dietary_tags_config.dart';
+import 'widgets/menu_error_view.dart';
 import 'widgets/menu_header_delegate.dart';
+import 'widgets/menu_loading_skeleton.dart';
 import 'widgets/product_card.dart';
 import 'widgets/sidebar_category_tab.dart';
 
@@ -78,7 +81,11 @@ class _MenuPageState extends State<MenuPage> {
 
     final state = _menuBloc.state;
     if (state is! MenuLoaded) return false;
-    final enhancedCategories = _buildEnhancedCategories(state.catalog);
+    final rawEnhanced = _buildEnhancedCategories(state.catalog);
+    final enhancedCategories = _filterCategories(
+      rawEnhanced,
+      _pageCubit.state.selectedDietaryTags,
+    );
 
     final listViewBox =
         _listViewKey.currentContext?.findRenderObject() as RenderBox?;
@@ -172,6 +179,40 @@ class _MenuPageState extends State<MenuPage> {
     return enhanced;
   }
 
+  List<CategoryModel> _filterCategories(
+    List<CategoryModel> categories,
+    Set<String> selectedTags,
+  ) {
+    if (selectedTags.isEmpty) return categories;
+
+    return categories
+        .map((category) {
+          final filteredProducts = category.products.where((product) {
+            return selectedTags.every((tag) {
+              if (tag == 'dairy_free') {
+                return !product.dietaryTags.contains('contains_dairy');
+              } else if (tag == 'peanut_free') {
+                return !product.dietaryTags.contains('contains_peanuts');
+              } else if (tag == 'caffeine_free') {
+                return !product.dietaryTags.contains('caffeine');
+              } else {
+                return product.dietaryTags.contains(tag);
+              }
+            });
+          }).toList();
+
+          return CategoryModel(
+            id: category.id,
+            displayOrder: category.displayOrder,
+            name: category.name,
+            iconUrl: category.iconUrl,
+            products: filteredProducts,
+          );
+        })
+        .where((category) => category.products.isNotEmpty)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -248,18 +289,13 @@ class _MenuPageState extends State<MenuPage> {
                 bloc: _menuBloc,
                 builder: (context, state) {
                   if (state is MenuLoading) {
-                    return const Center(child: CircularProgressIndicator());
+                    return MenuLoadingSkeleton(primaryColor: primaryColor);
                   }
                   if (state is MenuError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.xl),
-                        child: Text(
-                          state.message,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodyLarge,
-                        ),
-                      ),
+                    return MenuErrorView(
+                      primaryColor: primaryColor,
+                      message: state.message,
+                      onRetry: _loadMenu,
                     );
                   }
                   if (state is MenuLoaded) {
@@ -273,8 +309,10 @@ class _MenuPageState extends State<MenuPage> {
                     }
 
                     // Build dynamic categories (Favourites + LTO + Backend)
-                    final enhancedCategories = _buildEnhancedCategories(
-                      catalog,
+                    final rawEnhanced = _buildEnhancedCategories(catalog);
+                    final enhancedCategories = _filterCategories(
+                      rawEnhanced,
+                      localState.selectedDietaryTags,
                     );
 
                     // Default to the first available category if none is selected or if the selected one is no longer available
@@ -300,7 +338,7 @@ class _MenuPageState extends State<MenuPage> {
                       children: [
                         // Left Sidebar Navigation (Width 85) - Completely static & fixed!
                         Container(
-                          width: 85,
+                          width: 72,
                           decoration: const BoxDecoration(
                             color: AppColors.white,
                             border: Border(
@@ -348,150 +386,223 @@ class _MenuPageState extends State<MenuPage> {
                                       stores: state.stores,
                                       selectedStoreId: state.selectedStore.id,
                                     ),
+                                    onSearchTap: () async {
+                                      await context.push(
+                                        AppRouter.menuSearch,
+                                        extra: {
+                                          'catalog': catalog,
+                                          'currency': catalog.currency,
+                                          'favouritedIds':
+                                              localState.favouritedIds,
+                                          'onFavouriteToggled':
+                                              (int productId) {
+                                                _pageCubit.toggleFavourite(
+                                                  productId,
+                                                );
+                                              },
+                                          'initialSelectedDietaryTags':
+                                              localState.selectedDietaryTags,
+                                        },
+                                      );
+                                      if (mounted) {
+                                        _pageCubit.reloadDietaryTags();
+                                      }
+                                    },
                                   ),
                                 ),
                               ];
                             },
                             body: Container(
                               color: AppColors.softWhiteBg,
-                              child: NotificationListener<ScrollNotification>(
-                                onNotification: (notification) {
-                                  if (notification.depth == 0) {
-                                    _onScrollNotification(notification);
-                                  }
-                                  return false;
-                                },
-                                child: SingleChildScrollView(
-                                  key: _listViewKey,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.md,
-                                    vertical: AppSpacing.lg,
+                              child: Column(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      AppSpacing.md,
+                                      AppSpacing.xs,
+                                      AppSpacing.md,
+                                      0,
+                                    ),
+                                    child: DietaryFilterChips(
+                                      selectedTags:
+                                          localState.selectedDietaryTags,
+                                      primaryColor: primaryColor,
+                                      languageCode: context
+                                          .read<LanguageCubit>()
+                                          .state
+                                          .languageCode,
+                                      onTagToggled: (tag) =>
+                                          _pageCubit.toggleDietaryTag(tag),
+                                      onClearAll: () =>
+                                          _pageCubit.clearDietaryTags(),
+                                    ),
                                   ),
-                                  child: Column(
-                                    children: [
-                                      for (final category
-                                          in enhancedCategories) ...[
-                                        Container(
-                                          key: _categoryKeys[category.id],
-                                          padding: const EdgeInsets.only(
-                                            top: AppSpacing.md,
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              // Category Title Header
-                                              Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment
-                                                        .spaceBetween,
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      category.name,
-                                                      style: theme
-                                                          .textTheme
-                                                          .headlineSmall
-                                                          ?.copyWith(
-                                                            color: primaryColor,
-                                                            fontWeight:
-                                                                FontWeight.w900,
-                                                            fontSize: 22,
-                                                          ),
-                                                    ),
+                                  Expanded(
+                                    child: enhancedCategories.isEmpty
+                                        ? _buildFiltersEmptyState(primaryColor)
+                                        : NotificationListener<
+                                            ScrollNotification
+                                          >(
+                                            onNotification: (notification) {
+                                              if (notification.depth == 0) {
+                                                _onScrollNotification(
+                                                  notification,
+                                                );
+                                              }
+                                              return false;
+                                            },
+                                            child: SingleChildScrollView(
+                                              key: _listViewKey,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: AppSpacing.md,
+                                                    vertical: AppSpacing.md,
                                                   ),
-                                                  if (category.id == -99)
-                                                    Text(
-                                                      '${localState.favouritedIds.length} / 6',
-                                                      style: TextStyle(
-                                                        color: primaryColor
-                                                            .withValues(
-                                                              alpha: 0.6,
-                                                            ),
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        fontSize: 14,
+                                              child: Column(
+                                                children: [
+                                                  for (final category
+                                                      in enhancedCategories) ...[
+                                                    Container(
+                                                      key:
+                                                          _categoryKeys[category
+                                                              .id],
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                            top: AppSpacing.md,
+                                                          ),
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          // Category Title Header
+                                                          Row(
+                                                            mainAxisAlignment:
+                                                                MainAxisAlignment
+                                                                    .spaceBetween,
+                                                            children: [
+                                                              Expanded(
+                                                                child: Text(
+                                                                  category.name,
+                                                                  style: theme
+                                                                      .textTheme
+                                                                      .headlineSmall
+                                                                      ?.copyWith(
+                                                                        color:
+                                                                            primaryColor,
+                                                                        fontWeight:
+                                                                            FontWeight.w900,
+                                                                        fontSize:
+                                                                            22,
+                                                                      ),
+                                                                ),
+                                                              ),
+                                                              if (category.id ==
+                                                                  -99)
+                                                                Text(
+                                                                  '${localState.favouritedIds.length} / 6',
+                                                                  style: TextStyle(
+                                                                    color: primaryColor
+                                                                        .withValues(
+                                                                          alpha:
+                                                                              0.6,
+                                                                        ),
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w800,
+                                                                    fontSize:
+                                                                        14,
+                                                                  ),
+                                                                ),
+                                                            ],
+                                                          ),
+                                                          const SizedBox(
+                                                            height:
+                                                                AppSpacing.md,
+                                                          ),
+
+                                                          // Product Grid (2 columns) or empty state for Favourites
+                                                          category.id == -99 &&
+                                                                  category
+                                                                      .products
+                                                                      .isEmpty
+                                                              ? _buildFavouritesEmptyState(
+                                                                  primaryColor,
+                                                                )
+                                                              : GridView.builder(
+                                                                  shrinkWrap:
+                                                                      true,
+                                                                  physics:
+                                                                      const NeverScrollableScrollPhysics(),
+                                                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                                                    crossAxisCount:
+                                                                        2,
+                                                                    childAspectRatio:
+                                                                        0.65,
+                                                                    crossAxisSpacing:
+                                                                        AppSpacing
+                                                                            .md,
+                                                                    mainAxisSpacing:
+                                                                        AppSpacing
+                                                                            .md,
+                                                                  ),
+                                                                  itemCount: category
+                                                                      .products
+                                                                      .length,
+                                                                  itemBuilder:
+                                                                      (
+                                                                        context,
+                                                                        index,
+                                                                      ) {
+                                                                        final product =
+                                                                            category.products[index];
+                                                                        final isFavourited = localState
+                                                                            .favouritedIds
+                                                                            .contains(
+                                                                              product.id,
+                                                                            );
+
+                                                                        return ProductCard(
+                                                                          product:
+                                                                              product,
+                                                                          currency:
+                                                                              catalog.currency,
+                                                                          isFavourited:
+                                                                              isFavourited,
+                                                                          onFavouriteToggled: () {
+                                                                            _pageCubit.toggleFavourite(
+                                                                              product.id,
+                                                                            );
+                                                                          },
+                                                                          onTap: () => _showCustomization(
+                                                                            product,
+                                                                            catalog.currency,
+                                                                          ),
+                                                                          onCartPressed: () => _handleCartShortcut(
+                                                                            product,
+                                                                            catalog.currency,
+                                                                          ),
+                                                                        );
+                                                                      },
+                                                                ),
+                                                          const SizedBox(
+                                                            height:
+                                                                AppSpacing.xl,
+                                                          ),
+                                                        ],
                                                       ),
                                                     ),
+                                                  ],
+                                                  SizedBox(
+                                                    height: context
+                                                        .cartFloatingBarPadding,
+                                                  ), // Dynamic padding for the floating cart
                                                 ],
                                               ),
-                                              const SizedBox(
-                                                height: AppSpacing.md,
-                                              ),
-
-                                              // Product Grid (2 columns) or empty state for Favourites
-                                              category.id == -99 &&
-                                                      category.products.isEmpty
-                                                  ? _buildFavouritesEmptyState(
-                                                      primaryColor,
-                                                    )
-                                                  : GridView.builder(
-                                                      shrinkWrap: true,
-                                                      physics:
-                                                          const NeverScrollableScrollPhysics(),
-                                                      gridDelegate:
-                                                          const SliverGridDelegateWithFixedCrossAxisCount(
-                                                            crossAxisCount: 2,
-                                                            childAspectRatio:
-                                                                0.65,
-                                                            crossAxisSpacing:
-                                                                AppSpacing.md,
-                                                            mainAxisSpacing:
-                                                                AppSpacing.md,
-                                                          ),
-                                                      itemCount: category
-                                                          .products
-                                                          .length,
-                                                      itemBuilder: (context, index) {
-                                                        final product = category
-                                                            .products[index];
-                                                        final isFavourited =
-                                                            localState
-                                                                .favouritedIds
-                                                                .contains(
-                                                                  product.id,
-                                                                );
-
-                                                        return ProductCard(
-                                                          product: product,
-                                                          currency:
-                                                              catalog.currency,
-                                                          isFavourited:
-                                                              isFavourited,
-                                                          onFavouriteToggled: () {
-                                                            _pageCubit
-                                                                .toggleFavourite(
-                                                                  product.id,
-                                                                );
-                                                          },
-                                                          onTap: () =>
-                                                              _showCustomization(
-                                                                product,
-                                                                catalog
-                                                                    .currency,
-                                                              ),
-                                                          onCartPressed: () =>
-                                                              _handleCartShortcut(
-                                                                product,
-                                                                catalog
-                                                                    .currency,
-                                                              ),
-                                                        );
-                                                      },
-                                                    ),
-                                              const SizedBox(
-                                                height: AppSpacing.xl,
-                                              ),
-                                            ],
+                                            ),
                                           ),
-                                        ),
-                                      ],
-                                      SizedBox(
-                                        height: context.cartFloatingBarPadding,
-                                      ), // Dynamic padding for the floating cart
-                                    ],
                                   ),
-                                ),
+                                ],
                               ),
                             ),
                           ),
@@ -505,6 +616,69 @@ class _MenuPageState extends State<MenuPage> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildFiltersEmptyState(Color primaryColor) {
+    final currentLang = context.read<LanguageCubit>().state.languageCode;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.no_food_outlined,
+              color: primaryColor.withValues(alpha: 0.5),
+              size: 72,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              currentLang == 'ms' ? 'Tiada Hasil Carian' : 'No Results Found',
+              style: TextStyle(
+                color: primaryColor,
+                fontWeight: FontWeight.w900,
+                fontSize: 22,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              currentLang == 'ms'
+                  ? 'Cuba selaraskan penapis diet anda untuk mencari produk.'
+                  : 'Try adjusting your dietary filters to find products.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.grey600,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            SizedBox(
+              width: 160,
+              height: 44,
+              child: OutlinedButton(
+                onPressed: () => _pageCubit.clearDietaryTags(),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: primaryColor, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                  ),
+                ),
+                child: Text(
+                  currentLang == 'ms' ? 'Kosongkan Penapis' : 'Clear Filters',
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

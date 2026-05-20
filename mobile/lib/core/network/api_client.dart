@@ -1,11 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
-import '../auth/auth_service.dart';
-import '../auth/bloc/auth_bloc.dart';
-import '../auth/bloc/auth_event.dart';
-import '../config/app_config.dart';
-import '../di/injection.dart';
+import 'package:loob_app/core/auth/auth_service.dart';
+import 'package:loob_app/core/auth/bloc/auth_bloc.dart';
+import 'package:loob_app/core/auth/bloc/auth_event.dart';
+import 'package:loob_app/core/config/app_config.dart';
+import 'package:loob_app/core/di/injection.dart';
 
 /// Configured Dio HTTP client with interceptors for auth, context, and logging.
 class ApiClient {

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/loob/backend/internal/payments"
 )
 
 type mockRepository struct {
@@ -26,6 +28,14 @@ type mockRepository struct {
 	getMenuItemNames        func(ctx context.Context, itemIDs []int) (map[int]string, error)
 	getOptionNames          func(ctx context.Context, optionIDs []int) (map[int]string, error)
 	markOrderCollected      func(ctx context.Context, countryID, userID, trackingID string) error
+}
+
+type mockPaymentStarter struct {
+	validate func(ctx context.Context, req payments.StartPaymentRequest) (payments.MethodSelection, error)
+}
+
+func (m mockPaymentStarter) ValidateMethod(ctx context.Context, req payments.StartPaymentRequest) (payments.MethodSelection, error) {
+	return m.validate(ctx, req)
 }
 
 func (m *mockRepository) MarkOrderCollected(ctx context.Context, countryID, userID, trackingID string) error {
@@ -311,8 +321,8 @@ func TestCalculateChargesIncludesTaxablePackaging(t *testing.T) {
 			Taxable:         true,
 		},
 	}, chargeCalculationRequest{
-		Subtotal: 1000,
-		TaxRate:  0.06,
+		Subtotal:   1000,
+		TaxRateBps: 600,
 	})
 
 	if len(charges) != 1 {
@@ -337,8 +347,8 @@ func TestCalculateChargesWaivesByMinimumSubtotal(t *testing.T) {
 			WaiverReason:      sql.NullString{String: "MIN_PURCHASE", Valid: true},
 		},
 	}, chargeCalculationRequest{
-		Subtotal: 2500,
-		TaxRate:  0.06,
+		Subtotal:   2500,
+		TaxRateBps: 600,
 	})
 
 	if len(charges) != 1 {
@@ -347,6 +357,113 @@ func TestCalculateChargesWaivesByMinimumSubtotal(t *testing.T) {
 	charge := charges[0]
 	if !charge.Waived || charge.TotalAmount != 0 || charge.TaxAmount != 0 || charge.WaiverReason != "MIN_PURCHASE" {
 		t.Fatalf("unexpected waived charge: %+v", charge)
+	}
+}
+
+func TestCalculateItemTotalsRespectsTaxMode(t *testing.T) {
+	inclusive := calculateItemTotals([]pricedCartLine{
+		{Subtotal: 1060, TaxInclusiveGross: 1060},
+	}, 1060, 60, 600)
+	if inclusive.TotalAmount != 1000 || inclusive.TaxAmount != 57 {
+		t.Fatalf("inclusive totals = %+v, want total 1000 tax 57", inclusive)
+	}
+
+	exclusive := calculateItemTotals([]pricedCartLine{
+		{Subtotal: 1000, TaxExclusiveNet: 1000},
+	}, 1000, 0, 600)
+	if exclusive.TotalAmount != 1060 || exclusive.TaxAmount != 60 {
+		t.Fatalf("exclusive totals = %+v, want total 1060 tax 60", exclusive)
+	}
+}
+
+func TestCalculateChargesSupportsTaxInclusiveAmounts(t *testing.T) {
+	charges := calculateCharges([]ChargeDefinition{
+		{
+			Code:            "SERVICE_FEE",
+			Name:            "Service fee",
+			Scope:           "ORDER",
+			CalculationType: "FIXED_AMOUNT",
+			Amount:          106,
+			Taxable:         true,
+			TaxInclusive:    true,
+		},
+	}, chargeCalculationRequest{
+		Subtotal:   1000,
+		TaxRateBps: 600,
+	})
+
+	if len(charges) != 1 {
+		t.Fatalf("expected 1 charge, got %d", len(charges))
+	}
+	charge := charges[0]
+	if charge.Amount != 100 || charge.TaxAmount != 6 || charge.TotalAmount != 106 {
+		t.Fatalf("unexpected inclusive charge: %+v", charge)
+	}
+}
+
+func TestCheckoutDoesNotAddTaxAgainForTaxInclusiveItems(t *testing.T) {
+	var capturedIntent Intent
+	repo := &mockRepository{
+		findIntentByIdempotency: func(ctx context.Context, countryID, userID, key string) (IntentWithPayment, error) {
+			return IntentWithPayment{}, ErrNotFound
+		},
+		getCountry: func(ctx context.Context, countryID string) (Country, error) {
+			return Country{ID: countryID, TaxRate: 0.06, Currency: "MYR"}, nil
+		},
+		getStore: func(ctx context.Context, countryID string, storeID int) (Store, error) {
+			return Store{ID: storeID, CountryID: countryID, ZoneID: "MY_KV", BrandID: 1, OperationalStatus: "OPEN"}, nil
+		},
+		upsertUser: func(ctx context.Context, userID, countryID string) error {
+			return nil
+		},
+		getPricedItems: func(ctx context.Context, storeID int, zoneID string, itemIDs []int) (map[int]PricedItem, error) {
+			return map[int]PricedItem{
+				1: {MenuItemID: 1, CategoryID: 10, BasePrice: 1000, TaxInclusive: true, BrandID: 1},
+			}, nil
+		},
+		getOptionPrices: func(ctx context.Context, storeID int, zoneID string, optionIDs []int) (map[int]OptionPrice, error) {
+			return map[int]OptionPrice{}, nil
+		},
+		getCustomizationRules: func(ctx context.Context, menuItemIDs []int) ([]CustomizationGroupRule, map[int]CustomizationOptionRule, error) {
+			return nil, map[int]CustomizationOptionRule{}, nil
+		},
+		listChargeDefinitions: func(ctx context.Context, countryID string, store Store, fulfillment string) ([]ChargeDefinition, error) {
+			return nil, nil
+		},
+		createIntentWithPayment: func(ctx context.Context, intent Intent, payment PaymentTransaction) error {
+			capturedIntent = intent
+			if payment.Amount != 1000 {
+				t.Fatalf("payment amount = %d, want 1000", payment.Amount)
+			}
+			return nil
+		},
+	}
+	paymentStarter := mockPaymentStarter{
+		validate: func(ctx context.Context, req payments.StartPaymentRequest) (payments.MethodSelection, error) {
+			if req.Amount != 1000 {
+				t.Fatalf("payment validation amount = %d, want 1000", req.Amount)
+			}
+			return payments.MethodSelection{Code: "EWALLET", ProviderCode: "MOCK", CurrencyCode: "MYR"}, nil
+		},
+	}
+
+	svc := NewService(repo, paymentStarter)
+	res, err := svc.Checkout(context.Background(), CheckoutContext{
+		TraceID:     "trace-1",
+		CountryCode: "MY",
+	}, CheckoutRequest{
+		UserID:         "u1",
+		IdempotencyKey: "k1",
+		StoreID:        1,
+		Fulfillment:    "TAKEAWAY",
+		PaymentMethod:  "EWALLET",
+		Items:          []CartItem{{MenuItemID: 1, Quantity: 1}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.TotalAmount != 1000 || res.TaxAmount != 57 || capturedIntent.TotalAmount != 1000 {
+		t.Fatalf("unexpected checkout totals response=%+v intent=%+v", res, capturedIntent)
 	}
 }
 

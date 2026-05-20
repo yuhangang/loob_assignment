@@ -8,6 +8,7 @@ import '../../../core/theme/theme_cubit.dart';
 import '../../../core/theme/tokens/colors.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
+import '../../../core/widgets/loob_spinner.dart';
 import '../../cart/presentation/bloc/cart_bloc.dart';
 import '../../cart/presentation/bloc/cart_state.dart';
 import '../../settings/data/models/user_profile_model.dart';
@@ -18,6 +19,7 @@ import 'widgets/collapsed_home_bar.dart';
 import 'widgets/feed_card.dart';
 import 'widgets/fulfillment_toggle.dart';
 import 'widgets/hero_banner.dart';
+import 'widgets/home_error_view.dart';
 import 'widgets/home_header_profile_row.dart';
 import 'widgets/loyalty_card.dart';
 import 'widgets/marketing_popup_dialog.dart';
@@ -265,19 +267,32 @@ class _HomePageState extends State<HomePage> {
                     hasScrollBody: false,
                     child: Center(
                       child: Padding(
-                        padding: EdgeInsets.all(AppSpacing.xxl),
-                        child: CircularProgressIndicator(),
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+                        child: LoobSpinner(size: 56.0),
                       ),
                     ),
                   )
                 else if (state is HomeError)
                   SliverFillRemaining(
                     hasScrollBody: false,
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.xl),
-                        child: Text(state.message),
-                      ),
+                    child: HomeErrorView(
+                      message: state.message,
+                      onRetry: () {
+                        final lang = context
+                            .read<LanguageCubit>()
+                            .state
+                            .languageCode;
+                        final brand = context.read<ThemeCubit>().state;
+                        final country = context
+                            .read<CartBloc>()
+                            .state
+                            .countryCode;
+                        _homeCubit.loadHome(
+                          countryCode: country,
+                          language: lang,
+                          brandId: brand.brandId,
+                        );
+                      },
                     ),
                   )
                 else if (state is HomeLoaded)

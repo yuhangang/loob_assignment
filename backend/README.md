@@ -18,8 +18,8 @@ The implementation contract lives in [`../docs/architecture/BACKEND_ARCHITECTURE
 - **Database:** MySQL 8 locally, Aurora MySQL-compatible in the target cloud design
 - **Persistence:** Raw SQL via `database/sql`; `sqlc` planned for typed query generation
 - **Caching/status:** Redis
-- **Queue:** AWS SQS FIFO for order intents
-- **Authentication:** Firebase Auth Admin SDK, planned for authenticated checkout/admin paths
+- **Queue:** AWS SQS FIFO as the target cloud adapter for post-payment order processing
+- **Authentication:** Firebase ID token verification, with explicit local mock mode for assessment runs
 - **API Documentation:** Swagger / OpenAPI
 
 ## Local Setup
@@ -106,8 +106,8 @@ By default the API applies SQL migrations from `sql/migrations` at startup. Set 
 
 Authenticated user-owned APIs require `Authorization: Bearer <token>`.
 
-- Set `FIREBASE_PROJECT_ID`.
-- Send Firebase Auth ID tokens from the mobile app.
+- For local assessment runs without Firebase credentials, use `AUTH_MODE=mock`. Mock tokens are accepted only in this explicit mode.
+- For Firebase verification, set `AUTH_MODE=firebase` and `FIREBASE_PROJECT_ID`, then send Firebase Auth ID tokens from the mobile app.
 - The backend derives `user_id` from the verified token subject. Client-supplied `user_id` query/body/header values are ignored on protected endpoints.
 
 Catalog Redis cache settings use Go duration strings:
@@ -140,7 +140,7 @@ curl -sS -X POST \
 Set `MOCK_GATEWAY_SECRET` in your environment before using the mock callback endpoint.
 Set `PUBLIC_BASE_URL` to the API origin used by mobile clients so app config and feed assets do not point at localhost outside local development.
 
-The worker profile exists as a separate entrypoint, but SQS consumption is not wired yet:
+The worker profile exists as a separate entrypoint, but the local assignment checkout flow is payment-first: checkout creates a `PAYMENT_PENDING` order intent plus payment transaction, and the mock gateway callback moves successful payments to `READY_TO_COLLECT`. SQS consumption is not required for the local assessment runtime.
 
 ```bash
 go run ./cmd/worker
@@ -164,6 +164,6 @@ This project uses `swaggo/swag` to automatically generate OpenAPI/Swagger docume
 
 - **Contextual routing:** Public reads use `X-Country-Code` and `Accept-Language`; checkout requires a validated country context.
 - **Lean mobile payloads:** The backend resolves translations, country pricing, and tax rules before returning data to Flutter.
-- **Async checkout:** Checkout should enqueue an order intent and return `202 Accepted` only after SQS accepts the message.
-- **Worker-owned persistence:** Durable order creation belongs to the worker profile, not the HTTP request path.
+- **Payment-first checkout:** Checkout creates an order intent plus pending payment transaction atomically, then returns `202 Accepted` with status and payment details.
+- **Worker-ready boundary:** Durable paid-order processing can move behind SQS later; the local assignment runtime does not require AWS credentials.
 - **Traceability:** API and worker logs should carry the same `trace_id` and `order_tracking_id`.
