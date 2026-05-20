@@ -17,7 +17,7 @@ type CatalogRepository interface {
 	ListCustomizationGroups(ctx context.Context, menuItemIDs []int) ([]GroupRow, error)
 	ListCustomizationOptions(ctx context.Context, storeID int, zoneID string, groupIDs []int) ([]OptionRow, error)
 	ListBrands(ctx context.Context) ([]BrandRow, error)
-	ListStores(ctx context.Context, countryID string, brandID int, activeOnly bool) ([]StoreRow, error)
+	ListStores(ctx context.Context, countryID string, brandID int, activeOnly bool, limit int, offset int) ([]StoreRow, error)
 }
 
 type mysqlRepository struct {
@@ -401,7 +401,7 @@ func (r *mysqlRepository) ListBrands(ctx context.Context) ([]BrandRow, error) {
 	return brands, rows.Err()
 }
 
-func (r *mysqlRepository) ListStores(ctx context.Context, countryID string, brandID int, activeOnly bool) ([]StoreRow, error) {
+func (r *mysqlRepository) ListStores(ctx context.Context, countryID string, brandID int, activeOnly bool, limit int, offset int) ([]StoreRow, error) {
 	query := `
 		SELECT id, brand_id, country_id, zone_id, store_code, name_translations, latitude, longitude, address_translations, is_active, operational_status, status_message
 		FROM stores
@@ -423,6 +423,10 @@ func (r *mysqlRepository) ListStores(ctx context.Context, countryID string, bran
 		query += " WHERE " + join(filters, " AND ")
 	}
 	query += " ORDER BY id"
+	if limit > 0 {
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, limit, offset)
+	}
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {

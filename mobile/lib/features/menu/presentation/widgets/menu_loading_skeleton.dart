@@ -79,7 +79,7 @@ class MenuLoadingSkeleton extends StatelessWidget {
                     const SizedBox(height: 4),
                     LoobSkeleton(width: 220, height: 14),
                     const SizedBox(height: AppSpacing.md),
-                    // fulfillment toggle mock
+                    // Pickup status mock
                     Container(
                       height: 38,
                       decoration: BoxDecoration(

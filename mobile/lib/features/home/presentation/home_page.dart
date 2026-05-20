@@ -17,7 +17,6 @@ import '../data/models/app_config_model.dart';
 import 'home_cubit.dart';
 import 'widgets/collapsed_home_bar.dart';
 import 'widgets/feed_card.dart';
-import 'widgets/fulfillment_toggle.dart';
 import 'widgets/hero_banner.dart';
 import 'widgets/home_error_view.dart';
 import 'widgets/home_header_profile_row.dart';
@@ -25,8 +24,8 @@ import 'widgets/loyalty_card.dart';
 import 'widgets/marketing_popup_dialog.dart';
 import 'widgets/order_again_section.dart';
 
-/// Main home page with brand immersion, loyalty card, fulfillment quick actions,
-/// dynamic banners, "Order Again" recent orders list, and personalized feed.
+/// Main home page with brand immersion, loyalty card, dynamic banners,
+/// "Order Again" recent orders list, and personalized feed.
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -37,7 +36,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final HomeCubit _homeCubit;
   late final ScrollController _scrollController;
-  bool _isDeliverySelected = true; // Fulfillment state toggle
   bool _isHeaderCollapsed = false; // Tracks whether SliverAppBar is collapsed
 
   // expandedHeight(210) - toolbarHeight(66) = 144 — the scroll offset at which
@@ -166,7 +164,7 @@ class _HomePageState extends State<HomePage> {
                       pinned: true,
                       floating: false,
                       snap: false,
-                      expandedHeight: 210,
+                      expandedHeight: 144,
                       toolbarHeight: 66,
                       backgroundColor: theme.scaffoldBackgroundColor,
                       surfaceTintColor: AppColors.transparent,
@@ -188,9 +186,6 @@ class _HomePageState extends State<HomePage> {
                     );
                   },
                 ),
-
-                // Spacing to account for the overlapping fulfillment toggle
-                const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
                 // ── Brand Tab Bar (Hidden to match premium reference layout) ──
                 const SliverToBoxAdapter(child: SizedBox.shrink()),
@@ -357,13 +352,6 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 8),
                 LoyaltyCard(profile: profile),
                 const SizedBox(height: 8),
-                FulfillmentToggle(
-                  config: config,
-                  isDeliverySelected: _isDeliverySelected,
-                  onToggle: (val) {
-                    setState(() => _isDeliverySelected = val);
-                  },
-                ),
               ],
             ),
           ),

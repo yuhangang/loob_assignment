@@ -85,14 +85,14 @@ class _SettingsPageState extends State<SettingsPage> {
                           .read<UserProfileCubit>()
                           .topUpWallet(1000);
                       if (context.mounted) {
-                        LoobLoadingOverlay.hide(context);
+                        LoobLoadingOverlay.hide();
                         if (payment != null) {
                           _showMockPaymentGatewayBottomSheet(context, payment);
                         }
                       }
                     } catch (e) {
                       if (context.mounted) {
-                        LoobLoadingOverlay.hide(context);
+                        LoobLoadingOverlay.hide();
                         LoobErrorDialog.show(
                           context,
                           title: 'Top-Up Failed',
@@ -173,21 +173,21 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _showMockPaymentGatewayBottomSheet(
-    BuildContext context,
+    BuildContext pageContext,
     PaymentTransactionResponseModel payment,
   ) {
-    final theme = Theme.of(context);
-    final cubit = context.read<UserProfileCubit>();
+    final theme = Theme.of(pageContext);
+    final cubit = pageContext.read<UserProfileCubit>();
 
     showModalBottomSheet(
-      context: context,
+      context: pageContext,
       useRootNavigator: true,
       isDismissible: true,
       enableDrag: true,
       backgroundColor: AppColors.transparent,
       builder: (sheetContext) {
         return StatefulBuilder(
-          builder: (context, setState) {
+          builder: (sheetBodyContext, setState) {
             return Container(
               decoration: BoxDecoration(
                 color: theme.scaffoldBackgroundColor,
@@ -279,26 +279,23 @@ class _SettingsPageState extends State<SettingsPage> {
                         onPressed: () async {
                           Navigator.of(sheetContext).pop();
                           LoobLoadingOverlay.show(
-                            context,
+                            pageContext,
                             message: 'Verifying payment...',
                           );
                           try {
                             await cubit.confirmMockPayment(payment.id);
-                            if (context.mounted) {
-                              LoobLoadingOverlay.hide(context);
-                            }
                           } catch (e) {
-                            if (context.mounted) {
-                              LoobLoadingOverlay.hide(context);
-                              LoobErrorDialog.show(
-                                context,
-                                title: 'Payment Verification Failed',
-                                message: e.toString().replaceAll(
-                                  'Exception: ',
-                                  '',
-                                ),
-                              );
-                            }
+                            if (!mounted) return;
+                            LoobErrorDialog.show(
+                              context,
+                              title: 'Payment Verification Failed',
+                              message: e.toString().replaceAll(
+                                'Exception: ',
+                                '',
+                              ),
+                            );
+                          } finally {
+                            LoobLoadingOverlay.hide();
                           }
                         },
                         icon: const Icon(Icons.verified_rounded),
@@ -405,7 +402,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       }
                     } finally {
                       if (context.mounted) {
-                        LoobLoadingOverlay.hide(context);
+                        LoobLoadingOverlay.hide();
                       }
                     }
                   },
@@ -438,7 +435,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         }
                       } finally {
                         if (context.mounted) {
-                          LoobLoadingOverlay.hide(context);
+                          LoobLoadingOverlay.hide();
                         }
                       }
                     },
@@ -520,7 +517,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       }
                     } finally {
                       if (context.mounted) {
-                        LoobLoadingOverlay.hide(context);
+                        LoobLoadingOverlay.hide();
                       }
                     }
                   },
@@ -560,7 +557,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       }
                     } finally {
                       if (context.mounted) {
-                        LoobLoadingOverlay.hide(context);
+                        LoobLoadingOverlay.hide();
                       }
                     }
                   },

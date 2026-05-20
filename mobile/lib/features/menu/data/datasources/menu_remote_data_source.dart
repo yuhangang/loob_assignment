@@ -68,18 +68,45 @@ class MenuRemoteDataSource {
     int? brandId,
   }) async {
     try {
-      final queryParameters = <String, dynamic>{'country_id': countryId};
-      if (brandId != null) {
-        queryParameters['brand_id'] = brandId;
+      const pageLimit = 100;
+      var page = 1;
+      var hasMore = true;
+      final stores = <StoreModel>[];
+
+      while (hasMore) {
+        final queryParameters = <String, dynamic>{
+          'country_id': countryId,
+          'page': page,
+          'limit': pageLimit,
+        };
+        if (brandId != null) {
+          queryParameters['brand_id'] = brandId;
+        }
+        final response = await _client.dio.get(
+          ApiEndpoints.catalogStores,
+          queryParameters: queryParameters,
+        );
+        final data = response.data;
+        if (data is List<dynamic>) {
+          stores.addAll(
+            data.map((e) => StoreModel.fromJson(e as Map<String, dynamic>)),
+          );
+          break;
+        }
+
+        final payload = data as Map<String, dynamic>;
+        final items = payload['items'] as List<dynamic>? ?? const [];
+        stores.addAll(
+          items.map((e) => StoreModel.fromJson(e as Map<String, dynamic>)),
+        );
+        hasMore = payload['has_more'] as bool? ?? false;
+        if (items.isEmpty) {
+          break;
+        }
+        page++;
       }
-      final response = await _client.dio.get(
-        ApiEndpoints.catalogStores,
-        queryParameters: queryParameters,
-      );
-      final list = response.data as List<dynamic>;
-      return list
-          .map((e) => StoreModel.fromJson(e as Map<String, dynamic>))
-          .toList();
+
+      return stores;
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

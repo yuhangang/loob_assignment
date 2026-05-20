@@ -376,12 +376,8 @@ class _MenuPageState extends State<MenuPage> {
                                   pinned: true,
                                   delegate: MenuHeaderDelegate(
                                     brandName: catalog.brand,
-                                    isPickup: localState.isPickup,
                                     selectedStore: state.selectedStore,
                                     primaryColor: primaryColor,
-                                    onFulfillmentChanged: (isPickup) {
-                                      _pageCubit.setPickup(isPickup);
-                                    },
                                     onChangeOutlet: () => _showStoreSelector(
                                       stores: state.stores,
                                       selectedStoreId: state.selectedStore.id,

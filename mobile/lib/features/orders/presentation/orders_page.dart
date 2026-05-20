@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/di/injection.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/tokens/spacing.dart';
@@ -13,7 +12,7 @@ import '../../../core/widgets/status_message.dart';
 import '../../cart/data/models/order_status_model.dart';
 import '../../cart/presentation/bloc/cart_bloc.dart';
 import '../../cart/presentation/bloc/cart_state.dart';
-import '../domain/repositories/order_repository.dart';
+import 'bloc/orders_page_cubit.dart';
 
 class OrdersPage extends StatefulWidget {
   final ValueListenable<int>? refreshSignal;
@@ -25,15 +24,16 @@ class OrdersPage extends StatefulWidget {
 }
 
 class _OrdersPageState extends State<OrdersPage> {
-  final IOrderRepository _repository = sl<IOrderRepository>();
-  late Future<List<OrderStatusModel>> _ordersFuture;
+  final ScrollController _scrollController = ScrollController();
+  late final OrdersPageCubit _ordersCubit;
 
   @override
   void initState() {
     super.initState();
-    final country = context.read<CartBloc>().state.countryCode;
-    _ordersFuture = _repository.loadOrders(countryCode: country);
+    _ordersCubit = OrdersPageCubit();
+    _scrollController.addListener(_handleScroll);
     widget.refreshSignal?.addListener(_handleRefreshSignal);
+    _loadFirstPage();
   }
 
   @override
@@ -47,85 +47,121 @@ class _OrdersPageState extends State<OrdersPage> {
   @override
   void dispose() {
     widget.refreshSignal?.removeListener(_handleRefreshSignal);
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
+    _ordersCubit.close();
     super.dispose();
   }
 
   void _handleRefreshSignal() {
     if (!mounted) return;
-    setState(() {
-      final country = context.read<CartBloc>().state.countryCode;
-      _ordersFuture = _repository.loadOrders(countryCode: country);
-    });
+    _loadFirstPage();
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 320) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _loadFirstPage() async {
+    final country = context.read<CartBloc>().state.countryCode;
+    await _ordersCubit.loadFirstPage(countryCode: country);
   }
 
   Future<void> _reload() async {
-    setState(() {
-      final country = context.read<CartBloc>().state.countryCode;
-      _ordersFuture = _repository.loadOrders(countryCode: country);
-    });
-    await _ordersFuture;
+    await _loadFirstPage();
+  }
+
+  Future<void> _loadMore() async {
+    final country = context.read<CartBloc>().state.countryCode;
+    await _ordersCubit.loadMore(countryCode: country);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(context.l10n.orders)),
-      body: BlocListener<CartBloc, CartState>(
-        listenWhen: (previous, current) =>
-            previous.countryCode != current.countryCode,
-        listener: (context, cartState) {
-          setState(() {
-            _ordersFuture = _repository.loadOrders(
-              countryCode: cartState.countryCode,
-            );
-          });
-        },
-        child: FutureBuilder<List<OrderStatusModel>>(
-          future: _ordersFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return StatusMessage(
-                icon: Icons.cloud_off_rounded,
-                title: 'Unable to load orders',
-                subtitle: 'Pull to refresh and try again.',
-                iconColor: theme.colorScheme.error,
-              );
-            }
-
-            final orders = snapshot.data ?? const [];
-            if (orders.isEmpty) {
-              return StatusMessage(
-                icon: Icons.receipt_long_outlined,
-                title: 'No orders yet',
-                subtitle: 'Orders created from checkout will appear here.',
-                iconColor: theme.colorScheme.primary,
-              );
-            }
-
-            return RefreshIndicator(
-              onRefresh: _reload,
-              child: ListView.separated(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: EdgeInsets.only(
-                  left: AppSpacing.pageHorizontal,
-                  right: AppSpacing.pageHorizontal,
-                  top: AppSpacing.pageHorizontal,
-                  bottom: AppSpacing.pageHorizontal + context.cartFloatingBarPadding,
-                ),
-                itemCount: orders.length,
-                separatorBuilder: (_, _) =>
-                    const SizedBox(height: AppSpacing.md),
-                itemBuilder: (context, index) {
-                  return _OrderCard(order: orders[index]);
-                },
-              ),
-            );
+    return BlocProvider.value(
+      value: _ordersCubit,
+      child: Scaffold(
+        appBar: AppBar(title: Text(context.l10n.orders)),
+        body: BlocListener<CartBloc, CartState>(
+          listenWhen: (previous, current) =>
+              previous.countryCode != current.countryCode,
+          listener: (context, cartState) {
+            _ordersCubit.loadFirstPage(countryCode: cartState.countryCode);
           },
+          child: BlocBuilder<OrdersPageCubit, OrdersPageState>(
+            builder: (context, state) => _buildBody(theme, state),
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildBody(ThemeData theme, OrdersPageState state) {
+    if (state.isInitialLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state.error != null) {
+      return RefreshIndicator(
+        onRefresh: _reload,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(height: MediaQuery.sizeOf(context).height * 0.2),
+            StatusMessage(
+              icon: Icons.cloud_off_rounded,
+              title: 'Unable to load orders',
+              subtitle: 'Pull to refresh and try again.',
+              iconColor: theme.colorScheme.error,
+            ),
+          ],
+        ),
+      );
+    }
+    if (state.orders.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _reload,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(height: MediaQuery.sizeOf(context).height * 0.2),
+            StatusMessage(
+              icon: Icons.receipt_long_outlined,
+              title: 'No orders yet',
+              subtitle: 'Orders created from checkout will appear here.',
+              iconColor: theme.colorScheme.primary,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: ListView.separated(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.only(
+          left: AppSpacing.pageHorizontal,
+          right: AppSpacing.pageHorizontal,
+          top: AppSpacing.pageHorizontal,
+          bottom: AppSpacing.pageHorizontal + context.cartFloatingBarPadding,
+        ),
+        itemCount: state.orders.length + (state.isLoadingMore ? 1 : 0),
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+        itemBuilder: (context, index) {
+          if (index >= state.orders.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          return _OrderCard(order: state.orders[index]);
+        },
       ),
     );
   }

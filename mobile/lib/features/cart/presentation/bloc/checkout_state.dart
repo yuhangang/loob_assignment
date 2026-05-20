@@ -23,7 +23,7 @@ class CheckoutState {
   const CheckoutState({
     this.methods = const [],
     this.selectedMethod,
-    this.fulfillment = 'DINE_IN',
+    this.fulfillment = 'TAKEAWAY',
     this.isLoadingMethods = true,
     this.isCheckingOut = false,
     this.error,

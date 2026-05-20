@@ -26,7 +26,7 @@ type mockRepository struct {
 	getProductByID           func(ctx context.Context, storeID int, zoneID string, itemID int) (ProductRow, error)
 	listCustomizationGroups  func(ctx context.Context, menuItemIDs []int) ([]GroupRow, error)
 	listCustomizationOptions func(ctx context.Context, storeID int, zoneID string, groupIDs []int) ([]OptionRow, error)
-	listStores               func(ctx context.Context, countryID string, brandID int, activeOnly bool) ([]StoreRow, error)
+	listStores               func(ctx context.Context, countryID string, brandID int, activeOnly bool, limit int, offset int) ([]StoreRow, error)
 }
 
 func (m *mockRepository) GetCountry(ctx context.Context, countryID string) (Country, error) {
@@ -63,8 +63,8 @@ func (m *mockRepository) ListCustomizationGroups(ctx context.Context, menuItemID
 func (m *mockRepository) ListCustomizationOptions(ctx context.Context, storeID int, zoneID string, groupIDs []int) ([]OptionRow, error) {
 	return m.listCustomizationOptions(ctx, storeID, zoneID, groupIDs)
 }
-func (m *mockRepository) ListStores(ctx context.Context, countryID string, brandID int, activeOnly bool) ([]StoreRow, error) {
-	return m.listStores(ctx, countryID, brandID, activeOnly)
+func (m *mockRepository) ListStores(ctx context.Context, countryID string, brandID int, activeOnly bool, limit int, offset int) ([]StoreRow, error) {
+	return m.listStores(ctx, countryID, brandID, activeOnly, limit, offset)
 }
 
 func TestResolveLanguage(t *testing.T) {
@@ -147,6 +147,45 @@ func TestLocalize(t *testing.T) {
 				t.Errorf("localize() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestListStoresPaginatesAndLocalizes(t *testing.T) {
+	repo := &mockRepository{
+		getCountry: func(ctx context.Context, countryID string) (Country, error) {
+			if countryID != "MY" {
+				t.Fatalf("unexpected country lookup: %s", countryID)
+			}
+			return Country{ID: "MY", DefaultLanguage: "en-US"}, nil
+		},
+		listStores: func(ctx context.Context, countryID string, brandID int, activeOnly bool, limit int, offset int) ([]StoreRow, error) {
+			if countryID != "MY" || brandID != 1 || !activeOnly {
+				t.Fatalf("unexpected filters country=%s brand=%d activeOnly=%v", countryID, brandID, activeOnly)
+			}
+			if limit != 3 || offset != 2 {
+				t.Fatalf("unexpected pagination limit=%d offset=%d", limit, offset)
+			}
+			return []StoreRow{
+				{ID: 3, BrandID: 1, CountryID: "MY", ZoneID: "MY_KV", StoreCode: "MY-TL-003", NameTranslations: map[string]string{"en-US": "Outlet 3"}, AddressTranslations: map[string]string{"en-US": "Address 3"}, IsActive: true, OperationalStatus: "OPEN"},
+				{ID: 4, BrandID: 1, CountryID: "MY", ZoneID: "MY_KV", StoreCode: "MY-TL-004", NameTranslations: map[string]string{"en-US": "Outlet 4"}, AddressTranslations: map[string]string{"en-US": "Address 4"}, IsActive: true, OperationalStatus: "OPEN"},
+				{ID: 5, BrandID: 1, CountryID: "MY", ZoneID: "MY_KV", StoreCode: "MY-TL-005", NameTranslations: map[string]string{"en-US": "Outlet 5"}, AddressTranslations: map[string]string{"en-US": "Address 5"}, IsActive: true, OperationalStatus: "OPEN"},
+			}, nil
+		},
+	}
+
+	svc := NewService(repo, "")
+	res, err := svc.ListStores(context.Background(), "MY", "en-US", 1, true, StoreListRequest{Page: 2, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Page != 2 || res.Limit != 2 || !res.HasMore {
+		t.Fatalf("unexpected pagination response: %+v", res)
+	}
+	if len(res.Items) != 2 {
+		t.Fatalf("expected 2 stores, got %d", len(res.Items))
+	}
+	if res.Items[0].Name != "Outlet 3" || res.Items[1].StoreCode != "MY-TL-004" {
+		t.Fatalf("unexpected stores: %+v", res.Items)
 	}
 }
 

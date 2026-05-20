@@ -119,10 +119,6 @@ class AppLocalizations {
       'tax_and_total_confirm': 'Final tax and total are confirmed by checkout.',
       'estimated_payable': 'Estimated payable',
       'subtotal_label': 'Subtotal',
-      'fulfillment_label': 'Fulfillment',
-      'dine_in_option': 'Dine in',
-      'takeaway_option': 'Takeaway',
-      'delivery_option': 'Delivery',
       'optional_voucher_code': 'Optional voucher code',
       'browse_btn': 'Browse',
       'voucher_will_be_validated': 'Voucher "{}" will be validated at checkout',
@@ -183,7 +179,11 @@ class AppLocalizations {
       'remove_unavailable_items': 'Remove Unavailable Items',
       'selected_outlet_closed': 'Selected Outlet Closed',
       'proceed_to_checkout': 'Proceed to Checkout',
+      'guest_label': 'Guest',
       'welcome_guest': 'Welcome, Guest!',
+      'home_guest_rewards_title': 'Log in to unlock rewards',
+      'home_guest_rewards_desc':
+          'Earn TPoints, use wallet balance, and scan your member QR.',
       'guest_desc':
           'Log in to earn loyalty points, claim discount vouchers, and order online.',
       'login_signup': 'Login / Sign Up',
@@ -212,9 +212,11 @@ class AppLocalizations {
       'retry_payment_btn': 'Retry Payment',
       'processing_payment_btn': 'Processing Payment...',
       'active_order_warning_title': 'Active Order Detected',
-      'active_order_warning_content': 'You already have an active order. Are you sure you want to place another separate order?',
+      'active_order_warning_content':
+          'You already have an active order. Are you sure you want to place another separate order?',
       'mock_payment_gateway': 'Mock Payment Gateway',
-      'simulate_payment_wallet_topup': 'Simulate a payment to complete your wallet top-up.',
+      'simulate_payment_wallet_topup':
+          'Simulate a payment to complete your wallet top-up.',
       'transaction_id': 'Transaction ID',
       'payment_method': 'Payment Method',
       'amount': 'Amount',
@@ -341,10 +343,6 @@ class AppLocalizations {
           'Cukai dan jumlah akhir disahkan semasa daftar keluar.',
       'estimated_payable': 'Anggaran bayaran',
       'subtotal_label': 'Subjumlah',
-      'fulfillment_label': 'Penyempurnaan',
-      'dine_in_option': 'Makan di kedai',
-      'takeaway_option': 'Bawa pulang',
-      'delivery_option': 'Penghantaran',
       'optional_voucher_code': 'Kod baucher (pilihan)',
       'browse_btn': 'Semak',
       'voucher_will_be_validated':
@@ -403,7 +401,11 @@ class AppLocalizations {
       'remove_unavailable_items': 'Padam Item Tidak Tersedia',
       'selected_outlet_closed': 'Cawangan Terpilih Ditutup',
       'proceed_to_checkout': 'Teruskan ke Daftar Keluar',
+      'guest_label': 'Pelawat',
       'welcome_guest': 'Selamat Datang, Pelawat!',
+      'home_guest_rewards_title': 'Log masuk untuk ganjaran',
+      'home_guest_rewards_desc':
+          'Kumpul TPoints, guna baki wallet dan imbas QR ahli anda.',
       'guest_desc':
           'Log masuk untuk mendapatkan mata ganjaran, menuntut baucher diskaun dan membuat pesanan atas talian.',
       'login_signup': 'Log Masuk / Daftar',
@@ -432,9 +434,11 @@ class AppLocalizations {
       'retry_payment_btn': 'Cuba Semula Pembayaran',
       'processing_payment_btn': 'Memproses Pembayaran...',
       'active_order_warning_title': 'Pesanan Aktif Dikesan',
-      'active_order_warning_content': 'Anda sudah mempunyai pesanan aktif. Adakah anda pasti mahu membuat satu lagi pesanan berasingan?',
+      'active_order_warning_content':
+          'Anda sudah mempunyai pesanan aktif. Adakah anda pasti mahu membuat satu lagi pesanan berasingan?',
       'mock_payment_gateway': 'Pintu Laluan Pembayaran Olok-olok',
-      'simulate_payment_wallet_topup': 'Simulasikan pembayaran untuk melengkapkan tambah nilai dompet anda.',
+      'simulate_payment_wallet_topup':
+          'Simulasikan pembayaran untuk melengkapkan tambah nilai dompet anda.',
       'transaction_id': 'ID Transaksi',
       'payment_method': 'Kaedah Pembayaran',
       'amount': 'Jumlah',
@@ -566,10 +570,6 @@ class AppLocalizations {
   String get taxAndTotalConfirm => _translate('tax_and_total_confirm');
   String get estimatedPayable => _translate('estimated_payable');
   String get subtotalLabel => _translate('subtotal_label');
-  String get fulfillmentLabel => _translate('fulfillment_label');
-  String get dineInOption => _translate('dine_in_option');
-  String get takeawayOption => _translate('takeaway_option');
-  String get deliveryOption => _translate('delivery_option');
   String get optionalVoucherCode => _translate('optional_voucher_code');
   String get browseBtn => _translate('browse_btn');
   String get noPaymentMethods => _translate('no_payment_methods');
@@ -633,7 +633,10 @@ class AppLocalizations {
   String get unableLoadOrderStatus => _translate('unable_load_order_status');
   String get retry => _translate('retry');
 
+  String get guestLabel => _translate('guest_label');
   String get welcomeGuest => _translate('welcome_guest');
+  String get homeGuestRewardsTitle => _translate('home_guest_rewards_title');
+  String get homeGuestRewardsDesc => _translate('home_guest_rewards_desc');
   String get guestDesc => _translate('guest_desc');
   String get loginSignup => _translate('login_signup');
   String get welcomeLoob => _translate('welcome_loob');
@@ -658,11 +661,14 @@ class AppLocalizations {
   String get collectingBtn => _translate('collecting_btn');
   String get retryPaymentBtn => _translate('retry_payment_btn');
   String get processingPaymentBtn => _translate('processing_payment_btn');
-  String get activeOrderWarningTitle => _translate('active_order_warning_title');
-  String get activeOrderWarningContent => _translate('active_order_warning_content');
+  String get activeOrderWarningTitle =>
+      _translate('active_order_warning_title');
+  String get activeOrderWarningContent =>
+      _translate('active_order_warning_content');
 
   String get mockPaymentGateway => _translate('mock_payment_gateway');
-  String get simulatePaymentWalletTopup => _translate('simulate_payment_wallet_topup');
+  String get simulatePaymentWalletTopup =>
+      _translate('simulate_payment_wallet_topup');
   String get transactionIdLabel => _translate('transaction_id');
   String get paymentMethodLabel => _translate('payment_method');
   String get amountLabel => _translate('amount');

@@ -25,6 +25,7 @@ import '../../../core/widgets/loob_loading_overlay.dart';
 import '../../../core/widgets/loob_skeleton.dart';
 import 'widgets/checkout_amount_row.dart';
 import 'widgets/checkout_collection_card.dart';
+import 'widgets/payment_success_header.dart';
 import 'widgets/checkout_item_tile.dart';
 import 'widgets/checkout_section.dart';
 import 'widgets/store_closed_warning.dart';
@@ -239,7 +240,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
       child: BlocListener<CheckoutCubit, CheckoutState>(
         listenWhen: (previous, current) =>
             previous.isCheckingOut != current.isCheckingOut ||
-            previous.error != current.error,
+            previous.error != current.error ||
+            previous.checkout != current.checkout,
         listener: (context, state) {
           if (state.isCheckingOut) {
             LoobLoadingOverlay.show(
@@ -249,13 +251,22 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   : 'Verifying payment...',
             );
           } else {
-            LoobLoadingOverlay.hide(context);
+            LoobLoadingOverlay.hide();
+          }
+
+          if (state.checkout != null && !state.isCheckingOut) {
+            final countryCode = context.read<CartBloc>().state.countryCode;
+            context.read<ActiveOrderCubit>().fetchActiveOrder(
+              countryCode: countryCode,
+            );
           }
 
           if (state.error != null) {
             LoobErrorDialog.show(
               context,
-              title: state.checkout == null ? 'Checkout Failed' : 'Payment Failed',
+              title: state.checkout == null
+                  ? 'Checkout Failed'
+                  : 'Payment Failed',
               message: state.error!,
             );
           }
@@ -537,30 +548,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
         ),
         const SizedBox(height: AppSpacing.lg),
         CheckoutSection(
-          title: context.l10n.fulfillmentLabel,
-          child: SegmentedButton<String>(
-            segments: [
-              ButtonSegment(
-                value: 'DINE_IN',
-                label: Text(context.l10n.dineInOption),
-              ),
-              ButtonSegment(
-                value: 'TAKEAWAY',
-                label: Text(context.l10n.takeawayOption),
-              ),
-              ButtonSegment(
-                value: 'DELIVERY',
-                label: Text(context.l10n.deliveryOption),
-              ),
-            ],
-            selected: {state.fulfillment},
-            onSelectionChanged: (value) {
-              context.read<CheckoutCubit>().selectFulfillment(value.first);
-            },
-          ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        CheckoutSection(
           title: context.l10n.voucherLabel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -777,29 +764,34 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
       children: [
-        Icon(
-          isPaid ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
-          size: 72,
-          color: isPaid ? AppColors.success : theme.colorScheme.primary,
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        Text(
-          isPaid
-              ? context.l10n.mockPaymentApproved
-              : context.l10n.paymentPending,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w900,
+        if (isPaid)
+          PaymentSuccessHeader(
+            orderTrackingId: checkout.orderTrackingId,
+            title: context.l10n.mockPaymentApproved,
+          )
+        else ...[
+          Icon(
+            Icons.pending_actions_rounded,
+            size: 72,
+            color: theme.colorScheme.primary,
           ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          checkout.orderTrackingId,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            context.l10n.paymentPending,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
           ),
-        ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            checkout.orderTrackingId,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
         const SizedBox(height: AppSpacing.xl),
 
         // ── Collection QR + PIN (shown once payment is confirmed) ────────
@@ -1020,23 +1012,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          LoobSkeleton(
-                            width: 140,
-                            height: 16,
-                            borderRadius: 4,
-                          ),
+                          LoobSkeleton(width: 140, height: 16, borderRadius: 4),
                           SizedBox(height: AppSpacing.sm),
-                          LoobSkeleton(
-                            width: 200,
-                            height: 12,
-                            borderRadius: 4,
-                          ),
+                          LoobSkeleton(width: 200, height: 12, borderRadius: 4),
                           SizedBox(height: AppSpacing.xs),
-                          LoobSkeleton(
-                            width: 160,
-                            height: 12,
-                            borderRadius: 4,
-                          ),
+                          LoobSkeleton(width: 160, height: 12, borderRadius: 4),
                           SizedBox(height: AppSpacing.md),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,

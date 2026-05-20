@@ -7,7 +7,6 @@ class MenuPageLocalState {
   final int? selectedStoreId;
   final int? selectedCategoryId;
   final int? pendingStoreChangeWarningStoreId;
-  final bool isPickup;
   final bool isProgrammaticScroll;
   final bool isChangingStoreAcrossBrands;
   final Set<int> favouritedIds;
@@ -17,7 +16,6 @@ class MenuPageLocalState {
     this.selectedStoreId,
     this.selectedCategoryId,
     this.pendingStoreChangeWarningStoreId,
-    this.isPickup = true,
     this.isProgrammaticScroll = false,
     this.isChangingStoreAcrossBrands = false,
     this.favouritedIds = const {},
@@ -28,7 +26,6 @@ class MenuPageLocalState {
     int? Function()? selectedStoreId,
     int? Function()? selectedCategoryId,
     int? Function()? pendingStoreChangeWarningStoreId,
-    bool? isPickup,
     bool? isProgrammaticScroll,
     bool? isChangingStoreAcrossBrands,
     Set<int>? favouritedIds,
@@ -40,7 +37,6 @@ class MenuPageLocalState {
       pendingStoreChangeWarningStoreId: pendingStoreChangeWarningStoreId != null
           ? pendingStoreChangeWarningStoreId()
           : this.pendingStoreChangeWarningStoreId,
-      isPickup: isPickup ?? this.isPickup,
       isProgrammaticScroll: isProgrammaticScroll ?? this.isProgrammaticScroll,
       isChangingStoreAcrossBrands: isChangingStoreAcrossBrands ?? this.isChangingStoreAcrossBrands,
       favouritedIds: favouritedIds ?? this.favouritedIds,
@@ -91,10 +87,6 @@ class MenuPageCubit extends Cubit<MenuPageLocalState> {
 
   void setPendingStoreChange(int? storeId) {
     emit(state.copyWith(pendingStoreChangeWarningStoreId: () => storeId));
-  }
-
-  void setPickup(bool isPickup) {
-    emit(state.copyWith(isPickup: isPickup));
   }
 
   void setProgrammaticScroll(bool isProgrammaticScroll) {

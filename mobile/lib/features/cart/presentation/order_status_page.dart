@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
 import 'package:loob_app/core/localization/app_localizations.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import '../../../core/di/injection.dart';
-import '../../../core/config/app_config.dart';
 import '../../../core/theme/tokens/colors.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
 import '../data/models/order_status_model.dart';
-import '../domain/repositories/cart_repository.dart';
+import 'bloc/order_status_cubit.dart';
+import 'bloc/order_status_state.dart';
+import '../../orders/presentation/bloc/active_order_cubit.dart';
 
 class OrderStatusPage extends StatefulWidget {
   final String trackingId;
@@ -22,15 +23,12 @@ class OrderStatusPage extends StatefulWidget {
 
 class _OrderStatusPageState extends State<OrderStatusPage>
     with SingleTickerProviderStateMixin {
-  final ICartRepository _repository = sl<ICartRepository>();
-  late Future<OrderStatusModel> _statusFuture;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
   @override
   void initState() {
     super.initState();
-    _statusFuture = _repository.getOrderStatus(widget.trackingId);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -49,127 +47,108 @@ class _OrderStatusPageState extends State<OrderStatusPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        Navigator.of(context).popUntil((route) => route.isFirst);
-      },
-      child: Scaffold(
-        appBar: AppBar(title: Text(context.l10n.orderStatusTitle)),
-        body: FutureBuilder<OrderStatusModel>(
-          future: _statusFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.cloud_off_rounded,
-                        size: 64,
-                        color: theme.colorScheme.error,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      Text(
-                        context.l10n.unableLoadOrderStatus,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.error,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+    return BlocProvider(
+      create: (_) => OrderStatusCubit(trackingId: widget.trackingId)..load(),
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        },
+        child: Scaffold(
+          appBar: AppBar(title: Text(context.l10n.orderStatusTitle)),
+          body: BlocConsumer<OrderStatusCubit, OrderStatusState>(
+            listenWhen: (previous, current) =>
+                previous.status != current.status ||
+                previous.notice != current.notice,
+            listener: (context, state) {
+              final status = state.status;
+              if (status != null &&
+                  status !=
+                      context.read<ActiveOrderCubit>().state.activeOrder) {
+                context.read<ActiveOrderCubit>().reconcileOrderStatus(status);
+              }
+              final notice = state.notice;
+              if (notice == null) return;
+              _showNotice(context, notice);
+              context.read<OrderStatusCubit>().clearNotice();
+            },
+            builder: (context, state) {
+              if (state.isLoading && !state.hasStatus) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (state.error != null && !state.hasStatus) {
+                return _OrderStatusError(theme: theme);
+              }
+              final status = state.status;
+              if (status == null) {
+                return _OrderStatusError(theme: theme);
+              }
+              return _OrderStatusContent(
+                status: status,
+                pulseAnimation: _pulseAnimation,
+                isCollecting: state.isCollecting,
+                onCollect: context.read<OrderStatusCubit>().collectOrder,
+                isRetryingPayment: state.isRetryingPayment,
+                onRetryPayment: context.read<OrderStatusCubit>().retryPayment,
               );
-            }
-            final status = snapshot.data!;
-            return _OrderStatusContent(
-              status: status,
-              pulseAnimation: _pulseAnimation,
-              isCollecting: _isCollecting,
-              onCollect: _collectOrder,
-              isRetryingPayment: _isRetryingPayment,
-              onRetryPayment: _retryPayment,
-            );
-          },
+            },
+          ),
         ),
       ),
     );
   }
 
-  bool _isCollecting = false;
-  bool _isRetryingPayment = false;
-
-  void _collectOrder() async {
-    if (_isCollecting) return;
-    setState(() {
-      _isCollecting = true;
-    });
-    try {
-      final updatedStatus = await _repository.collectOrder(widget.trackingId);
-      setState(() {
-        _statusFuture = Future.value(updatedStatus);
-        _isCollecting = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isCollecting = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to collect order: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
-    }
+  void _showNotice(BuildContext context, OrderStatusNotice notice) {
+    final theme = Theme.of(context);
+    final message = switch (notice.type) {
+      OrderStatusNoticeType.collectionFailed =>
+        'Failed to collect order: ${notice.detail}',
+      OrderStatusNoticeType.paymentConfirmed =>
+        'Payment successfully confirmed!',
+      OrderStatusNoticeType.paymentFailed =>
+        'Failed to confirm payment: ${notice.detail}',
+    };
+    final backgroundColor =
+        notice.type == OrderStatusNoticeType.paymentConfirmed
+        ? AppColors.success
+        : theme.colorScheme.error;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: backgroundColor),
+    );
   }
+}
 
-  void _retryPayment(String transactionId) async {
-    if (_isRetryingPayment) return;
-    setState(() {
-      _isRetryingPayment = true;
-    });
-    try {
-      final appConfig = sl<AppConfig>();
-      await _repository.confirmMockPayment(
-        transactionId: transactionId,
-        secret: appConfig.mockGatewaySecret,
-      );
-      await Future.delayed(const Duration(milliseconds: 500));
-      final updatedStatus = await _repository.getOrderStatus(widget.trackingId);
-      setState(() {
-        _statusFuture = Future.value(updatedStatus);
-        _isRetryingPayment = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Payment successfully confirmed!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() {
-        _isRetryingPayment = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to confirm payment: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
-    }
+class _OrderStatusError extends StatelessWidget {
+  final ThemeData theme;
+
+  const _OrderStatusError({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 64,
+              color: theme.colorScheme.error,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              context.l10n.unableLoadOrderStatus,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.error,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -224,7 +203,9 @@ class _OrderStatusContent extends StatelessWidget {
                     )
                   : const Icon(Icons.check_circle_outline_rounded, size: 20),
               label: Text(
-                isCollecting ? context.l10n.collectingBtn : context.l10n.collectBtn,
+                isCollecting
+                    ? context.l10n.collectingBtn
+                    : context.l10n.collectBtn,
                 style: const TextStyle(fontWeight: FontWeight.w900),
               ),
               style: FilledButton.styleFrom(
@@ -256,7 +237,9 @@ class _OrderStatusContent extends StatelessWidget {
                     )
                   : const Icon(Icons.payment_rounded, size: 20),
               label: Text(
-                isRetryingPayment ? context.l10n.processingPaymentBtn : context.l10n.retryPaymentBtn,
+                isRetryingPayment
+                    ? context.l10n.processingPaymentBtn
+                    : context.l10n.retryPaymentBtn,
                 style: const TextStyle(fontWeight: FontWeight.w900),
               ),
               style: FilledButton.styleFrom(

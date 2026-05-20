@@ -46,10 +46,6 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     emit(state.copyWith(selectedMethod: () => methodCode));
   }
 
-  void selectFulfillment(String fulfillment) {
-    emit(state.copyWith(fulfillment: fulfillment));
-  }
-
   void onVoucherCodeChanged(String value) {
     emit(
       state.copyWith(

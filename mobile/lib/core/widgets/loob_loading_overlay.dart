@@ -37,7 +37,7 @@ class LoobLoadingOverlay extends StatelessWidget {
   }
 
   /// Hide the loading overlay if it is currently displayed.
-  static void hide(BuildContext context) {
+  static void hide() {
     if (!_isShowing) return;
     _isShowing = false;
 

@@ -24,7 +24,7 @@ type CheckoutRepository interface {
 	CreatePaymentIfMissing(ctx context.Context, payment PaymentTransaction) (PaymentTransaction, error)
 	GetStatus(ctx context.Context, countryID, trackingID string) (Status, error)
 	GetStatusForUser(ctx context.Context, countryID, userID, trackingID string) (Status, error)
-	ListStatusesByUser(ctx context.Context, countryID, userID string) ([]Status, error)
+	ListStatusesByUser(ctx context.Context, countryID, userID string, statuses []string, limit, offset int) ([]Status, error)
 	GetMenuItemNames(ctx context.Context, itemIDs []int) (map[int]string, error)
 	GetOptionNames(ctx context.Context, optionIDs []int) (map[int]string, error)
 	MarkOrderCollected(ctx context.Context, countryID, userID, trackingID string) error
@@ -557,13 +557,20 @@ func (s *Service) MarkOrderCollected(ctx context.Context, countryID, userID, tra
 	return s.GetStatusForUser(ctx, countryID, userID, trackingID)
 }
 
-func (s *Service) ListOrders(ctx context.Context, countryID, userID string) ([]OrderStatus, error) {
+func (s *Service) ListOrders(ctx context.Context, countryID, userID string, req OrderListRequest) (OrderListResponse, error) {
 	if strings.TrimSpace(userID) == "" {
-		return nil, ErrUserRequired
+		return OrderListResponse{}, ErrUserRequired
 	}
-	statuses, err := s.repo.ListStatusesByUser(ctx, countryID, userID)
+	page, limit := normalizeOrderListRequest(req)
+	statusFilters := normalizeOrderStatusFilters(req.Statuses)
+	offset := (page - 1) * limit
+	statuses, err := s.repo.ListStatusesByUser(ctx, countryID, userID, statusFilters, limit+1, offset)
 	if err != nil {
-		return nil, err
+		return OrderListResponse{}, err
+	}
+	hasMore := len(statuses) > limit
+	if hasMore {
+		statuses = statuses[:limit]
 	}
 	orders := make([]OrderStatus, 0, len(statuses))
 	for _, status := range statuses {
@@ -574,7 +581,44 @@ func (s *Service) ListOrders(ctx context.Context, countryID, userID string) ([]O
 		}
 		orders = append(orders, res)
 	}
-	return orders, nil
+	return OrderListResponse{
+		Items:   orders,
+		Page:    page,
+		Limit:   limit,
+		HasMore: hasMore,
+	}, nil
+}
+
+func normalizeOrderStatusFilters(statuses []string) []string {
+	seen := map[string]struct{}{}
+	filters := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		normalized := strings.ToUpper(strings.TrimSpace(status))
+		if normalized == "" {
+			continue
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		filters = append(filters, normalized)
+	}
+	return filters
+}
+
+func normalizeOrderListRequest(req OrderListRequest) (int, int) {
+	page := req.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := req.Limit
+	if limit < 1 {
+		limit = 20
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	return page, limit
 }
 
 func (s *Service) ValidateVoucher(ctx context.Context, rc CheckoutContext, req VoucherValidationRequest) (VoucherValidationResponse, error) {

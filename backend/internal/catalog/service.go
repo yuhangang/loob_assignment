@@ -554,7 +554,7 @@ func (s *Service) ListBrands(ctx context.Context) ([]Brand, error) {
 	return brands, nil
 }
 
-func (s *Service) ListStores(ctx context.Context, countryID, language string, brandID int, activeOnly bool) ([]Store, error) {
+func (s *Service) ListStores(ctx context.Context, countryID, language string, brandID int, activeOnly bool, req StoreListRequest) (StoreListResponse, error) {
 	var fallback string
 	if countryID != "" {
 		country, err := s.repo.GetCountry(ctx, countryID)
@@ -566,9 +566,15 @@ func (s *Service) ListStores(ctx context.Context, countryID, language string, br
 		fallback = "en-US"
 	}
 
-	rows, err := s.repo.ListStores(ctx, countryID, brandID, activeOnly)
+	page, limit := normalizeStoreListRequest(req)
+	offset := (page - 1) * limit
+	rows, err := s.repo.ListStores(ctx, countryID, brandID, activeOnly, limit+1, offset)
 	if err != nil {
-		return nil, err
+		return StoreListResponse{}, err
+	}
+	hasMore := len(rows) > limit
+	if hasMore {
+		rows = rows[:limit]
 	}
 
 	resolvedLanguage := resolveLanguage(language, fallback)
@@ -589,7 +595,27 @@ func (s *Service) ListStores(ctx context.Context, countryID, language string, br
 			StatusMessage:     row.StatusMessage.String,
 		})
 	}
-	return stores, nil
+	return StoreListResponse{
+		Items:   stores,
+		Page:    page,
+		Limit:   limit,
+		HasMore: hasMore,
+	}, nil
+}
+
+func normalizeStoreListRequest(req StoreListRequest) (int, int) {
+	page := req.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := req.Limit
+	if limit < 1 {
+		limit = 50
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	return page, limit
 }
 
 var (

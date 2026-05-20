@@ -89,11 +89,24 @@ type OrderStatus struct {
 	PaymentStatus        string               `json:"payment_status"`
 	PaymentTransactionID string               `json:"payment_transaction_id"`
 	Subtotal             int                  `json:"subtotal"`
-	Charges        []ChargeLineResponse `json:"charges"`
-	TaxAmount      int                  `json:"tax_amount"`
-	DiscountAmount int                  `json:"discount_amount"`
-	TotalAmount    int                  `json:"total_amount"`
-	CreatedAt      string               `json:"created_at"`
-	UpdatedAt      string               `json:"updated_at"`
-	Items          []OrderStatusItem    `json:"items"`
+	Charges              []ChargeLineResponse `json:"charges"`
+	TaxAmount            int                  `json:"tax_amount"`
+	DiscountAmount       int                  `json:"discount_amount"`
+	TotalAmount          int                  `json:"total_amount"`
+	CreatedAt            string               `json:"created_at"`
+	UpdatedAt            string               `json:"updated_at"`
+	Items                []OrderStatusItem    `json:"items"`
+}
+
+type OrderListRequest struct {
+	Page     int
+	Limit    int
+	Statuses []string
+}
+
+type OrderListResponse struct {
+	Items   []OrderStatus `json:"items"`
+	Page    int           `json:"page"`
+	Limit   int           `json:"limit"`
+	HasMore bool          `json:"has_more"`
 }

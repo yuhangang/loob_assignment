@@ -166,16 +166,31 @@
                         "description": "Country Code Filter",
                         "name": "country_id",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Brand ID Filter",
+                        "name": "brand_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number, starting at 1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, capped at 100",
+                        "name": "limit",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/Store"
-                            }
+                            "$ref": "#/definitions/StoreListResponse"
                         }
                     }
                 }
@@ -260,6 +275,20 @@
                 "longitude": { "type": "number" },
                 "address": { "type": "string" },
                 "is_active": { "type": "boolean" }
+            }
+        },
+        "StoreListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Store"
+                    }
+                },
+                "page": { "type": "integer" },
+                "limit": { "type": "integer" },
+                "has_more": { "type": "boolean" }
             }
         }
     }

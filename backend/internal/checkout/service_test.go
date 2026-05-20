@@ -24,7 +24,7 @@ type mockRepository struct {
 	createPaymentIfMissing  func(ctx context.Context, payment PaymentTransaction) (PaymentTransaction, error)
 	getStatus               func(ctx context.Context, countryID, trackingID string) (Status, error)
 	getStatusForUser        func(ctx context.Context, countryID, userID, trackingID string) (Status, error)
-	listStatusesByUser      func(ctx context.Context, countryID, userID string) ([]Status, error)
+	listStatusesByUser      func(ctx context.Context, countryID, userID string, statuses []string, limit, offset int) ([]Status, error)
 	getMenuItemNames        func(ctx context.Context, itemIDs []int) (map[int]string, error)
 	getOptionNames          func(ctx context.Context, optionIDs []int) (map[int]string, error)
 	markOrderCollected      func(ctx context.Context, countryID, userID, trackingID string) error
@@ -87,8 +87,8 @@ func (m *mockRepository) GetStatus(ctx context.Context, countryID, trackingID st
 func (m *mockRepository) GetStatusForUser(ctx context.Context, countryID, userID, trackingID string) (Status, error) {
 	return m.getStatusForUser(ctx, countryID, userID, trackingID)
 }
-func (m *mockRepository) ListStatusesByUser(ctx context.Context, countryID, userID string) ([]Status, error) {
-	return m.listStatusesByUser(ctx, countryID, userID)
+func (m *mockRepository) ListStatusesByUser(ctx context.Context, countryID, userID string, statuses []string, limit, offset int) ([]Status, error) {
+	return m.listStatusesByUser(ctx, countryID, userID, statuses, limit, offset)
 }
 func (m *mockRepository) GetMenuItemNames(ctx context.Context, itemIDs []int) (map[int]string, error) {
 	if m.getMenuItemNames != nil {
@@ -506,9 +506,15 @@ func TestCheckoutRejectsClosedStore(t *testing.T) {
 func TestListOrdersReturnsUserOrders(t *testing.T) {
 	createdAt := time.Date(2026, 5, 18, 10, 0, 0, 0, time.UTC)
 	repo := &mockRepository{
-		listStatusesByUser: func(ctx context.Context, countryID, userID string) ([]Status, error) {
+		listStatusesByUser: func(ctx context.Context, countryID, userID string, statuses []string, limit, offset int) ([]Status, error) {
 			if countryID != "MY" || userID != "u1" {
 				t.Fatalf("unexpected scope country=%s user=%s", countryID, userID)
+			}
+			if len(statuses) != 0 {
+				t.Fatalf("unexpected status filters: %+v", statuses)
+			}
+			if limit != 21 || offset != 0 {
+				t.Fatalf("unexpected pagination limit=%d offset=%d", limit, offset)
 			}
 			return []Status{
 				{
@@ -528,17 +534,73 @@ func TestListOrdersReturnsUserOrders(t *testing.T) {
 	}
 	svc := NewService(repo, nil)
 
-	orders, err := svc.ListOrders(context.Background(), "MY", "u1")
+	res, err := svc.ListOrders(context.Background(), "MY", "u1", OrderListRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
+	orders := res.Items
 	if len(orders) != 1 {
 		t.Fatalf("expected 1 order, got %d", len(orders))
+	}
+	if res.Page != 1 || res.Limit != 20 || res.HasMore {
+		t.Fatalf("unexpected pagination response: %+v", res)
 	}
 	if orders[0].TrackingID != "MY-ORDER-001" || orders[0].PaymentStatus != "PENDING" {
 		t.Fatalf("unexpected order response: %+v", orders[0])
 	}
 	if len(orders[0].Charges) != 1 || orders[0].Charges[0].Code != "PACKAGING_FEE" {
 		t.Fatalf("unexpected charge response: %+v", orders[0].Charges)
+	}
+}
+
+func TestListOrdersPaginatesAndClampsLimit(t *testing.T) {
+	repo := &mockRepository{
+		listStatusesByUser: func(ctx context.Context, countryID, userID string, statuses []string, limit, offset int) ([]Status, error) {
+			if limit != 51 || offset != 50 {
+				t.Fatalf("unexpected pagination limit=%d offset=%d", limit, offset)
+			}
+			rows := make([]Status, 51)
+			for i := range rows {
+				rows[i] = Status{TrackingID: "order", Status: "COMPLETED"}
+			}
+			return rows, nil
+		},
+	}
+	svc := NewService(repo, nil)
+
+	res, err := svc.ListOrders(context.Background(), "MY", "u1", OrderListRequest{
+		Page:  2,
+		Limit: 100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Items) != 50 || !res.HasMore || res.Page != 2 || res.Limit != 50 {
+		t.Fatalf("unexpected paginated response: %+v", res)
+	}
+}
+
+func TestListOrdersPassesNormalizedStatusFilters(t *testing.T) {
+	repo := &mockRepository{
+		listStatusesByUser: func(ctx context.Context, countryID, userID string, statuses []string, limit, offset int) ([]Status, error) {
+			want := []string{"PAYMENT_PENDING", "READY_TO_COLLECT"}
+			if len(statuses) != len(want) {
+				t.Fatalf("statuses = %+v, want %+v", statuses, want)
+			}
+			for i := range want {
+				if statuses[i] != want[i] {
+					t.Fatalf("statuses = %+v, want %+v", statuses, want)
+				}
+			}
+			return []Status{}, nil
+		},
+	}
+	svc := NewService(repo, nil)
+
+	_, err := svc.ListOrders(context.Background(), "MY", "u1", OrderListRequest{
+		Statuses: []string{" payment_pending ", "READY_TO_COLLECT", "payment_pending", ""},
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

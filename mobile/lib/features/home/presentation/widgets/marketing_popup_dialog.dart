@@ -11,10 +11,7 @@ import '../../data/models/app_config_model.dart';
 class MarketingPopupDialog extends StatelessWidget {
   final MarketingPopupModel popup;
 
-  const MarketingPopupDialog({
-    super.key,
-    required this.popup,
-  });
+  const MarketingPopupDialog({super.key, required this.popup});
 
   @override
   Widget build(BuildContext context) {

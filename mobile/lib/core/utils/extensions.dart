@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../features/cart/presentation/bloc/cart_bloc.dart';
-import '../router/app_router.dart';
+import '../../features/orders/presentation/bloc/active_order_cubit.dart';
 
 /// Useful Dart/Flutter extensions.
 
@@ -76,31 +77,24 @@ extension ContextExtensions on BuildContext {
     );
   }
 
-  /// Returns the dynamic bottom padding needed to clear the floating cart bar.
-  /// Returns 0.0 if the cart bar is hidden on the current route or if the cart is empty.
-  /// Otherwise, returns 140.0 + bottom safe area to clear the floating cart bar comfortably.
+  /// Returns the bottom padding needed to clear the Home-only floating overlay.
   double get cartFloatingBarPadding {
-    // 1. Check if the current route is one that hides the floating cart bar.
-    final currentRoute = AppRouter.currentRouteNotifier.value;
-    if (currentRoute == AppRouter.cart ||
-        currentRoute == AppRouter.checkout ||
-        currentRoute == AppRouter.orderStatus ||
-        currentRoute == AppRouter.barcode ||
-        currentRoute == AppRouter.productDetail) {
+    final shell = StatefulNavigationShell.maybeOf(this);
+    if (shell == null || shell.currentIndex != 0) {
       return 0.0;
     }
 
-    // 2. Check if the cart has items. Watches the CartBloc state reactively.
     final cartState = watch<CartBloc>().state;
-    if (cartState.totalQuantity == 0) {
+    final activeOrder = watch<ActiveOrderCubit>().state.activeOrder;
+    final hasCart = cartState.totalQuantity > 0;
+    final hasActiveOrder = activeOrder != null;
+    if (!hasCart && !hasActiveOrder) {
       return 0.0;
     }
 
-    // 3. Floating cart bar is visible.
-    // Base overlap height is 140.0. Add bottom safe area (e.g. notch height)
-    // to guarantee sufficient clearance on all device screen sizes.
+    final overlayHeight =
+        (hasActiveOrder ? 96.0 : 0.0) + (hasCart ? 140.0 : 0.0);
     final bottomSafeArea = MediaQuery.of(this).padding.bottom;
-    return 140.0 + bottomSafeArea;
+    return overlayHeight + bottomSafeArea;
   }
 }
-

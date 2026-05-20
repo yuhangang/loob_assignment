@@ -9,19 +9,15 @@ import 'collapsed_menu_header.dart';
 class MenuHeaderDelegate extends SliverPersistentHeaderDelegate {
   MenuHeaderDelegate({
     required this.brandName,
-    required this.isPickup,
     required this.selectedStore,
     required this.primaryColor,
-    required this.onFulfillmentChanged,
     required this.onChangeOutlet,
     this.onSearchTap,
   });
 
   final String brandName;
-  final bool isPickup;
   final StoreModel selectedStore;
   final Color primaryColor;
-  final ValueChanged<bool> onFulfillmentChanged;
   final VoidCallback onChangeOutlet;
   final VoidCallback? onSearchTap;
 
@@ -58,10 +54,8 @@ class MenuHeaderDelegate extends SliverPersistentHeaderDelegate {
                   physics: const NeverScrollableScrollPhysics(),
                   child: MenuHeader(
                     brandName: brandName,
-                    isPickup: isPickup,
                     selectedStore: selectedStore,
                     primaryColor: primaryColor,
-                    onFulfillmentChanged: onFulfillmentChanged,
                     onChangeOutlet: onChangeOutlet,
                     onSearchTap: onSearchTap,
                   ),
@@ -102,7 +96,6 @@ class MenuHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(covariant MenuHeaderDelegate oldDelegate) {
     return oldDelegate.brandName != brandName ||
-        oldDelegate.isPickup != isPickup ||
         oldDelegate.selectedStore != selectedStore ||
         oldDelegate.primaryColor != primaryColor ||
         oldDelegate.onSearchTap != onSearchTap;

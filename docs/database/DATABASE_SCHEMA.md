@@ -1,6 +1,6 @@
 # Loob Unified App: Database Schema (MySQL 8.0+)
 
-This document provides the foundational, unified MySQL database schema for the Loob Unified App. It represents the complete and combined database structure derived from all migrations (`0001_foundation.sql` through `0012_schema_hardening.sql`).
+This document provides the foundational, unified MySQL database schema for the Loob Unified App. It represents the complete and combined database structure derived from all migrations (`0001_foundation.sql` through `0017_production_schema_hardening.sql`).
 
 The schema is designed for multi-region scalability, strict isolation, and high performance by leveraging the **JSON Translation Pattern**, **Country Partitioning**, and **Integer Currency** design principles.
 
@@ -18,6 +18,7 @@ erDiagram
     COUNTRIES ||--o{ WALLET_ACCOUNTS : "has"
     COUNTRIES ||--o{ WALLET_TRANSACTIONS : "has"
     COUNTRIES ||--o{ LOYALTY_ACCOUNTS : "has"
+    COUNTRIES ||--o{ LOYALTY_TIER_CONFIGS : "defines"
     COUNTRIES ||--o{ LOYALTY_CHECKINS : "has"
     COUNTRIES ||--o{ LOYALTY_TRANSACTIONS : "has"
     COUNTRIES ||--o{ VOUCHERS : "has"
@@ -34,6 +35,7 @@ erDiagram
     BRANDS ||--o{ CHECKOUT_CHARGE_DEFINITIONS : "has"
     BRANDS ||--o{ PAYMENT_METHODS : "has"
     BRANDS ||--o{ CAMPAIGNS : "has"
+    BRANDS ||--o{ LOYALTY_TIER_CONFIGS : "overrides"
 
     ZONES ||--o{ STORES : "contains"
     ZONES ||--o{ MENU_ITEM_PRICING : "defines prices for"
@@ -58,15 +60,21 @@ erDiagram
     USERS ||--o{ LOYALTY_CHECKINS : "checks in"
     USERS ||--o{ LOYALTY_TRANSACTIONS : "earns/redeems"
     USERS ||--o{ USER_VOUCHERS : "claims"
+    USERS ||--o{ VOUCHER_USER_REDEMPTION_COUNTERS : "uses"
     USERS ||--o{ ORDER_INTENTS : "places"
     USERS ||--o{ PAYMENT_TRANSACTIONS : "initiates"
 
     VOUCHERS ||--o{ USER_VOUCHERS : "issued as"
+    VOUCHERS ||--o{ VOUCHER_USER_REDEMPTION_COUNTERS : "counts per user"
 
     ORDER_INTENTS ||--o{ PAYMENT_TRANSACTIONS : "paid via"
+    ORDER_INTENTS ||--o{ ORDER_INTENT_ITEMS : "snapshots"
+    ORDER_INTENT_ITEMS ||--o{ ORDER_INTENT_ITEM_OPTIONS : "includes"
 
     PAYMENT_PROVIDERS ||--o{ PAYMENT_METHODS : "facilitates"
     PAYMENT_TRANSACTIONS ||--o{ PAYMENT_EVENTS : "records"
+
+    CAMPAIGNS ||--o{ CAMPAIGN_TARGETING_RULES : "targets"
 ```
 
 ---
@@ -76,7 +84,9 @@ erDiagram
 1. **JSON Translations:** Avoids bloated translation tables by storing all localizable strings (e.g. names, descriptions, addresses) as JSON maps (e.g., `{"en": "Pearl Milk Tea", "ms": "Teh Susu Mutiara"}`) parsed by the BFF.
 2. **`country_id` Partitioning:** Ensures strict country-level operational boundaries and enables future database sharding by region.
 3. **Integer Currency:** All monetary columns (e.g. balance, prices, adjustments, totals) are stored as integers representing the smallest currency unit (e.g. cents/sen) to eliminate floating-point calculation errors.
-4. **Asynchronous Order Intents:** Keeps core checkouts scalable by storing `order_intents` containing `cart_payload` for asynchronous fulfillment.
+4. **Order Snapshot Split:** `order_intents.cart_payload` remains the immutable raw checkout request snapshot, while `order_intent_items` and `order_intent_item_options` provide normalized, queryable line snapshots for analytics, order history, refunds, and reorder flows.
+5. **Atomic Redemption Counters:** Voucher global and per-user redemption limits are enforced from counter columns/tables, not by counting historical orders during checkout.
+6. **Configurable Loyalty Tiers:** Tier thresholds live in `loyalty_tier_configs` so country or brand-level tier changes do not require enum migrations.
 
 ---
 
@@ -171,9 +181,9 @@ CREATE TABLE menu_items (
     deleted_at TIMESTAMP NULL,
     CONSTRAINT fk_menu_items_category FOREIGN KEY (category_id) REFERENCES categories(id),
     CONSTRAINT fk_menu_items_brand FOREIGN KEY (brand_id) REFERENCES brands(id),
-    INDEX idx_menu_items_brand_type (brand_id, item_type)
+    INDEX idx_menu_items_brand_type (brand_id, item_type),
+    INDEX idx_menu_items_catalog_list (is_active, deleted_at, item_type, brand_id, category_id)
 );
-
 CREATE TABLE menu_item_pricing (
     menu_item_id INT NOT NULL,
     zone_id VARCHAR(50) NOT NULL,
@@ -181,7 +191,8 @@ CREATE TABLE menu_item_pricing (
     tax_inclusive BOOLEAN NOT NULL DEFAULT true,
     PRIMARY KEY (menu_item_id, zone_id),
     CONSTRAINT fk_menu_item_pricing_item FOREIGN KEY (menu_item_id) REFERENCES menu_items(id),
-    CONSTRAINT fk_menu_item_pricing_zone FOREIGN KEY (zone_id) REFERENCES zones(id)
+    CONSTRAINT fk_menu_item_pricing_zone FOREIGN KEY (zone_id) REFERENCES zones(id),
+    INDEX idx_mip_zone_item (zone_id, menu_item_id)
 );
 
 CREATE TABLE customization_groups (
@@ -196,7 +207,8 @@ CREATE TABLE customization_groups (
     display_order INT NOT NULL DEFAULT 0,
     metadata JSON NULL,
     CONSTRAINT fk_customization_groups_item FOREIGN KEY (menu_item_id) REFERENCES menu_items(id),
-    UNIQUE KEY ux_customization_group_code (menu_item_id, group_code)
+    UNIQUE KEY ux_customization_group_code (menu_item_id, group_code),
+    INDEX idx_cg_item_display (menu_item_id, display_order)
 );
 
 CREATE TABLE customization_options (
@@ -211,7 +223,8 @@ CREATE TABLE customization_options (
     metadata JSON NULL,
     CONSTRAINT fk_customization_options_group FOREIGN KEY (group_id) REFERENCES customization_groups(id),
     CONSTRAINT fk_customization_options_linked_item FOREIGN KEY (linked_menu_item_id) REFERENCES menu_items(id),
-    UNIQUE KEY ux_customization_option_code (group_id, option_code)
+    UNIQUE KEY ux_customization_option_code (group_id, option_code),
+    INDEX idx_co_group_display (group_id, display_order)
 );
 
 CREATE TABLE store_menu_item_status (
@@ -246,6 +259,10 @@ CREATE TABLE users (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_users_country FOREIGN KEY (registered_country_id) REFERENCES countries(id)
 );
+
+-- Current assessment contract: users.id is the Firebase Auth UID.
+-- Production v2 should migrate to an internal surrogate user key plus
+-- a user_identities table before supporting multiple auth providers.
 
 CREATE TABLE wallet_accounts (
     user_id VARCHAR(64) NOT NULL,
@@ -289,13 +306,31 @@ CREATE TABLE loyalty_accounts (
     CONSTRAINT fk_loyalty_accounts_country FOREIGN KEY (country_id) REFERENCES countries(id)
 );
 
+CREATE TABLE loyalty_tier_configs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    country_id VARCHAR(2) NOT NULL,
+    brand_id INT NULL,
+    tier_code VARCHAR(32) NOT NULL, -- e.g., MEMBER, SILVER, GOLD, PLATINUM
+    display_name VARCHAR(100) NOT NULL,
+    min_lifetime_points INT NOT NULL,
+    benefits JSON NULL,
+    display_order INT NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_loyalty_tier_configs_country FOREIGN KEY (country_id) REFERENCES countries(id),
+    CONSTRAINT fk_loyalty_tier_configs_brand FOREIGN KEY (brand_id) REFERENCES brands(id),
+    UNIQUE KEY ux_loyalty_tier_configs_scope (country_id, brand_id, tier_code),
+    INDEX idx_loyalty_tier_configs_threshold (country_id, brand_id, is_active, min_lifetime_points)
+);
+
 CREATE TABLE loyalty_checkins (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id VARCHAR(64) NOT NULL,
     country_id VARCHAR(2) NOT NULL,
     checkin_date DATE NOT NULL,
     points_awarded INT NOT NULL,
-    streak_count INT NOT NULL, -- Multi-day streak tracking
+    streak_count INT NOT NULL, -- Cached streak at write time; checkin history is authoritative
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_loyalty_checkins_user FOREIGN KEY (user_id) REFERENCES users(id),
     CONSTRAINT fk_loyalty_checkins_country FOREIGN KEY (country_id) REFERENCES countries(id),
@@ -336,6 +371,7 @@ CREATE TABLE vouchers (
     voided_at TIMESTAMP NULL, -- When the voucher has been manually revoked
     max_redemptions INT NULL, -- Total global limits
     max_redemptions_per_user INT NULL, -- Per-customer usage limit
+    redemption_count INT NOT NULL DEFAULT 0, -- Atomically incremented global redemption counter
     allow_promo_items BOOLEAN NOT NULL DEFAULT true, -- Can voucher apply to promo items
     applicable_store_ids JSON NULL, -- Restricts to specific stores
     applicable_category_ids JSON NULL, -- Restricts to specific categories
@@ -359,7 +395,19 @@ CREATE TABLE user_vouchers (
     CONSTRAINT fk_user_vouchers_voucher FOREIGN KEY (voucher_id) REFERENCES vouchers(id),
     UNIQUE KEY ux_user_voucher (user_id, voucher_id)
 );
+
+CREATE TABLE voucher_user_redemption_counters (
+    voucher_id INT NOT NULL,
+    user_id VARCHAR(64) NOT NULL,
+    redemption_count INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (voucher_id, user_id),
+    CONSTRAINT fk_voucher_user_redemption_counter_voucher FOREIGN KEY (voucher_id) REFERENCES vouchers(id),
+    CONSTRAINT fk_voucher_user_redemption_counter_user FOREIGN KEY (user_id) REFERENCES users(id)
+);
 ```
+
+Voucher redemption must be reserved atomically during checkout. The global counter should be updated with a guarded write such as `UPDATE vouchers SET redemption_count = redemption_count + 1 WHERE id = ? AND (max_redemptions IS NULL OR redemption_count < max_redemptions)`, and the per-user counter should be locked or updated in the same transaction.
 
 ---
 
@@ -435,7 +483,10 @@ CREATE TABLE order_intents (
     store_id INT NOT NULL,
     country_id VARCHAR(2) NOT NULL,
     fulfillment_type ENUM('DINE_IN', 'TAKEAWAY', 'DELIVERY') NOT NULL,
-    status ENUM('PAYMENT_PENDING', 'QUEUED', 'PROCESSING', 'COMPLETED', 'FAILED', 'PAYMENT_FAILED') NOT NULL DEFAULT 'PAYMENT_PENDING',
+    status ENUM('PAYMENT_PENDING', 'QUEUED', 'PROCESSING', 'COMPLETED', 'FAILED', 'PAYMENT_FAILED', 'READY_TO_COLLECT') NOT NULL DEFAULT 'PAYMENT_PENDING',
+    active_queue_status VARCHAR(32) GENERATED ALWAYS AS (
+        IF(status IN ('PAYMENT_PENDING', 'QUEUED', 'PROCESSING', 'READY_TO_COLLECT'), status, NULL)
+    ) STORED,
     subtotal INT NOT NULL,
     charges_payload JSON NULL, -- Contains mapped itemized checkout fee calculations
     tax_amount INT NOT NULL,
@@ -449,9 +500,50 @@ CREATE TABLE order_intents (
     CONSTRAINT fk_order_intents_store FOREIGN KEY (store_id) REFERENCES stores(id),
     CONSTRAINT fk_order_intents_country FOREIGN KEY (country_id) REFERENCES countries(id),
     UNIQUE KEY ux_order_intents_idempotency (country_id, user_id, idempotency_key),
-    INDEX idx_order_intents_user_status_created (country_id, user_id, status, created_at)
+    INDEX idx_order_intents_user_status_created (country_id, user_id, status, created_at),
+    INDEX idx_order_intents_voucher (country_id, voucher_code, status),
+    INDEX idx_order_intents_queue (status, created_at, tracking_id),
+    INDEX idx_order_intents_active_queue (active_queue_status, created_at, tracking_id),
+    INDEX idx_order_intents_user_history (country_id, user_id, created_at DESC)
+);
+
+CREATE TABLE order_intent_items (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    order_tracking_id VARCHAR(64) NOT NULL,
+    line_number INT NOT NULL,
+    menu_item_id INT NOT NULL,
+    sku_code VARCHAR(50) NOT NULL,
+    item_name_snapshot JSON NOT NULL,
+    quantity INT NOT NULL,
+    unit_price INT NOT NULL,
+    subtotal INT NOT NULL,
+    tax_inclusive BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_order_intent_items_order FOREIGN KEY (order_tracking_id) REFERENCES order_intents(tracking_id),
+    CONSTRAINT fk_order_intent_items_menu_item FOREIGN KEY (menu_item_id) REFERENCES menu_items(id),
+    UNIQUE KEY ux_order_intent_items_line (order_tracking_id, line_number),
+    INDEX idx_order_intent_items_menu_created (menu_item_id, created_at)
+);
+
+CREATE TABLE order_intent_item_options (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    order_intent_item_id BIGINT UNSIGNED NOT NULL,
+    customization_option_id INT NOT NULL,
+    option_code VARCHAR(50) NOT NULL,
+    option_name_snapshot JSON NOT NULL,
+    price_adjustment INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_order_intent_item_options_item FOREIGN KEY (order_intent_item_id) REFERENCES order_intent_items(id),
+    CONSTRAINT fk_order_intent_item_options_option FOREIGN KEY (customization_option_id) REFERENCES customization_options(id),
+    INDEX idx_order_intent_item_options_option (customization_option_id)
 );
 ```
+
+`order_intents.cart_payload` is retained as the raw checkout request snapshot. Read models, analytics, reorder, and refund flows should prefer `order_intent_items` and `order_intent_item_options` because those tables preserve the product and option state at checkout time and remain queryable without JSON extraction.
+
+Completed order intents are audit records and should not be soft-deleted from the primary schema. At scale, production deployments should range-partition or archive `order_intents` and child order snapshot tables by `created_at` while keeping active workflow scans on `active_queue_status`.
 
 ---
 
@@ -495,7 +587,7 @@ CREATE TABLE payment_methods (
 
 CREATE TABLE payment_transactions (
     id VARCHAR(64) PRIMARY KEY, -- Internal payment tracking transaction ID
-    order_tracking_id VARCHAR(64) NOT NULL,
+    order_tracking_id VARCHAR(64) NULL,
     country_id VARCHAR(2) NOT NULL,
     user_id VARCHAR(64) NOT NULL,
     provider VARCHAR(50) NOT NULL,
@@ -507,7 +599,7 @@ CREATE TABLE payment_transactions (
     gateway_payload JSON NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_payment_transactions_order FOREIGN KEY (order_tracking_id) REFERENCES order_intents(tracking_id),
+    CONSTRAINT fk_payment_transactions_order FOREIGN KEY (order_tracking_id) REFERENCES order_intents(tracking_id) ON DELETE SET NULL,
     CONSTRAINT fk_payment_transactions_country FOREIGN KEY (country_id) REFERENCES countries(id),
     CONSTRAINT fk_payment_transactions_user FOREIGN KEY (user_id) REFERENCES users(id),
     UNIQUE KEY ux_payment_transactions_provider_ref (provider, provider_reference),
@@ -555,7 +647,21 @@ CREATE TABLE campaigns (
     CONSTRAINT fk_campaigns_country FOREIGN KEY (country_id) REFERENCES countries(id),
     CONSTRAINT fk_campaigns_brand FOREIGN KEY (brand_id) REFERENCES brands(id)
 );
+
+CREATE TABLE campaign_targeting_rules (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    campaign_id INT NOT NULL,
+    rule_type ENUM('LOYALTY_TIER', 'NEW_USER', 'USER_SEGMENT', 'STORE', 'ZONE') NOT NULL,
+    operator ENUM('IN', 'NOT_IN', 'EQUALS', 'RANGE') NOT NULL DEFAULT 'IN',
+    rule_values JSON NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_campaign_targeting_rules_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id),
+    INDEX idx_campaign_targeting_rules_campaign (campaign_id, rule_type)
+);
 ```
+
+Campaign `metadata` is reserved for presentation payloads and experiment-specific data. Eligibility rules that affect who can see or redeem a campaign belong in `campaign_targeting_rules` so they are testable, queryable, and auditable.
 
 ---
 
@@ -577,3 +683,8 @@ This tracking table documents how the schema evolved from the foundational struc
 | `0010_voucher_eligibility_rules.sql` | **Voucher policy engine**. Significantly improved voucher criteria constraints by adding total redemption caps (`max_redemptions`), per-user caps (`max_redemptions_per_user`), void statuses, and target lists for eligible stores, categories, menu items, and payment methods. |
 | `0011_checkout_charges.sql` | **Tax & Fee engine**. Created the `checkout_charge_definitions` lookup table and added `charges_payload` to `order_intents` to programmatically calculate SST/VAT, packaging fees, and checkout delivery service charges. |
 | `0012_schema_hardening.sql` | **Schema hardening**. Removed SQL-backed `feature_flags` in favor of JSON configuration, aligned cart FK types, constrained store status and loyalty tiers, added campaign update tracking, added the user order lookup index, and added a nullable-scope-safe active checkout charge uniqueness guard. |
+| `0013_add_ready_to_collect_status.sql` | **Order Lifecycle Expansion**. Added `READY_TO_COLLECT` status to `order_intents` to support manual collection workflow. |
+| `0014_optimization_indexes.sql` | **Order Query Optimization**. Added indexes to `order_intents` for voucher validation, queue claiming, and user order history. |
+| `0015_catalog_optimization_indexes.sql` | **Catalog Query Optimization**. Added display and list optimization indexes to `categories`, `menu_items`, `menu_item_pricing`, `customization_groups`, and `customization_options`. |
+| `0016_nullable_payment_order_tracking.sql` | **Payment Decoupling**. Made `payment_transactions.order_tracking_id` nullable and changed the foreign key to `ON DELETE SET NULL` to support top-up transactions unlinked to a specific order intent. |
+| `0017_production_schema_hardening.sql` | **Production schema hardening**. Added normalized order item snapshots, atomic voucher redemption counters, configurable loyalty tier thresholds, generated active-order queue indexing, and explicit campaign targeting rules. |

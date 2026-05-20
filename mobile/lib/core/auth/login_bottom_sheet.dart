@@ -5,8 +5,8 @@ import '../localization/app_localizations.dart';
 import '../theme/tokens/colors.dart';
 import '../theme/tokens/spacing.dart';
 import 'bloc/auth_bloc.dart';
-import 'bloc/auth_event.dart';
 import 'bloc/auth_state.dart';
+import 'login_cubit.dart';
 
 class LoginBottomSheet extends StatefulWidget {
   final VoidCallback? onLoginSuccess;
@@ -17,13 +17,17 @@ class LoginBottomSheet extends StatefulWidget {
     BuildContext context, {
     VoidCallback? onLoginSuccess,
   }) {
+    final authBloc = context.read<AuthBloc>();
     return showModalBottomSheet(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: AppColors.transparent,
       barrierColor: AppColors.black.withValues(alpha: 0.5),
-      builder: (context) => LoginBottomSheet(onLoginSuccess: onLoginSuccess),
+      builder: (context) => BlocProvider(
+        create: (_) => LoginCubit(authBloc: authBloc),
+        child: LoginBottomSheet(onLoginSuccess: onLoginSuccess),
+      ),
     );
   }
 
@@ -34,10 +38,6 @@ class LoginBottomSheet extends StatefulWidget {
 class _LoginBottomSheetState extends State<LoginBottomSheet> {
   final _phoneController = TextEditingController(text: '123456789');
   final _otpController = TextEditingController();
-  String _selectedPrefix = '+60'; // Default Malaysia
-  bool _isOtpSent = false;
-  bool _isLoading = false;
-  String? _errorMessage;
 
   @override
   void dispose() {
@@ -46,29 +46,24 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
     super.dispose();
   }
 
-  void _sendOtp() {
-    final phone = _phoneController.text.trim();
-    if (phone.isEmpty) {
-      setState(() => _errorMessage = context.l10n.phoneRequiredErr);
-      return;
+  String? _errorMessage(BuildContext context, LoginState state) {
+    if (state.authErrorMessage != null) return state.authErrorMessage;
+    switch (state.validationError) {
+      case LoginValidationError.phoneRequired:
+        return context.l10n.phoneRequiredErr;
+      case LoginValidationError.otpRequired:
+        return context.l10n.otpRequiredErr;
+      case LoginValidationError.otpIncorrect:
+        return context.l10n.otpIncorrectErr;
+      case null:
+        return null;
     }
-    final fullPhone = '$_selectedPrefix$phone';
-    context.read<AuthBloc>().add(AuthSignInWithPhone(fullPhone));
   }
 
   void _verifyOtp() {
-    final otp = _otpController.text.trim();
-    if (otp.isEmpty) {
-      setState(() => _errorMessage = context.l10n.otpRequiredErr);
-      return;
-    }
-    if (otp != '123456') {
-      setState(() => _errorMessage = context.l10n.otpIncorrectErr);
-      return;
-    }
-    final fullPhone = '$_selectedPrefix${_phoneController.text.trim()}';
-    context.read<AuthBloc>().add(
-      AuthVerifyOtp(verificationId: fullPhone, code: otp),
+    context.read<LoginCubit>().verifyOtp(
+      phone: _phoneController.text,
+      otp: _otpController.text,
     );
   }
 
@@ -77,454 +72,457 @@ class _LoginBottomSheetState extends State<LoginBottomSheet> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return BlocConsumer<AuthBloc, AuthState>(
+    return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
+        context.read<LoginCubit>().handleAuthState(state);
         if (state is AuthCodeSent) {
-          setState(() {
-            _isOtpSent = true;
-            _isLoading = false;
-            _errorMessage = null;
-          });
+          _otpController.clear();
         } else if (state is Authenticated) {
-          setState(() {
-            _isLoading = false;
-            _errorMessage = null;
-          });
           widget.onLoginSuccess?.call();
           Navigator.pop(context);
-        } else if (state is AuthFailure) {
-          setState(() {
-            _errorMessage = state.message;
-            _isLoading = false;
-          });
-        } else if (state is AuthLoading) {
-          setState(() {
-            _isLoading = true;
-            _errorMessage = null;
-          });
         }
       },
-      builder: (context, state) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : AppColors.white,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(AppSpacing.radiusXl),
-                topRight: Radius.circular(AppSpacing.radiusXl),
+      child: BlocBuilder<LoginCubit, LoginState>(
+        builder: (context, loginState) {
+          final errorMessage = _errorMessage(context, loginState);
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E1E) : AppColors.white,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(AppSpacing.radiusXl),
+                  topRight: Radius.circular(AppSpacing.radiusXl),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.black.withValues(alpha: 0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.black.withValues(alpha: 0.15),
-                  blurRadius: 20,
-                  offset: const Offset(0, -5),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.pageHorizontal,
-              vertical: AppSpacing.xl,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Slide Bar / Notch Indicator
-                Center(
-                  child: Container(
-                    width: 38,
-                    height: 4.5,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? AppColors.grey800
-                          : AppColors.grey300,
-                      borderRadius: BorderRadius.circular(2.5),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-
-                // Top Illustration Icon
-                Center(
-                  child: Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.08),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.local_drink_rounded,
-                      color: theme.colorScheme.primary,
-                      size: 32,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-
-                // Titles
-                Text(
-                  _isOtpSent
-                      ? context.l10n.verifyCodeTitle
-                      : context.l10n.welcomeLoob,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 22,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  _isOtpSent
-                      ? context.l10n.otpSentTo(
-                          '$_selectedPrefix ${_phoneController.text}',
-                        )
-                      : context.l10n.loginSheetDesc,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: isDark ? AppColors.grey400 : AppColors.grey600,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-
-                // Error Card if present
-                if (_errorMessage != null) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.error.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                      border: Border.all(
-                        color: theme.colorScheme.error.withValues(alpha: 0.15),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.pageHorizontal,
+                vertical: AppSpacing.xl,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Slide Bar / Notch Indicator
+                  Center(
+                    child: Container(
+                      width: 38,
+                      height: 4.5,
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.grey800 : AppColors.grey300,
+                        borderRadius: BorderRadius.circular(2.5),
                       ),
                     ),
-                    child: Row(
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+
+                  // Top Illustration Icon
+                  Center(
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.08,
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.local_drink_rounded,
+                        color: theme.colorScheme.primary,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // Titles
+                  Text(
+                    loginState.isOtpSent
+                        ? context.l10n.verifyCodeTitle
+                        : context.l10n.welcomeLoob,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 22,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    loginState.isOtpSent
+                        ? context.l10n.otpSentTo(
+                            '${loginState.selectedPrefix} ${_phoneController.text}',
+                          )
+                        : context.l10n.loginSheetDesc,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: isDark ? AppColors.grey400 : AppColors.grey600,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+
+                  // Error Card if present
+                  if (errorMessage != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.sm,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.error.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.radiusMd,
+                        ),
+                        border: Border.all(
+                          color: theme.colorScheme.error.withValues(
+                            alpha: 0.15,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline_rounded,
+                            color: theme.colorScheme.error,
+                            size: 20,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              errorMessage,
+                              style: TextStyle(
+                                color: theme.colorScheme.error,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
+
+                  if (!loginState.isOtpSent) ...[
+                    // Step 1: Phone Number Input View
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.error_outline_rounded,
-                          color: theme.colorScheme.error,
-                          size: 20,
+                        // Country Selector Dropdown
+                        Container(
+                          height: 54,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF2C2C2C)
+                                : AppColors.grey50,
+                            borderRadius: BorderRadius.circular(
+                              AppSpacing.radiusLg,
+                            ),
+                            border: Border.all(
+                              color: isDark
+                                  ? AppColors.grey800
+                                  : AppColors.grey200,
+                            ),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: loginState.selectedPrefix,
+                              dropdownColor: isDark
+                                  ? const Color(0xFF2C2C2C)
+                                  : AppColors.white,
+                              onChanged: (val) {
+                                if (val != null) {
+                                  context.read<LoginCubit>().selectPrefix(val);
+                                }
+                              },
+                              items: const [
+                                DropdownMenuItem(
+                                  value: '+60',
+                                  child: Text(
+                                    '🇲🇾 +60',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                DropdownMenuItem(
+                                  value: '+66',
+                                  child: Text(
+                                    '🇹🇭 +66',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
+
+                        // Phone Input Field
                         Expanded(
-                          child: Text(
-                            _errorMessage!,
-                            style: TextStyle(
-                              color: theme.colorScheme.error,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                          child: SizedBox(
+                            height: 54,
+                            child: TextField(
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: context.l10n.enterPhoneHint,
+                                hintStyle: TextStyle(
+                                  color: AppColors.grey400,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                fillColor: isDark
+                                    ? const Color(0xFF2C2C2C)
+                                    : AppColors.grey50,
+                                filled: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.md,
+                                  vertical: AppSpacing.md,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    AppSpacing.radiusLg,
+                                  ),
+                                  borderSide: BorderSide(
+                                    color: isDark
+                                        ? AppColors.grey800
+                                        : AppColors.grey200,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    AppSpacing.radiusLg,
+                                  ),
+                                  borderSide: BorderSide(
+                                    color: theme.colorScheme.primary,
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
+                    const SizedBox(height: AppSpacing.lg),
 
-                if (!_isOtpSent) ...[
-                  // Step 1: Phone Number Input View
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Country Selector Dropdown
-                      Container(
-                        height: 54,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: isDark
+                    // Button Continue
+                    SizedBox(
+                      height: 52,
+                      child: FilledButton(
+                        onPressed: loginState.isLoading
+                            ? null
+                            : () => context.read<LoginCubit>().sendOtp(
+                                _phoneController.text,
+                              ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppSpacing.radiusLg,
+                            ),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: loginState.isLoading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    AppColors.white,
+                                  ),
+                                ),
+                              )
+                            : Text(
+                                context.l10n.continueBtn,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ] else ...[
+                    // Step 2: OTP Entry View
+                    SizedBox(
+                      height: 54,
+                      child: TextField(
+                        controller: _otpController,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        autofocus: true,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          letterSpacing: 8,
+                        ),
+                        textAlign: TextAlign.center,
+                        decoration: InputDecoration(
+                          counterText: '',
+                          hintText: '• • • • • •',
+                          hintStyle: TextStyle(
+                            color: AppColors.grey400,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 4,
+                          ),
+                          fillColor: isDark
                               ? const Color(0xFF2C2C2C)
                               : AppColors.grey50,
-                          borderRadius: BorderRadius.circular(
-                            AppSpacing.radiusLg,
+                          filled: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                            vertical: AppSpacing.md,
                           ),
-                          border: Border.all(
-                            color: isDark
-                                ? AppColors.grey800
-                                : AppColors.grey200,
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppSpacing.radiusLg,
+                            ),
+                            borderSide: BorderSide(
+                              color: isDark
+                                  ? AppColors.grey800
+                                  : AppColors.grey200,
+                            ),
                           ),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedPrefix,
-                            dropdownColor: isDark
-                                ? const Color(0xFF2C2C2C)
-                                : AppColors.white,
-                            onChanged: (val) {
-                              if (val != null) {
-                                setState(() => _selectedPrefix = val);
-                              }
-                            },
-                            items: const [
-                              DropdownMenuItem(
-                                value: '+60',
-                                child: Text(
-                                  '🇲🇾 +60',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              DropdownMenuItem(
-                                value: '+66',
-                                child: Text(
-                                  '🇹🇭 +66',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppSpacing.radiusLg,
+                            ),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.primary,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
+                    ),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: Text(
+                        context.l10n.demoOtpHelper,
+                        style: TextStyle(
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.7,
+                          ),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
 
-                      // Phone Input Field
-                      Expanded(
-                        child: SizedBox(
-                          height: 54,
-                          child: TextField(
-                            controller: _phoneController,
-                            keyboardType: TextInputType.phone,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: context.l10n.enterPhoneHint,
-                              hintStyle: TextStyle(
-                                color: AppColors.grey400,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              fillColor: isDark
-                                  ? const Color(0xFF2C2C2C)
-                                  : AppColors.grey50,
-                              filled: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.md,
-                                vertical: AppSpacing.md,
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppSpacing.radiusLg,
+                    // Button Verify & Proceed
+                    Row(
+                      children: [
+                        // Back Button to change phone
+                        Expanded(
+                          flex: 1,
+                          child: SizedBox(
+                            height: 52,
+                            child: OutlinedButton(
+                              onPressed: loginState.isLoading
+                                  ? null
+                                  : () {
+                                      _otpController.clear();
+                                      context
+                                          .read<LoginCubit>()
+                                          .backToPhoneEntry();
+                                    },
+                              style: OutlinedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    AppSpacing.radiusLg,
+                                  ),
                                 ),
-                                borderSide: BorderSide(
+                                side: BorderSide(
                                   color: isDark
                                       ? AppColors.grey800
-                                      : AppColors.grey200,
+                                      : AppColors.grey300,
                                 ),
                               ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppSpacing.radiusLg,
-                                ),
-                                borderSide: BorderSide(
-                                  color: theme.colorScheme.primary,
-                                  width: 1.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Button Continue
-                  SizedBox(
-                    height: 52,
-                    child: FilledButton(
-                      onPressed: _isLoading ? null : _sendOtp,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: theme.colorScheme.primary,
-                        foregroundColor: theme.colorScheme.onPrimary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppSpacing.radiusLg,
-                          ),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                valueColor: AlwaysStoppedAnimation(
-                                  AppColors.white,
-                                ),
-                              ),
-                            )
-                          : Text(
-                              context.l10n.continueBtn,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                    ),
-                  ),
-                ] else ...[
-                  // Step 2: OTP Entry View
-                  SizedBox(
-                    height: 54,
-                    child: TextField(
-                      controller: _otpController,
-                      keyboardType: TextInputType.number,
-                      maxLength: 6,
-                      autofocus: true,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 18,
-                        letterSpacing: 8,
-                      ),
-                      textAlign: TextAlign.center,
-                      decoration: InputDecoration(
-                        counterText: '',
-                        hintText: '• • • • • •',
-                        hintStyle: TextStyle(
-                          color: AppColors.grey400,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 4,
-                        ),
-                        fillColor: isDark
-                            ? const Color(0xFF2C2C2C)
-                            : AppColors.grey50,
-                        filled: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md,
-                          vertical: AppSpacing.md,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppSpacing.radiusLg,
-                          ),
-                          borderSide: BorderSide(
-                            color: isDark
-                                ? AppColors.grey800
-                                : AppColors.grey200,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppSpacing.radiusLg,
-                          ),
-                          borderSide: BorderSide(
-                            color: theme.colorScheme.primary,
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Center(
-                    child: Text(
-                      context.l10n.demoOtpHelper,
-                      style: TextStyle(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Button Verify & Proceed
-                  Row(
-                    children: [
-                      // Back Button to change phone
-                      Expanded(
-                        flex: 1,
-                        child: SizedBox(
-                          height: 52,
-                          child: OutlinedButton(
-                            onPressed: _isLoading
-                                ? null
-                                : () {
-                                    setState(() {
-                                      _isOtpSent = false;
-                                      _otpController.clear();
-                                      _errorMessage = null;
-                                    });
-                                  },
-                            style: OutlinedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppSpacing.radiusLg,
-                                ),
-                              ),
-                              side: BorderSide(
+                              child: Icon(
+                                Icons.arrow_back_rounded,
                                 color: isDark
-                                    ? AppColors.grey800
-                                    : AppColors.grey300,
+                                    ? AppColors.white
+                                    : AppColors.black87,
                               ),
-                            ),
-                            child: Icon(
-                              Icons.arrow_back_rounded,
-                              color: isDark ? AppColors.white : AppColors.black87,
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
+                        const SizedBox(width: AppSpacing.sm),
 
-                      // Verify CTA Button
-                      Expanded(
-                        flex: 3,
-                        child: SizedBox(
-                          height: 52,
-                          child: FilledButton(
-                            onPressed: _isLoading ? null : _verifyOtp,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: theme.colorScheme.primary,
-                              foregroundColor: theme.colorScheme.onPrimary,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppSpacing.radiusLg,
+                        // Verify CTA Button
+                        Expanded(
+                          flex: 3,
+                          child: SizedBox(
+                            height: 52,
+                            child: FilledButton(
+                              onPressed: loginState.isLoading
+                                  ? null
+                                  : _verifyOtp,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: theme.colorScheme.primary,
+                                foregroundColor: theme.colorScheme.onPrimary,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    AppSpacing.radiusLg,
+                                  ),
                                 ),
+                                elevation: 0,
                               ),
-                              elevation: 0,
-                            ),
-                            child: _isLoading
-                                ? const SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      valueColor: AlwaysStoppedAnimation(
-                                        AppColors.white,
+                              child: loginState.isLoading
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        valueColor: AlwaysStoppedAnimation(
+                                          AppColors.white,
+                                        ),
+                                      ),
+                                    )
+                                  : Text(
+                                      context.l10n.verifyCodeTitle,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.2,
                                       ),
                                     ),
-                                  )
-                                : Text(
-                                    context.l10n.verifyCodeTitle,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.md),
                 ],
-                const SizedBox(height: AppSpacing.md),
-              ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

@@ -89,3 +89,15 @@ type Store struct {
 	OperationalStatus string  `json:"operational_status"`
 	StatusMessage     string  `json:"status_message"`
 }
+
+type StoreListRequest struct {
+	Page  int
+	Limit int
+}
+
+type StoreListResponse struct {
+	Items   []Store `json:"items"`
+	Page    int     `json:"page"`
+	Limit   int     `json:"limit"`
+	HasMore bool    `json:"has_more"`
+}

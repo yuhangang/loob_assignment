@@ -4,6 +4,8 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/loob/backend/internal/contextx"
@@ -22,7 +24,11 @@ func (h *Handler) List(c echo.Context) error {
 		return err
 	}
 	rc := contextx.FromEcho(c)
-	orders, err := h.service.ListOrders(c.Request().Context(), rc.CountryCode, rc.UserID)
+	orders, err := h.service.ListOrders(c.Request().Context(), rc.CountryCode, rc.UserID, OrderListRequest{
+		Page:     parsePositiveInt(c.QueryParam("page")),
+		Limit:    parsePositiveInt(c.QueryParam("limit")),
+		Statuses: parseStatusFilters(c.QueryParams()["status"]),
+	})
 	if err != nil {
 		if errors.Is(err, ErrUserRequired) {
 			return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "user_id is required"})
@@ -30,6 +36,27 @@ func (h *Handler) List(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": "failed to load orders"})
 	}
 	return c.JSON(http.StatusOK, orders)
+}
+
+func parseStatusFilters(values []string) []string {
+	statuses := []string{}
+	for _, value := range values {
+		for _, status := range strings.Split(value, ",") {
+			statuses = append(statuses, status)
+		}
+	}
+	return statuses
+}
+
+func parsePositiveInt(raw string) int {
+	if raw == "" {
+		return 0
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 {
+		return 0
+	}
+	return value
 }
 
 func (h *Handler) Checkout(c echo.Context) error {

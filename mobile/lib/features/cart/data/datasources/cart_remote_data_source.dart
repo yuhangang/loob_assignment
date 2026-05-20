@@ -7,6 +7,7 @@ import '../models/cart_api_model.dart';
 import '../models/checkout_response_model.dart';
 import '../models/order_status_model.dart';
 import '../models/payment_method_model.dart';
+import '../../../orders/data/models/order_list_page_model.dart';
 
 /// Remote data source for cart/checkout/payments endpoints.
 ///
@@ -209,16 +210,39 @@ class CartRemoteDataSource {
   Future<List<OrderStatusModel>> listOrders({
     required String userId,
     required String countryCode,
+    List<String> statuses = const [],
+  }) async {
+    final page = await listOrdersPage(
+      userId: userId,
+      countryCode: countryCode,
+      statuses: statuses,
+    );
+    return page.items;
+  }
+
+  Future<OrderListPageModel> listOrdersPage({
+    required String userId,
+    required String countryCode,
+    int page = 1,
+    int limit = 20,
+    List<String> statuses = const [],
   }) async {
     try {
+      final queryParameters = <String, dynamic>{
+        'page': page,
+        'limit': limit,
+        if (statuses.isNotEmpty) 'status': statuses.join(','),
+      };
       final response = await _client.dio.get(
         ApiEndpoints.orders,
+        queryParameters: queryParameters,
         options: Options(headers: {'X-Country-Code': countryCode}),
       );
-      final list = response.data as List<dynamic>;
-      return list
-          .map((e) => OrderStatusModel.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final data = response.data;
+      if (data is List<dynamic>) {
+        return OrderListPageModel.fromLegacyList(data);
+      }
+      return OrderListPageModel.fromJson(data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

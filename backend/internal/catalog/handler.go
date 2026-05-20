@@ -123,7 +123,10 @@ func (h *Handler) ListStores(c echo.Context) error {
 	}
 	activeOnly := c.QueryParam("active_only") != "false"
 
-	stores, err := h.service.ListStores(c.Request().Context(), countryID, rc.Language, brandID, activeOnly)
+	stores, err := h.service.ListStores(c.Request().Context(), countryID, rc.Language, brandID, activeOnly, StoreListRequest{
+		Page:  parsePositiveInt(c.QueryParam("page")),
+		Limit: parsePositiveInt(c.QueryParam("limit")),
+	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, map[string]string{"error": "failed to list stores"})
 	}
@@ -136,6 +139,17 @@ func intQuery(c echo.Context, key string) (int, error) {
 		return 0, nil
 	}
 	return strconv.Atoi(raw)
+}
+
+func parsePositiveInt(raw string) int {
+	if raw == "" {
+		return 0
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 {
+		return 0
+	}
+	return value
 }
 
 func catalogError(err error, fallback string) error {

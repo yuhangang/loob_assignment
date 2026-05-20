@@ -637,23 +637,34 @@ func (r *Repository) GetStatusForUser(ctx context.Context, countryID, userID, tr
 	return status, nil
 }
 
-func (r *Repository) ListStatusesByUser(ctx context.Context, countryID, userID string) ([]Status, error) {
+func (r *Repository) ListStatusesByUser(ctx context.Context, countryID, userID string, statuses []string, limit, offset int) ([]Status, error) {
+	statusClause := ""
+	args := []any{countryID, userID}
+	if len(statuses) > 0 {
+		placeholders := strings.TrimRight(strings.Repeat("?,", len(statuses)), ",")
+		statusClause = " AND oi.status IN (" + placeholders + ")"
+		for _, status := range statuses {
+			args = append(args, status)
+		}
+	}
+	args = append(args, limit, offset)
+
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT oi.tracking_id, oi.status, pt.status, oi.subtotal, oi.tax_amount,
 		       oi.discount_amount, oi.total_amount, COALESCE(oi.charges_payload, JSON_ARRAY()),
 		       oi.created_at, oi.updated_at, oi.cart_payload, oi.store_id, pt.id
 		FROM order_intents oi
 		LEFT JOIN payment_transactions pt ON pt.order_tracking_id = oi.tracking_id
-		WHERE oi.country_id = ? AND oi.user_id = ?
+		WHERE oi.country_id = ? AND oi.user_id = ?`+statusClause+`
 		ORDER BY oi.created_at DESC
-		LIMIT 50
-	`, countryID, userID)
+		LIMIT ? OFFSET ?
+	`, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	statuses := []Status{}
+	rowsStatuses := []Status{}
 	for rows.Next() {
 		var status Status
 		var chargesPayload []byte
@@ -661,9 +672,9 @@ func (r *Repository) ListStatusesByUser(ctx context.Context, countryID, userID s
 			return nil, err
 		}
 		status.Charges = decodeChargeLines(chargesPayload)
-		statuses = append(statuses, status)
+		rowsStatuses = append(rowsStatuses, status)
 	}
-	return statuses, rows.Err()
+	return rowsStatuses, rows.Err()
 }
 
 func (r *Repository) MarkOrderCollected(ctx context.Context, countryID, userID, trackingID string) error {

@@ -10,19 +10,15 @@ class MenuHeader extends StatelessWidget {
   const MenuHeader({
     super.key,
     required this.brandName,
-    required this.isPickup,
     required this.selectedStore,
     required this.primaryColor,
-    required this.onFulfillmentChanged,
     required this.onChangeOutlet,
     this.onSearchTap,
   });
 
   final String brandName;
-  final bool isPickup;
   final StoreModel selectedStore;
   final Color primaryColor;
-  final ValueChanged<bool> onFulfillmentChanged;
   final VoidCallback onChangeOutlet;
   final VoidCallback? onSearchTap;
 
@@ -40,69 +36,31 @@ class MenuHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row 1: Sliding fulfillment selector + Business hour text
+          // Row 1: Pickup status + Business hour text
           Row(
             children: [
-              // Custom Sliding Fulfillment Capsule
               Container(
                 height: 38,
-                width: 170,
-                padding: const EdgeInsets.all(2.0),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  color: AppColors.lightLavender, // Light lavender background
+                  color: primaryColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Delivery Tab
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => onFulfillmentChanged(false),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: !isPickup
-                                ? primaryColor.withValues(alpha: 0.15)
-                                : AppColors.transparent,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            context.l10n.delivery,
-                            style: TextStyle(
-                              color: !isPickup
-                                  ? primaryColor
-                                  : AppColors.grey600,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ),
+                    Icon(
+                      Icons.shopping_bag_rounded,
+                      color: primaryColor,
+                      size: 16,
                     ),
-
-                    // Pickup Tab
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => onFulfillmentChanged(true),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: isPickup
-                                ? primaryColor
-                                : AppColors.transparent,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            context.l10n.pickup,
-                            style: TextStyle(
-                              color: isPickup
-                                  ? AppColors.white
-                                  : AppColors.grey600,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
+                    const SizedBox(width: 6),
+                    Text(
+                      context.l10n.pickup,
+                      style: TextStyle(
+                        color: primaryColor,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
                       ),
                     ),
                   ],

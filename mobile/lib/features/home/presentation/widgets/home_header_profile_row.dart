@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/localization/language_cubit.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/widgets/user_profile_avatar.dart';
@@ -21,6 +22,10 @@ class HomeHeaderProfileRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final activeCountry = context.watch<CartBloc>().state.countryCode;
+    final isGuest = profile == null;
+    final displayName = profile?.displayName.trim().isNotEmpty == true
+        ? profile!.displayName
+        : context.l10n.guestLabel;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -29,7 +34,7 @@ class HomeHeaderProfileRow extends StatelessWidget {
           children: [
             UserProfileAvatar(
               avatarUrl: profile?.avatarUrl,
-              displayName: profile?.displayName ?? 'Dev User',
+              displayName: displayName,
               size: 36,
               borderWidth: 2,
               borderColor: theme.colorScheme.primary.withValues(alpha: 0.25),
@@ -48,9 +53,7 @@ class HomeHeaderProfileRow extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  profile?.displayName.isNotEmpty == true
-                      ? profile!.displayName
-                      : 'Dev User',
+                  isGuest ? context.l10n.welcomeGuest : displayName,
                   style: theme.textTheme.titleLarge?.copyWith(
                     color: theme.colorScheme.onSurface,
                     fontWeight: FontWeight.w900,
@@ -62,34 +65,6 @@ class HomeHeaderProfileRow extends StatelessWidget {
             ),
           ],
         ),
-        if (activeCountry != 'TH')
-          GestureDetector(
-            onTap: () {
-              final currentLang = context.read<LanguageCubit>().state.languageCode;
-              context.read<LanguageCubit>().switchLanguage(
-                    currentLang == 'en' ? 'ms' : 'en',
-                  );
-            },
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                  width: 1,
-                ),
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.settings_outlined,
-                  color: theme.colorScheme.primary,
-                  size: 16,
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
