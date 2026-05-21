@@ -139,3 +139,28 @@ func TestMiddleware(t *testing.T) {
 		t.Error("X-Trace-Id header is missing")
 	}
 }
+
+func TestMiddlewareRejectsInvalidCountryCode(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Country-Code", "MYS")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	mw := Middleware()
+	h := mw(func(c echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+
+	err := h(c)
+	if err == nil {
+		t.Fatal("expected invalid country error")
+	}
+	he, ok := err.(*echo.HTTPError)
+	if !ok {
+		t.Fatalf("expected echo.HTTPError, got %T", err)
+	}
+	if he.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", he.Code, http.StatusBadRequest)
+	}
+}

@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"crypto/subtle"
 	"errors"
 	"net/http"
 	"os"
@@ -201,7 +202,7 @@ func (h *Handler) InvalidateMenuCache(c echo.Context) error {
 		// Fail closed for maximum production security: if secret environment variable is not defined, deny all access.
 		return echo.NewHTTPError(http.StatusForbidden, map[string]string{"error": "admin invalidation is disabled (security configuration missing)"})
 	}
-	if secret != expectedSecret {
+	if len(secret) != len(expectedSecret) || subtle.ConstantTimeCompare([]byte(secret), []byte(expectedSecret)) != 1 {
 		return echo.NewHTTPError(http.StatusUnauthorized, map[string]string{"error": "unauthorized admin access required"})
 	}
 

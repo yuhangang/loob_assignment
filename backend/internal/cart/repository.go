@@ -116,10 +116,16 @@ func (r *Repository) UpsertCartItem(ctx context.Context, item CartItem) (CartIte
 		return CartItem{}, err
 	}
 
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return CartItem{}, err
+	}
+	defer tx.Rollback()
+
 	// Try to find an existing row with the same key fields.
 	// We match on the JSON text representation which works for sorted IDs.
 	var existingID int64
-	err = r.db.QueryRowContext(ctx, `
+	err = tx.QueryRowContext(ctx, `
 		SELECT id FROM cart_items
 		WHERE user_id = ? AND country_id = ? AND store_id = ? AND menu_item_id = ?
 		  AND JSON_CONTAINS(customization_ids, ?) AND JSON_CONTAINS(?, customization_ids)
@@ -134,7 +140,7 @@ func (r *Repository) UpsertCartItem(ctx context.Context, item CartItem) (CartIte
 
 	if existingID > 0 {
 		// Update existing item's quantity.
-		_, err = r.db.ExecContext(ctx, `
+		_, err = tx.ExecContext(ctx, `
 			UPDATE cart_items SET quantity = ?, updated_at = NOW()
 			WHERE id = ?
 		`, item.Quantity, existingID)
@@ -144,7 +150,7 @@ func (r *Repository) UpsertCartItem(ctx context.Context, item CartItem) (CartIte
 		item.ID = existingID
 	} else {
 		// Insert new item.
-		res, err := r.db.ExecContext(ctx, `
+		res, err := tx.ExecContext(ctx, `
 			INSERT INTO cart_items (user_id, country_id, store_id, menu_item_id, quantity, customization_ids)
 			VALUES (?, ?, ?, ?, ?, CAST(? AS JSON))
 		`, item.UserID, item.CountryID, item.StoreID, item.MenuItemID, item.Quantity, string(customizationJSON))
@@ -156,6 +162,12 @@ func (r *Repository) UpsertCartItem(ctx context.Context, item CartItem) (CartIte
 			return CartItem{}, err
 		}
 		item.ID = id
+	}
+	if err := syncCartItemCustomizations(ctx, tx, item.ID, item.CustomizationIDs); err != nil {
+		return CartItem{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return CartItem{}, err
 	}
 	return item, nil
 }
@@ -224,6 +236,9 @@ func (r *Repository) UpdateCartItem(ctx context.Context, itemID int64, item Cart
 		item.ID = itemID
 	}
 
+	if err := syncCartItemCustomizations(ctx, tx, item.ID, item.CustomizationIDs); err != nil {
+		return CartItem{}, err
+	}
 	if err := tx.Commit(); err != nil {
 		return CartItem{}, err
 	}
@@ -245,6 +260,24 @@ func (r *Repository) RemoveCartItem(ctx context.Context, itemID int64, userID, c
 	}
 	if n == 0 {
 		return ErrNotFound
+	}
+	return nil
+}
+
+func syncCartItemCustomizations(ctx context.Context, tx *sql.Tx, cartItemID int64, optionIDs []int) error {
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM cart_item_customization_options
+		WHERE cart_item_id = ?
+	`, cartItemID); err != nil {
+		return err
+	}
+	for _, optionID := range optionIDs {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO cart_item_customization_options (cart_item_id, customization_option_id)
+			VALUES (?, ?)
+		`, cartItemID, optionID); err != nil {
+			return err
+		}
 	}
 	return nil
 }

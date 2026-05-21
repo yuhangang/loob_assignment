@@ -124,3 +124,11 @@ func TestTopUpWalletRequiresPositiveAmount(t *testing.T) {
 		t.Fatalf("expected ErrInvalidTopUpAmount, got %v", err)
 	}
 }
+
+func TestTopUpWalletRejectsExcessiveAmount(t *testing.T) {
+	svc := NewService(&mockProfileRepository{country: Country{ID: "MY", CurrencyCode: "MYR"}}, nil, "")
+	_, err := svc.TopUpWallet(context.Background(), "MY", "user1", WalletTopUpRequest{Amount: maxWalletTopUpAmount + 1})
+	if !errors.Is(err, ErrInvalidTopUpAmount) {
+		t.Fatalf("expected ErrInvalidTopUpAmount, got %v", err)
+	}
+}

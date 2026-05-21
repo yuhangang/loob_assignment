@@ -139,6 +139,7 @@ func checkoutError(err error) error {
 		errors.Is(err, ErrInvalidFulfillment),
 		errors.Is(err, ErrCartEmpty),
 		errors.Is(err, ErrInvalidCartItem),
+		errors.Is(err, ErrInvalidCartAmount),
 		errors.Is(err, ErrInvalidCustomization):
 		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	case errors.Is(err, ErrUnsupportedCountry):

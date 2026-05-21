@@ -14,14 +14,19 @@ type Config struct {
 	AutoMigrate        bool
 	PublicBaseURL      string
 	MockGatewaySecret  string
+	MockGatewayEnabled bool
 	FirebaseProjectID  string
 	AuthMode           string
+	AllowedOrigins     []string
+	RateLimitRPS       int
+	RateLimitBurst     int
 	WorkerPollInterval time.Duration
 	WorkerBatchSize    int
 }
 
 func Load() Config {
 	firebaseProjectID := strings.TrimSpace(os.Getenv("FIREBASE_PROJECT_ID"))
+	appEnv := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
 	return Config{
 		HTTPAddr:           getEnv("HTTP_ADDR", ":8080"),
 		DatabaseDSN:        databaseDSN(),
@@ -29,8 +34,12 @@ func Load() Config {
 		AutoMigrate:        getBoolEnv("AUTO_MIGRATE", true),
 		PublicBaseURL:      strings.TrimRight(getEnv("PUBLIC_BASE_URL", "http://localhost:8080"), "/"),
 		MockGatewaySecret:  getEnv("MOCK_GATEWAY_SECRET", "change-me-local-only"),
+		MockGatewayEnabled: getBoolEnv("MOCK_GATEWAY_ENABLED", appEnv != "production"),
 		FirebaseProjectID:  firebaseProjectID,
 		AuthMode:           authMode(firebaseProjectID),
+		AllowedOrigins:     csvEnv("CORS_ALLOWED_ORIGINS", []string{"http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"}),
+		RateLimitRPS:       getIntEnv("RATE_LIMIT_RPS", 20),
+		RateLimitBurst:     getIntEnv("RATE_LIMIT_BURST", 60),
 		WorkerPollInterval: getDurationEnv("WORKER_POLL_INTERVAL", 2*time.Second),
 		WorkerBatchSize:    getIntEnv("WORKER_BATCH_SIZE", 25),
 	}
@@ -70,6 +79,25 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func csvEnv(key string, fallback []string) []string {
+	raw := os.Getenv(key)
+	if strings.TrimSpace(raw) == "" {
+		return fallback
+	}
+	parts := strings.Split(raw, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value != "" {
+			values = append(values, value)
+		}
+	}
+	if len(values) == 0 {
+		return fallback
+	}
+	return values
 }
 
 func getBoolEnv(key string, fallback bool) bool {

@@ -360,22 +360,66 @@ func applyVoucherRedemptions(ctx context.Context, tx *sql.Tx, effect capturedPay
 		`, effect.UserID, voucherID); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `
+		result, err := tx.ExecContext(ctx, `
 			UPDATE vouchers
 			SET redemption_count = redemption_count + 1
 			WHERE id = ?
-		`, voucherID); err != nil {
+			  AND (max_redemptions IS NULL OR redemption_count < max_redemptions)
+		`, voucherID)
+		if err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO voucher_user_redemption_counters (voucher_id, user_id, redemption_count)
-			VALUES (?, ?, 1)
-			ON DUPLICATE KEY UPDATE redemption_count = redemption_count + 1
-		`, voucherID, effect.UserID); err != nil {
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if affected == 0 {
+			return ErrVoucherRedemptionLimitExceeded
+		}
+		if err := applyUserVoucherRedemption(ctx, tx, voucherID, effect.UserID); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func applyUserVoucherRedemption(ctx context.Context, tx *sql.Tx, voucherID int, userID string) error {
+	var maxPerUser sql.NullInt64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT max_redemptions_per_user
+		FROM vouchers
+		WHERE id = ?
+		FOR UPDATE
+	`, voucherID).Scan(&maxPerUser); err != nil {
+		return err
+	}
+
+	var current int
+	err := tx.QueryRowContext(ctx, `
+		SELECT redemption_count
+		FROM voucher_user_redemption_counters
+		WHERE voucher_id = ? AND user_id = ?
+		FOR UPDATE
+	`, voucherID, userID).Scan(&current)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if maxPerUser.Valid && current >= int(maxPerUser.Int64) {
+		return ErrVoucherRedemptionLimitExceeded
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO voucher_user_redemption_counters (voucher_id, user_id, redemption_count)
+			VALUES (?, ?, 1)
+		`, voucherID, userID)
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
+		UPDATE voucher_user_redemption_counters
+		SET redemption_count = redemption_count + 1
+		WHERE voucher_id = ? AND user_id = ?
+	`, voucherID, userID)
+	return err
 }
 
 func (r *Repository) Get(ctx context.Context, countryID, transactionID string) (TransactionRow, error) {
@@ -585,6 +629,7 @@ func decodeAnyMap(raw []byte) map[string]any {
 }
 
 var (
-	ErrNotFound                  = errors.New("not found")
-	ErrInsufficientWalletBalance = errors.New("insufficient wallet balance")
+	ErrNotFound                       = errors.New("not found")
+	ErrInsufficientWalletBalance      = errors.New("insufficient wallet balance")
+	ErrVoucherRedemptionLimitExceeded = errors.New("voucher redemption limit exceeded")
 )

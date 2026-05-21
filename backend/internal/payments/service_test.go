@@ -2,13 +2,14 @@ package payments
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
 type mockRepository struct {
 	applyCallback            func(ctx context.Context, update CallbackUpdate) (TransactionRow, error)
 	get                      func(ctx context.Context, countryID, transactionID string) (TransactionRow, error)
-	resolvePaymentMethod     func(ctx context.Context, countryID string, brandID int, methodCode string, amount int) (MethodRow, error)
+	resolvePaymentMethod     func(ctx context.Context, countryID string, brandID int, methodCode string, amount int) (PaymentMethod, error)
 	createPendingTransaction func(ctx context.Context, tx PendingTransaction) (TransactionRow, error)
 	listProviders            func(ctx context.Context, includeInactive bool) ([]ProviderRow, error)
 	listMethods              func(ctx context.Context, countryID string, brandID int, includeInactive bool) ([]MethodRow, error)
@@ -23,7 +24,7 @@ func (m *mockRepository) Get(ctx context.Context, countryID, transactionID strin
 func (m *mockRepository) GetForUser(ctx context.Context, countryID, userID, transactionID string) (TransactionRow, error) {
 	return m.get(ctx, countryID, transactionID)
 }
-func (m *mockRepository) ResolvePaymentMethod(ctx context.Context, countryID string, brandID int, methodCode string, amount int) (MethodRow, error) {
+func (m *mockRepository) ResolvePaymentMethod(ctx context.Context, countryID string, brandID int, methodCode string, amount int) (PaymentMethod, error) {
 	return m.resolvePaymentMethod(ctx, countryID, brandID, methodCode, amount)
 }
 func (m *mockRepository) CreatePendingTransaction(ctx context.Context, tx PendingTransaction) (TransactionRow, error) {
@@ -83,5 +84,24 @@ func TestAuthorizeMockGateway(t *testing.T) {
 	}
 	if svc.AuthorizeMockGateway("wrong") {
 		t.Error("expected false for wrong secret")
+	}
+	if svc.AuthorizeMockGateway("secret123-extra") {
+		t.Error("expected false for different length secret")
+	}
+}
+
+func TestApplyMockGatewayCallbackPreservesVoucherLimitError(t *testing.T) {
+	svc := NewService(&mockRepository{
+		applyCallback: func(ctx context.Context, update CallbackUpdate) (TransactionRow, error) {
+			return TransactionRow{}, ErrVoucherRedemptionLimitExceeded
+		},
+	}, "secret123")
+
+	_, err := svc.ApplyMockGatewayCallback(context.Background(), MockGatewayCallbackRequest{
+		TransactionID: "PAY-MY-1",
+		Status:        "SUCCESS",
+	})
+	if !errors.Is(err, ErrVoucherRedemptionLimitExceeded) {
+		t.Fatalf("expected ErrVoucherRedemptionLimitExceeded, got %v", err)
 	}
 }

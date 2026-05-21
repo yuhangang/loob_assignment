@@ -3,6 +3,7 @@ package database
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -25,6 +27,9 @@ var (
 // RedisClient represents our custom zero-dependency connection pooled Redis client.
 type RedisClient struct {
 	addr                string
+	username            string
+	password            string
+	useTLS              bool
 	pool                chan net.Conn
 	active              chan struct{}
 	mu                  sync.RWMutex
@@ -47,9 +52,12 @@ func InitRedis() {
 
 	idleSize := intEnv("REDIS_POOL_SIZE", 10)
 	maxActive := intEnv("REDIS_MAX_ACTIVE", 100)
+	username := os.Getenv("REDIS_USERNAME")
+	password := os.Getenv("REDIS_PASSWORD")
+	useTLS := boolEnv("REDIS_TLS", false)
 
 	log.Printf("Connecting to Redis at %s...", addr)
-	client, err := NewRedisClientWithLimits(addr, idleSize, maxActive)
+	client, err := NewRedisClientWithConfig(addr, idleSize, maxActive, username, password, useTLS)
 	if err != nil {
 		log.Printf("Failed to connect to Redis pool (running in database-only fallback mode): %v", err)
 		RedisClientInstance = nil
@@ -66,6 +74,10 @@ func NewRedisClient(addr string, poolSize int) (*RedisClient, error) {
 
 // NewRedisClientWithLimits creates a Redis client with separate idle and active connection limits.
 func NewRedisClientWithLimits(addr string, poolSize int, maxActive int) (*RedisClient, error) {
+	return NewRedisClientWithConfig(addr, poolSize, maxActive, "", "", false)
+}
+
+func NewRedisClientWithConfig(addr string, poolSize int, maxActive int, username, password string, useTLS bool) (*RedisClient, error) {
 	if poolSize <= 0 {
 		poolSize = 1
 	}
@@ -73,9 +85,12 @@ func NewRedisClientWithLimits(addr string, poolSize int, maxActive int) (*RedisC
 		maxActive = poolSize
 	}
 	c := &RedisClient{
-		addr:   addr,
-		pool:   make(chan net.Conn, poolSize),
-		active: make(chan struct{}, maxActive),
+		addr:     addr,
+		username: strings.TrimSpace(username),
+		password: password,
+		useTLS:   useTLS,
+		pool:     make(chan net.Conn, poolSize),
+		active:   make(chan struct{}, maxActive),
 	}
 
 	// Warm up some connections gracefully
@@ -106,19 +121,78 @@ func intEnv(key string, fallback int) int {
 	return value
 }
 
-func (c *RedisClient) dial(network, addr string, timeout time.Duration) (net.Conn, error) {
-	if c != nil && c.DialFn != nil {
-		return c.DialFn(network, addr)
+func boolEnv(key string, fallback bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
 	}
-	return net.DialTimeout(network, addr, timeout)
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+func (c *RedisClient) dial(network, addr string, timeout time.Duration) (net.Conn, error) {
+	var conn net.Conn
+	var err error
+	if c != nil && c.DialFn != nil {
+		conn, err = c.DialFn(network, addr)
+	} else if c != nil && c.useTLS {
+		dialer := &net.Dialer{Timeout: timeout}
+		conn, err = tls.DialWithDialer(dialer, network, addr, &tls.Config{MinVersion: tls.VersionTLS12})
+	} else {
+		conn, err = net.DialTimeout(network, addr, timeout)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := c.authenticate(conn); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return conn, nil
 }
 
 func (c *RedisClient) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	var conn net.Conn
+	var err error
 	if c != nil && c.DialFn != nil {
-		return c.DialFn(network, addr)
+		conn, err = c.DialFn(network, addr)
+	} else if c != nil && c.useTLS {
+		dialer := &net.Dialer{}
+		conn, err = tls.DialWithDialer(dialer, network, addr, &tls.Config{MinVersion: tls.VersionTLS12})
+	} else {
+		var d net.Dialer
+		conn, err = d.DialContext(ctx, network, addr)
 	}
-	var d net.Dialer
-	return d.DialContext(ctx, network, addr)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.authenticate(conn); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return conn, nil
+}
+
+func (c *RedisClient) authenticate(conn net.Conn) error {
+	if c == nil || c.password == "" {
+		return nil
+	}
+	args := []string{"AUTH", c.password}
+	if c.username != "" {
+		args = []string{"AUTH", c.username, c.password}
+	}
+	_ = conn.SetDeadline(time.Now().Add(1 * time.Second))
+	if _, err := conn.Write(serializeCommand(args...)); err != nil {
+		return err
+	}
+	reader := &respReader{bufio.NewReader(conn)}
+	if _, err := reader.readResponse(); err != nil {
+		return err
+	}
+	return conn.SetDeadline(time.Time{})
 }
 
 // NewMockRedisClient initializes a RedisClient with a custom DialFn for unit tests.
@@ -134,6 +208,20 @@ func NewMockRedisClient(dialFn func(network, addr string) (net.Conn, error)) *Re
 		c.pool <- conn
 	}
 	return c
+}
+
+func (c *RedisClient) Close() {
+	if c == nil {
+		return
+	}
+	for {
+		select {
+		case conn := <-c.pool:
+			_ = conn.Close()
+		default:
+			return
+		}
+	}
 }
 
 func (c *RedisClient) isBroken() bool {

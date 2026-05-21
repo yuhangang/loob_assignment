@@ -3,6 +3,7 @@ package checkout
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -749,6 +750,75 @@ func TestListOrdersReturnsUserOrders(t *testing.T) {
 	}
 }
 
+func TestListOrdersBatchesItemEnrichment(t *testing.T) {
+	createdAt := time.Date(2026, 5, 18, 10, 0, 0, 0, time.UTC)
+	var getStoreCalls, itemNameCalls, pricedItemCalls, optionNameCalls, optionPriceCalls int
+	repo := &mockRepository{
+		listStatusesByUser: func(ctx context.Context, countryID, userID string, statuses []string, limit, offset int) ([]Status, error) {
+			return []Status{
+				{
+					TrackingID:  "MY-ORDER-001",
+					Status:      "COMPLETED",
+					CreatedAt:   createdAt,
+					UpdatedAt:   createdAt,
+					CartPayload: mustJSON(t, []CartItem{{MenuItemID: 10, Quantity: 1, CustomizationIDs: []int{101}}}),
+					StoreID:     1,
+				},
+				{
+					TrackingID:  "MY-ORDER-002",
+					Status:      "COMPLETED",
+					CreatedAt:   createdAt,
+					UpdatedAt:   createdAt,
+					CartPayload: mustJSON(t, []CartItem{{MenuItemID: 11, Quantity: 2, CustomizationIDs: []int{102}}}),
+					StoreID:     1,
+				},
+			}, nil
+		},
+		getStore: func(ctx context.Context, countryID string, storeID int) (Store, error) {
+			getStoreCalls++
+			return Store{ID: 1, CountryID: "MY", ZoneID: "KL", BrandID: 1, OperationalStatus: "OPEN"}, nil
+		},
+		getMenuItemNames: func(ctx context.Context, itemIDs []int) (map[int]string, error) {
+			itemNameCalls++
+			assertSameInts(t, itemIDs, []int{10, 11})
+			return map[int]string{10: "Latte", 11: "Tea"}, nil
+		},
+		getPricedItems: func(ctx context.Context, storeID int, zoneID string, itemIDs []int) (map[int]PricedItem, error) {
+			pricedItemCalls++
+			assertSameInts(t, itemIDs, []int{10, 11})
+			return map[int]PricedItem{
+				10: {MenuItemID: 10, BasePrice: 1000},
+				11: {MenuItemID: 11, BasePrice: 800},
+			}, nil
+		},
+		getOptionNames: func(ctx context.Context, optionIDs []int) (map[int]string, error) {
+			optionNameCalls++
+			assertSameInts(t, optionIDs, []int{101, 102})
+			return map[int]string{101: "Oat", 102: "Less ice"}, nil
+		},
+		getOptionPrices: func(ctx context.Context, storeID int, zoneID string, optionIDs []int) (map[int]OptionPrice, error) {
+			optionPriceCalls++
+			assertSameInts(t, optionIDs, []int{101, 102})
+			return map[int]OptionPrice{
+				101: {ID: 101, MenuItemID: 10, GroupID: 1, PriceAdjustment: 200},
+				102: {ID: 102, MenuItemID: 11, GroupID: 2, PriceAdjustment: 0},
+			}, nil
+		},
+	}
+	svc := NewService(repo, nil)
+
+	res, err := svc.ListOrders(context.Background(), "MY", "u1", OrderListRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Items) != 2 || res.Items[0].Items[0].Name != "Latte" || res.Items[1].Items[0].BasePrice != 800 {
+		t.Fatalf("unexpected enriched orders: %+v", res.Items)
+	}
+	if getStoreCalls != 1 || itemNameCalls != 1 || pricedItemCalls != 1 || optionNameCalls != 1 || optionPriceCalls != 1 {
+		t.Fatalf("unexpected enrichment calls store=%d names=%d priced=%d optionNames=%d optionPrices=%d", getStoreCalls, itemNameCalls, pricedItemCalls, optionNameCalls, optionPriceCalls)
+	}
+}
+
 func TestListOrdersPaginatesAndClampsLimit(t *testing.T) {
 	repo := &mockRepository{
 		listStatusesByUser: func(ctx context.Context, countryID, userID string, statuses []string, limit, offset int) ([]Status, error) {
@@ -798,6 +868,27 @@ func TestListOrdersPassesNormalizedStatusFilters(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func mustJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func assertSameInts(t *testing.T, got, want []int) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("got ids %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got ids %+v, want %+v", got, want)
+		}
 	}
 }
 

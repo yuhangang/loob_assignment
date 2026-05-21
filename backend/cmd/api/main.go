@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/loob/backend/internal/apierrors"
 	"github.com/loob/backend/internal/appconfig"
@@ -39,12 +44,20 @@ func main() {
 	}
 
 	database.InitRedis()
+	if database.RedisClientInstance != nil {
+		defer database.RedisClientInstance.Close()
+	}
 
 	e := echo.New()
 	e.HideBanner = true
 	e.HTTPErrorHandler = apierrors.Handler
 	e.Use(middleware.Recover())
-	e.Use(middleware.CORS())
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: cfg.AllowedOrigins,
+		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, "X-Country-Code", "X-Trace-Id", "X-Internal-Secret", "X-Mock-Gateway-Secret"},
+	}))
+	e.Use(newIPRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst))
 	e.Use(contextx.Middleware())
 	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogStatus:  true,
@@ -86,6 +99,7 @@ func main() {
 	registerRoutes(routesConfig{
 		e:                e,
 		requireAuth:      requireAuth,
+		mockGateway:      cfg.MockGatewayEnabled,
 		paymentHandler:   paymentHandler,
 		catalogHandler:   catalogHandler,
 		checkoutHandler:  checkoutHandler,
@@ -97,7 +111,24 @@ func main() {
 	})
 
 	log.Printf("starting Loob API on %s", cfg.HTTPAddr)
-	if err := e.Start(cfg.HTTPAddr); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("server failed: %v", err)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- e.Start(cfg.HTTPAddr)
+	}()
+
+	select {
+	case err := <-errCh:
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server failed: %v", err)
+		}
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := e.Shutdown(shutdownCtx); err != nil {
+			log.Printf("server shutdown failed: %v", err)
+		}
 	}
 }

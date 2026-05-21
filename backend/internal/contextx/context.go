@@ -1,7 +1,6 @@
 package contextx
 
 import (
-	"log"
 	"net/http"
 	"strings"
 
@@ -30,8 +29,9 @@ func Middleware() echo.MiddlewareFunc {
 			if country == "" {
 				country = "MY"
 			}
-
-			log.Printf("CONTEXT: trace_id=%s country=%s language=%s", traceID, country, normalizeLanguage(c.Request().Header.Get("Accept-Language")))
+			if !isValidCountryCode(country) {
+				return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "invalid country code"})
+			}
 
 			rc := RequestContext{
 				TraceID:     traceID,
@@ -44,6 +44,18 @@ func Middleware() echo.MiddlewareFunc {
 			return next(c)
 		}
 	}
+}
+
+func isValidCountryCode(country string) bool {
+	if len(country) != 2 {
+		return false
+	}
+	for _, ch := range country {
+		if ch < 'A' || ch > 'Z' {
+			return false
+		}
+	}
+	return true
 }
 
 func FromEcho(c echo.Context) RequestContext {

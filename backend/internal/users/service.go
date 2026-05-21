@@ -180,6 +180,9 @@ func (s *Service) TopUpWallet(ctx context.Context, countryID, userID string, req
 	if req.Amount <= 0 {
 		return WalletTopUpResponse{}, ErrInvalidTopUpAmount
 	}
+	if req.Amount > maxWalletTopUpAmount {
+		return WalletTopUpResponse{}, ErrInvalidTopUpAmount
+	}
 	country, err := s.repo.GetCountry(ctx, countryID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -222,6 +225,8 @@ var (
 )
 
 const defaultHistoryLimit = 50
+
+const maxWalletTopUpAmount = 10_000_000
 
 func resolveAssetURL(publicBaseURL, path string) string {
 	if path == "" {

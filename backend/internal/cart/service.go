@@ -155,6 +155,13 @@ func validateUpsert(req CartItemRequest) error {
 	if req.MenuItemID <= 0 || req.Quantity <= 0 {
 		return ErrInvalidItem
 	}
+	seenOptions := map[int]bool{}
+	for _, optionID := range req.CustomizationIDs {
+		if optionID <= 0 || seenOptions[optionID] {
+			return ErrInvalidItem
+		}
+		seenOptions[optionID] = true
+	}
 	return nil
 }
 

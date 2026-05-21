@@ -18,6 +18,7 @@ import (
 type routesConfig struct {
 	e                *echo.Echo
 	requireAuth      echo.MiddlewareFunc
+	mockGateway      bool
 	paymentHandler   *payments.Handler
 	catalogHandler   *catalog.Handler
 	checkoutHandler  *checkout.Handler
@@ -49,7 +50,9 @@ func registerRoutes(cfg routesConfig) {
 	paymentsGroup.GET("/providers", cfg.paymentHandler.ListProviders)
 	paymentsGroup.GET("/methods", cfg.paymentHandler.ListMethods)
 	paymentsGroup.GET("/:transaction_id", cfg.paymentHandler.Get, cfg.requireAuth)
-	paymentsGroup.POST("/mock-gateway/callback", cfg.paymentHandler.MockGatewayCallback)
+	if cfg.mockGateway {
+		paymentsGroup.POST("/mock-gateway/callback", cfg.paymentHandler.MockGatewayCallback)
+	}
 
 	// Catalog routes
 	catalogGroup := v1.Group("/catalog")

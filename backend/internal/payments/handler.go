@@ -77,6 +77,8 @@ func (h *Handler) MockGatewayCallback(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		case errors.Is(err, ErrInsufficientWalletBalance):
 			return echo.NewHTTPError(http.StatusConflict, map[string]string{"error": "insufficient wallet balance"})
+		case errors.Is(err, ErrVoucherRedemptionLimitExceeded):
+			return echo.NewHTTPError(http.StatusConflict, map[string]string{"error": "voucher redemption limit exceeded"})
 		case errors.Is(err, ErrTransactionNotFound):
 			return echo.NewHTTPError(http.StatusNotFound, map[string]string{"error": "payment transaction not found"})
 		default:

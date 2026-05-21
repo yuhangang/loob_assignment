@@ -284,79 +284,75 @@ For this repository, migrations are handwritten SQL under `backend/sql/migration
 
 ### Q11. Describe the overall AWS architecture.
 
-The target AWS architecture uses:
+Target production architecture:
 
-- Route 53 and CloudFront for public entry and CDN. (current using backend as mocked CDN)
+- Route 53 and CloudFront for DNS, CDN, and public entry.
 - Application Load Balancer for API ingress.
-- ECS Fargate for the Go API profile and worker profile.
+- ECS Fargate for the Go API and background workers.
 - Aurora MySQL for the relational source of truth.
-- ElastiCache Redis for menu cache, hot campaign controls, and transient state.
-- SQS FIFO for flash-sale order buffering and worker backpressure.
+- ElastiCache Redis for cache.
+- SQS for background job processing.
 - S3 and CloudFront for menu photos, banners, and static media.
-- CloudWatch/X-Ray or Datadog for logs, metrics, traces, and alerting.
-- WAF in front of ALB/CloudFront for common abuse protection.
-- DynamoDB could be used for serving dynamic home feed content, such as personalized banners, featured products, outlet modules, and campaign sections. The core transactional data would remain in SQL, while DynamoDB stores precomputed feed items keyed by user, demongraphic, region, or store for low-latency mobile reads.
+- CloudWatch for logs, metrics, and alerting.
 
 ### Q12. How would you design for high availability across multiple regions?
 
-For the first production step, I would run multi-AZ inside `ap-southeast-1` because it is a practical hub for Malaysia, Thailand, and Singapore. ECS tasks, Aurora, Redis, and NAT gateways should run across at least two availability zones.
+Start with multi-AZ deployment in one primary region such as `ap-southeast-5`. ECS tasks, Aurora, Redis, and networking components should run across at least two availability zones.
 
-For stronger regional availability, the platform can move to active-active or active-passive regional deployments. Country-level data boundaries make this easier: a country can be routed to a regional stack when latency, compliance, or disaster recovery requirements justify it. Aurora Global Database, per-region Redis, S3 replication, Route 53 health checks, and country-aware traffic routing would be used for this stage.
+If regional failover is needed later, add a secondary region and use Route 53 health checks, replicated data, and country-aware routing.
 
 ### Q13. How would you scale ordering for a flash sale?
 
-The local assessment runtime uses payment-first order intents in MySQL so it can run without AWS credentials. The production flash-sale design adds SQS FIFO after checkout/payment validation.
+This repo keeps the local runtime simple: payment-first order intents are stored in MySQL. In production, SQS would be added after checkout and payment validation.
 
-At larger production scale, the ordering transaction path could become a separate API service. In this assignment it remains inside the backend modular monolith for simpler local review, but the boundary is already clear: checkout validates the cart and payment intent, payments own provider callbacks, ordering owns order state, and workers handle queue-backed fulfillment. Splitting it later would isolate the highest-spike transactional workload from catalog, campaign, and profile APIs while keeping MySQL as the durable source of truth.
-
-The API should do fast validation, reserve quota/idempotency safely, create or enqueue an order intent, and return quickly. Workers then process paid order intents at a controlled rate. Auto-scaling is based on ALB request count for API containers and SQS queue depth or message age for worker containers.
+The API should validate quickly, create an order intent, and return fast. Workers then process paid order intents at a controlled rate. On AWS, this can be auto-scaled with ECS Fargate by request load for the API and queue depth for workers. If the team prefers Kubernetes, the same pattern can run on EKS with Horizontal Pod Autoscaler and queue-based worker scaling. At higher scale, the ordering path can also be split into a dedicated microservice so checkout, payment callback, and order processing can scale independently, with more optimized data structures such as Redis-backed counters, reservation keys, and compact order-intent payloads for hot paths.
 
 Redis can protect hot campaign quotas and rate limits, but MySQL remains the durable source of truth. Duplicate submissions are controlled with idempotency keys and unique transaction/order identifiers.
 
 ### Q14. Where and how would you implement caching?
 
-Caching layers:
+Caching plan:
 
 - CloudFront for static media and public manifest-style content.
-- Redis for localized menu payloads, store-context menu variants, hot campaign counters, and short-lived guards.
-- App-side image cache through Flutter image caching and `cached_network_image`.
-- Database indexes and read replicas for read-heavy country/catalog queries.
+- Redis for localized menu payloads, store-specific variants, campaign counters, and short-lived guards.
+- App-side image cache via Flutter and `cached_network_image`.
+- Database indexes and read replicas for read-heavy country/catalog queries, with proper cache invalidation handling (Not implemnted in this assignment)
 
-Cache keys must include country and language to avoid serving Thai content, Malaysian prices, or wrong tax behavior to the wrong user.
+Cache keys must include country and language so users do not receive the wrong catalog, price, or tax context.
 
 ### Q15. How would you manage image and media assets at scale?
 
-Menu photos, banners, campaign images, and app content assets should be uploaded to S3 and served through CloudFront. The backend stores asset URLs or paths in MySQL and returns the correct asset references in country/language-aware payloads.
+Store media in S3 and serve it through CloudFront. The backend should keep only asset metadata in MySQL and return asset URLs, not stream large files directly.
 
-Large media should not be served through the Go API. The API should only resolve which asset applies; CloudFront should handle delivery, caching, compression, and regional edge performance.
+For better scalability, uploads can go straight to S3 using presigned URLs, and background jobs can generate smaller variants such as thumbnails or mobile sizes. In this assignment, Go can still serve media for demo simplicity, but production should use S3 plus CloudFront.
+
+The back office should also handle media lifecycle tasks such as replacing old banners, archiving unused assets, and keeping only active media linked to stores or campaigns.
 
 ### Q16. How would you monitor this application in production?
 
-Monitoring should cover technical and business health:
+Monitoring should cover both system health and checkout health:
 
-- Structured JSON logs from Go with `trace_id`, `country_code`, route, status, latency, user/order identifiers where safe, and payment/order tracking IDs.
-- CloudWatch or Datadog dashboards for API latency, error rate, checkout failures, payment callback failures, Redis errors, DB connections, SQS depth, and SQS message age.
-- Distributed traces through AWS X-Ray or Datadog APM.
-- Alerts for checkout 5xx spikes, payment callback failures, queue age, database connection saturation, and Redis degradation.
-- Mobile crash reporting and analytics for checkout drop-off, voucher rejection reasons, and country-specific UX issues.
+- Structured JSON logs with `trace_id`, `country_code`, route, status, latency, and payment or order IDs where safe.
+- CloudWatch dashboards for API latency, error rate, checkout failures, payment callback failures, Redis errors, DB connections, and SQS depth.
+- Alerts for checkout 5xx spikes, payment callback failures, queue age, DB saturation, and Redis degradation.
+- Mobile crash reporting and analytics for checkout drop-off, voucher rejection reasons, and country-specific UX issues. (Firebase Crashlytics + Google Analytics)
 
 ### Q17. Describe your CI/CD pipeline.
 
-The target CI/CD pipeline:
+Target pipeline:
 
 1. Pull request opens.
 2. Run formatting/lint checks for Go and Flutter.
 3. Run `go test ./...`.
 4. Run `flutter analyze` and `flutter test`.
-5. Build backend Docker image.
-6. Build Android/iOS artifacts for release branches.
-7. Push backend image to ECR.
-8. Run database migrations as a controlled job using expand-and-contract migration rules.
-9. Deploy ECS with rolling or blue/green release.
-10. Run smoke checks against `/health`, catalog, checkout validation, and payment callback sandbox.
-11. Promote mobile builds through internal testing, TestFlight, and Play Console tracks.
+5. Build backend and mobile artifacts with environment-specific config for `dev`, `staging`, or `release`.
+6. For `dev`, deploy the backend to the development environment and publish mobile builds to internal testers.
+7. For `staging`, deploy the backend to staging, run database migrations in a controlled way, and distribute the mobile app through TestFlight and Google Play internal or closed testing.
+8. Run smoke checks against `/health`, catalog, checkout validation, and payment callback sandbox in the target environment.
+9. For `release`, build signed production artifacts, push the backend image to ECR, and deploy with rolling or blue/green release.
+10. Promote iOS builds from TestFlight to App Store release and Android builds from Google Play testing tracks to production after verification.
 
-This repository currently documents the pipeline and provides local verification commands. Adding executable GitHub Actions workflow files is the next packaging step if the submission requires CI to run inside GitHub.
+This repository currently documents the pipeline and local verification steps. GitHub Actions can be added later if the submission needs runnable CI in GitHub.
 
 ## Known Limitations & Improvements
 

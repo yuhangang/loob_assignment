@@ -244,6 +244,9 @@ func (r *Repository) TopUpWallet(ctx context.Context, userID string, country Cou
 	`, userID, country.ID).Scan(&balance); err != nil {
 		return WalletHistory{}, err
 	}
+	if amount > 0 && balance > maxInt-amount {
+		return WalletHistory{}, ErrWalletBalanceOverflow
+	}
 	balance += amount
 
 	if _, err := tx.ExecContext(ctx, `
@@ -268,4 +271,9 @@ func (r *Repository) TopUpWallet(ctx context.Context, userID string, country Cou
 	return r.ListWalletTransactions(ctx, userID, country.ID, defaultHistoryLimit)
 }
 
-var ErrNotFound = errors.New("not found")
+var (
+	ErrNotFound              = errors.New("not found")
+	ErrWalletBalanceOverflow = errors.New("wallet balance overflow")
+)
+
+const maxInt = int(^uint(0) >> 1)

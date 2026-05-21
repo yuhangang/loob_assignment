@@ -159,23 +159,47 @@ func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req Checkout
 			if option.MenuItemID != item.MenuItemID {
 				return CheckoutResponse{}, ErrInvalidCustomization
 			}
-			lineUnitPrice += option.PriceAdjustment
+			var ok bool
+			lineUnitPrice, ok = safeAddInt(lineUnitPrice, option.PriceAdjustment)
+			if !ok {
+				return CheckoutResponse{}, ErrInvalidCartAmount
+			}
 			if option.TaxInclusive {
-				lineInclusiveUnitPrice += option.PriceAdjustment
+				lineInclusiveUnitPrice, ok = safeAddInt(lineInclusiveUnitPrice, option.PriceAdjustment)
+				if !ok {
+					return CheckoutResponse{}, ErrInvalidCartAmount
+				}
 			} else {
-				lineExclusiveUnitPrice += option.PriceAdjustment
+				lineExclusiveUnitPrice, ok = safeAddInt(lineExclusiveUnitPrice, option.PriceAdjustment)
+				if !ok {
+					return CheckoutResponse{}, ErrInvalidCartAmount
+				}
 			}
 		}
-		lineSubtotal := lineUnitPrice * item.Quantity
-		subtotal += lineSubtotal
+		lineSubtotal, ok := safeMulInt(lineUnitPrice, item.Quantity)
+		if !ok {
+			return CheckoutResponse{}, ErrInvalidCartAmount
+		}
+		subtotal, ok = safeAddInt(subtotal, lineSubtotal)
+		if !ok {
+			return CheckoutResponse{}, ErrInvalidCartAmount
+		}
+		taxInclusiveGross, ok := safeMulInt(lineInclusiveUnitPrice, item.Quantity)
+		if !ok {
+			return CheckoutResponse{}, ErrInvalidCartAmount
+		}
+		taxExclusiveNet, ok := safeMulInt(lineExclusiveUnitPrice, item.Quantity)
+		if !ok {
+			return CheckoutResponse{}, ErrInvalidCartAmount
+		}
 		lines = append(lines, pricedCartLine{
 			MenuItemID:        item.MenuItemID,
 			CategoryID:        pricedItem.CategoryID,
 			BrandID:           pricedItem.BrandID,
 			Quantity:          item.Quantity,
 			Subtotal:          lineSubtotal,
-			TaxInclusiveGross: lineInclusiveUnitPrice * item.Quantity,
-			TaxExclusiveNet:   lineExclusiveUnitPrice * item.Quantity,
+			TaxInclusiveGross: taxInclusiveGross,
+			TaxExclusiveNet:   taxExclusiveNet,
 			IsPromoItem:       pricedItem.IsPromoItem,
 		})
 	}
@@ -444,58 +468,111 @@ func calculateCharges(definitions []ChargeDefinition, req chargeCalculationReque
 }
 
 func (s *Service) populateItems(ctx context.Context, countryID string, status Status) ([]OrderStatusItem, error) {
-	if len(status.CartPayload) == 0 {
-		return []OrderStatusItem{}, nil
-	}
-	var cartItems []CartItem
-	if err := json.Unmarshal(status.CartPayload, &cartItems); err != nil {
-		return []OrderStatusItem{}, nil
-	}
-	if len(cartItems) == 0 {
-		return []OrderStatusItem{}, nil
-	}
-
-	store, err := s.repo.GetStore(ctx, countryID, status.StoreID)
+	itemsByTracking, err := s.populateItemsBatch(ctx, countryID, []Status{status})
 	if err != nil {
 		return nil, err
 	}
-
-	itemIDs := make([]int, len(cartItems))
-	for i, item := range cartItems {
-		itemIDs[i] = item.MenuItemID
+	items := itemsByTracking[status.TrackingID]
+	if items == nil {
+		return []OrderStatusItem{}, nil
 	}
+	return items, nil
+}
 
-	// 1. Fetch menu item names
-	names, err := s.repo.GetMenuItemNames(ctx, itemIDs)
-	if err != nil {
-		return nil, err
-	}
+type orderCartSnapshot struct {
+	status Status
+	items  []CartItem
+	store  Store
+}
 
-	// 2. Fetch menu item base prices
-	pricedItems, err := s.repo.GetPricedItems(ctx, store.ID, store.ZoneID, itemIDs)
-	if err != nil {
-		pricedItems = map[int]PricedItem{}
-	}
-
-	// 3. Collect option IDs
+func (s *Service) populateItemsBatch(ctx context.Context, countryID string, statuses []Status) (map[string][]OrderStatusItem, error) {
+	result := make(map[string][]OrderStatusItem, len(statuses))
+	snapshots := make([]orderCartSnapshot, 0, len(statuses))
+	storeIDs := []int{}
+	itemIDs := []int{}
 	optionIDs := []int{}
-	for _, item := range cartItems {
-		optionIDs = append(optionIDs, item.CustomizationIDs...)
+
+	for _, status := range statuses {
+		if len(status.CartPayload) == 0 {
+			result[status.TrackingID] = []OrderStatusItem{}
+			continue
+		}
+		var cartItems []CartItem
+		if err := json.Unmarshal(status.CartPayload, &cartItems); err != nil {
+			return nil, err
+		}
+		if len(cartItems) == 0 {
+			result[status.TrackingID] = []OrderStatusItem{}
+			continue
+		}
+		snapshots = append(snapshots, orderCartSnapshot{status: status, items: cartItems})
+		storeIDs = append(storeIDs, status.StoreID)
+		for _, item := range cartItems {
+			itemIDs = append(itemIDs, item.MenuItemID)
+			optionIDs = append(optionIDs, item.CustomizationIDs...)
+		}
+	}
+	if len(snapshots) == 0 {
+		return result, nil
 	}
 
-	// 4. Fetch option prices & names
-	optionPrices := map[int]OptionPrice{}
-	optionNames := map[int]string{}
-	if len(optionIDs) > 0 {
-		if prices, err := s.repo.GetOptionPrices(ctx, store.ID, store.ZoneID, optionIDs); err == nil {
-			optionPrices = prices
+	stores := map[int]Store{}
+	for _, storeID := range uniqueInts(storeIDs) {
+		store, err := s.repo.GetStore(ctx, countryID, storeID)
+		if err != nil {
+			return nil, err
 		}
-		if nms, err := s.repo.GetOptionNames(ctx, optionIDs); err == nil {
-			optionNames = nms
+		stores[storeID] = store
+	}
+	for i := range snapshots {
+		snapshots[i].store = stores[snapshots[i].status.StoreID]
+	}
+
+	names, err := s.repo.GetMenuItemNames(ctx, uniqueInts(itemIDs))
+	if err != nil {
+		return nil, err
+	}
+	optionIDs = uniqueInts(optionIDs)
+	optionNames, err := s.repo.GetOptionNames(ctx, optionIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	pricedByStore := map[string]map[int]PricedItem{}
+	optionsByStore := map[string]map[int]OptionPrice{}
+	itemIDsByStore := map[string][]int{}
+	for _, snapshot := range snapshots {
+		key := storePriceKey(snapshot.store.ID, snapshot.store.ZoneID)
+		for _, item := range snapshot.items {
+			itemIDsByStore[key] = append(itemIDsByStore[key], item.MenuItemID)
+		}
+	}
+	for _, snapshot := range snapshots {
+		key := storePriceKey(snapshot.store.ID, snapshot.store.ZoneID)
+		if _, ok := pricedByStore[key]; !ok {
+			pricedItems, err := s.repo.GetPricedItems(ctx, snapshot.store.ID, snapshot.store.ZoneID, uniqueInts(itemIDsByStore[key]))
+			if err != nil {
+				return nil, err
+			}
+			pricedByStore[key] = pricedItems
+		}
+		if _, ok := optionsByStore[key]; !ok {
+			prices, err := s.repo.GetOptionPrices(ctx, snapshot.store.ID, snapshot.store.ZoneID, optionIDs)
+			if err != nil {
+				return nil, err
+			}
+			optionsByStore[key] = prices
 		}
 	}
 
-	// 5. Construct OrderStatusItems
+	for _, snapshot := range snapshots {
+		key := storePriceKey(snapshot.store.ID, snapshot.store.ZoneID)
+		result[snapshot.status.TrackingID] = buildOrderStatusItems(snapshot.items, names, pricedByStore[key], optionNames, optionsByStore[key])
+	}
+	return result, nil
+}
+
+func buildOrderStatusItems(cartItems []CartItem, names map[int]string, pricedItems map[int]PricedItem, optionNames map[int]string, optionPrices map[int]OptionPrice) []OrderStatusItem {
 	statusItems := make([]OrderStatusItem, len(cartItems))
 	for i, item := range cartItems {
 		name := names[item.MenuItemID]
@@ -535,7 +612,11 @@ func (s *Service) populateItems(ctx context.Context, countryID string, status St
 			Options:    options,
 		}
 	}
-	return statusItems, nil
+	return statusItems
+}
+
+func storePriceKey(storeID int, zoneID string) string {
+	return strconv.Itoa(storeID) + ":" + zoneID
 }
 
 func (s *Service) GetStatus(ctx context.Context, countryID, trackingID string) (OrderStatus, error) {
@@ -548,9 +629,10 @@ func (s *Service) GetStatus(ctx context.Context, countryID, trackingID string) (
 	}
 	res := orderStatusFromRow(status)
 	items, err := s.populateItems(ctx, countryID, status)
-	if err == nil {
-		res.Items = items
+	if err != nil {
+		return OrderStatus{}, err
 	}
+	res.Items = items
 	return res, nil
 }
 
@@ -567,9 +649,10 @@ func (s *Service) GetStatusForUser(ctx context.Context, countryID, userID, track
 	}
 	res := orderStatusFromRow(status)
 	items, err := s.populateItems(ctx, countryID, status)
-	if err == nil {
-		res.Items = items
+	if err != nil {
+		return OrderStatus{}, err
 	}
+	res.Items = items
 	return res, nil
 }
 
@@ -605,13 +688,14 @@ func (s *Service) ListOrders(ctx context.Context, countryID, userID string, req 
 	if hasMore {
 		statuses = statuses[:limit]
 	}
+	itemsByTracking, err := s.populateItemsBatch(ctx, countryID, statuses)
+	if err != nil {
+		return OrderListResponse{}, err
+	}
 	orders := make([]OrderStatus, 0, len(statuses))
 	for _, status := range statuses {
 		res := orderStatusFromRow(status)
-		items, err := s.populateItems(ctx, countryID, status)
-		if err == nil {
-			res.Items = items
-		}
+		res.Items = itemsByTracking[status.TrackingID]
 		orders = append(orders, res)
 	}
 	return OrderListResponse{
@@ -1305,11 +1389,46 @@ func validate(req CheckoutRequest) error {
 		return ErrCartEmpty
 	}
 	for _, item := range req.Items {
-		if item.MenuItemID <= 0 || item.Quantity <= 0 {
+		if item.MenuItemID <= 0 || item.Quantity <= 0 || item.Quantity > maxCartItemQuantity {
 			return ErrInvalidCartItem
 		}
 	}
 	return nil
+}
+
+func safeAddInt(a, b int) (int, bool) {
+	if (b > 0 && a > maxInt-b) || (b < 0 && a < minInt-b) {
+		return 0, false
+	}
+	return a + b, true
+}
+
+func safeMulInt(a, b int) (int, bool) {
+	if a == 0 || b == 0 {
+		return 0, true
+	}
+	if a > 0 {
+		if b > 0 {
+			if a > maxInt/b {
+				return 0, false
+			}
+			return a * b, true
+		}
+		if b < minInt/a {
+			return 0, false
+		}
+		return a * b, true
+	}
+	if b > 0 {
+		if a < minInt/b {
+			return 0, false
+		}
+		return a * b, true
+	}
+	if a < maxInt/b {
+		return 0, false
+	}
+	return a * b, true
 }
 
 func validateCustomizations(items []CartItem, groups []CustomizationGroupRule, options map[int]CustomizationOptionRule) error {
@@ -1438,6 +1557,7 @@ var (
 	ErrInvalidFulfillment       = errors.New("fulfillment_type must be DINE_IN, TAKEAWAY, or DELIVERY")
 	ErrCartEmpty                = errors.New("cart must contain at least one item")
 	ErrInvalidCartItem          = errors.New("cart item must include menu_item_id and positive quantity")
+	ErrInvalidCartAmount        = errors.New("cart amount is too large")
 	ErrUnsupportedCountry       = errors.New("unsupported country")
 	ErrStoreNotFound            = errors.New("store not found")
 	ErrStoreClosed              = errors.New("selected store is closed")
@@ -1447,6 +1567,13 @@ var (
 	ErrVoucherNotEligible       = errors.New("voucher not eligible")
 	ErrOrderNotFound            = errors.New("order not found")
 	ErrPaymentMethodUnavailable = errors.New("payment method unavailable")
+)
+
+const maxCartItemQuantity = 99
+
+const (
+	maxInt = int(^uint(0) >> 1)
+	minInt = -maxInt - 1
 )
 
 type voucherEligibilityError struct {

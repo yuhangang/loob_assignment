@@ -2,6 +2,7 @@ package payments
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"strings"
 
@@ -31,7 +32,10 @@ func (s *Service) AuthorizeMockGateway(secret string) bool {
 	if s.mockGatewaySecret == "" {
 		return false
 	}
-	return secret == s.mockGatewaySecret
+	if len(secret) != len(s.mockGatewaySecret) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(secret), []byte(s.mockGatewaySecret)) == 1
 }
 
 func (s *Service) ApplyMockGatewayCallback(ctx context.Context, req MockGatewayCallbackRequest) (Transaction, error) {
@@ -68,6 +72,9 @@ func (s *Service) ApplyMockGatewayCallback(ctx context.Context, req MockGatewayC
 		}
 		if errors.Is(err, ErrInsufficientWalletBalance) {
 			return Transaction{}, ErrInsufficientWalletBalance
+		}
+		if errors.Is(err, ErrVoucherRedemptionLimitExceeded) {
+			return Transaction{}, ErrVoucherRedemptionLimitExceeded
 		}
 		return Transaction{}, err
 	}
