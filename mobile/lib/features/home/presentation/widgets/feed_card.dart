@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/di/injection.dart';
@@ -49,25 +50,22 @@ class FeedCard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
                 child: imageUrl.isNotEmpty
-                    ? Image.network(
-                        imageUrl,
+                    ? CachedNetworkImage(
+                        imageUrl: imageUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Center(
+                        errorWidget: (context, url, error) => Center(
                           child: Icon(
                             _iconForType(item.type),
                             color: theme.colorScheme.primary.withValues(alpha: 0.5),
                           ),
                         ),
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return const Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          );
-                        },
+                        placeholder: (context, url) => const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
                       )
                     : Center(
                         child: Icon(

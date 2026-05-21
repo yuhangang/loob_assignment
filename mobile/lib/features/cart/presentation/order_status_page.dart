@@ -8,6 +8,7 @@ import '../../../core/theme/tokens/colors.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
 import '../data/models/order_status_model.dart';
+import '../data/models/price_breakdown_model.dart';
 import 'bloc/order_status_cubit.dart';
 import 'bloc/order_status_state.dart';
 import '../../orders/presentation/bloc/active_order_cubit.dart';
@@ -173,6 +174,13 @@ class _OrderStatusContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final currency = status.trackingIdCurrency;
     final pin = status.orderTrackingId.collectionPin;
+    final breakdown = PriceBreakdownModel(
+      subtotal: status.subtotal,
+      charges: status.charges,
+      taxAmount: status.taxAmount,
+      discountAmount: status.discountAmount,
+      totalAmount: status.totalAmount,
+    );
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
@@ -291,7 +299,7 @@ class _OrderStatusContent extends StatelessWidget {
               _DetailRow(
                 icon: Icons.shopping_bag_rounded,
                 label: charge.name.isEmpty ? charge.code : charge.name,
-                value: charge.amount.toDisplayPrice(currency),
+                value: charge.totalAmount.toDisplayPrice(currency),
               ),
             ],
             for (final charge in status.charges.where(
@@ -305,12 +313,14 @@ class _OrderStatusContent extends StatelessWidget {
                 valueColor: AppColors.success,
               ),
             ],
-            const Divider(height: 1, indent: 36),
-            _DetailRow(
-              icon: Icons.percent_rounded,
-              label: context.l10n.taxLabel,
-              value: status.taxAmount.toDisplayPrice(currency),
-            ),
+            if (breakdown.payableTaxAmount > 0) ...[
+              const Divider(height: 1, indent: 36),
+              _DetailRow(
+                icon: Icons.percent_rounded,
+                label: context.l10n.taxLabel,
+                value: breakdown.payableTaxAmount.toDisplayPrice(currency),
+              ),
+            ],
             if (status.discountAmount > 0) ...[
               const Divider(height: 1, indent: 36),
               _DetailRow(
@@ -318,6 +328,14 @@ class _OrderStatusContent extends StatelessWidget {
                 label: context.l10n.discountLabel,
                 value: '-${status.discountAmount.toDisplayPrice(currency)}',
                 valueColor: AppColors.success,
+              ),
+            ],
+            if (breakdown.includedTaxAmount > 0) ...[
+              const Divider(height: 1, indent: 36),
+              _DetailRow(
+                icon: Icons.info_outline_rounded,
+                label: context.l10n.includedTaxLabel,
+                value: breakdown.includedTaxAmount.toDisplayPrice(currency),
               ),
             ],
             const Divider(height: 1, indent: 36),

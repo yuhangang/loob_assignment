@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
@@ -61,9 +62,28 @@ class ApiClient {
   /// handles auto-refresh on 401s, and handles session timeout.
   Interceptor _authInterceptor() {
     return InterceptorsWrapper(
-      onRequest: (options, handler) {
+      onRequest: (options, handler) async {
         if (_authToken != null) {
-          options.headers['Authorization'] = 'Bearer $_authToken';
+          if (_isTokenExpired(_authToken!)) {
+            debugPrint(
+              '[API] Token expired or close to expiry. Renewing before request...',
+            );
+            try {
+              final authService = sl<AuthService>();
+              final newToken = await authService.getIdToken(forceRefresh: true);
+              if (newToken != null) {
+                setAuthToken(newToken);
+              }
+            } catch (e) {
+              debugPrint(
+                '[API] Automatic pre-request token renewal failed: $e',
+              );
+            }
+          }
+
+          if (_authToken != null) {
+            options.headers['Authorization'] = 'Bearer $_authToken';
+          }
         }
         handler.next(options);
       },
@@ -78,38 +98,8 @@ class ApiClient {
 
           if (isInvalidTokenError) {
             debugPrint(
-              '[API] Captured 401 invalid bearer token error. Attempting auto token refresh...',
+              '[API] Captured 401 invalid bearer token error. Triggering session timeout...',
             );
-
-            try {
-              final authService = sl<AuthService>();
-              // Try to refresh token
-              final newToken = await authService.getIdToken(forceRefresh: true);
-              if (newToken != null) {
-                // Update client token
-                setAuthToken(newToken);
-
-                // Clone request options and update headers
-                final options = error.requestOptions;
-                options.headers['Authorization'] = 'Bearer $newToken';
-
-                // Retry request
-                final cloneReq = await dio.request(
-                  options.path,
-                  options: Options(
-                    method: options.method,
-                    headers: options.headers,
-                    responseType: options.responseType,
-                    contentType: options.contentType,
-                  ),
-                  data: options.data,
-                  queryParameters: options.queryParameters,
-                );
-                return handler.resolve(cloneReq);
-              }
-            } catch (refreshError) {
-              debugPrint('[API] Automatic token refresh failed: $refreshError');
-            }
 
             // Session Timeout!
             // 1. Sign out on the service
@@ -129,13 +119,40 @@ class ApiClient {
     );
   }
 
+  /// Checks if a JWT token is expired or close to expiry (with a 10-second buffer).
+  bool _isTokenExpired(String token) {
+    try {
+      final segments = token.split('.');
+      if (segments.length != 3) return true;
+
+      // Base64Url decode payload
+      final normalized = base64Url.normalize(segments[1]);
+      final payloadBytes = base64Url.decode(normalized);
+      final payloadString = utf8.decode(payloadBytes);
+      final payload = json.decode(payloadString) as Map<String, dynamic>;
+
+      final exp = payload['exp'] as int?;
+      if (exp != null) {
+        final expiryTime = DateTime.fromMillisecondsSinceEpoch(exp * 1000);
+        // Expired if current time + 10s buffer exceeds expiryTime
+        return DateTime.now()
+            .add(const Duration(seconds: 10))
+            .isAfter(expiryTime);
+      }
+    } catch (e) {
+      debugPrint('[API] Error parsing JWT expiration: $e');
+      return true; // Treat as expired if parsing fails
+    }
+    return true;
+  }
+
   /// Injects the regional context headers required by the Go backend.
   Interceptor _contextInterceptor() {
     return InterceptorsWrapper(
       onRequest: (options, handler) {
-        options.headers['X-Country-Code'] = _countryCode;
-        options.headers['X-Language'] = _language;
-        options.headers['Accept-Language'] = _language;
+        options.headers.putIfAbsent('X-Country-Code', () => _countryCode);
+        options.headers.putIfAbsent('X-Language', () => _language);
+        options.headers.putIfAbsent('Accept-Language', () => _language);
         handler.next(options);
       },
     );

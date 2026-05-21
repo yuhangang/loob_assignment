@@ -8,8 +8,6 @@ import '../bloc/cart_item.dart';
 class CheckoutItemTile extends StatelessWidget {
   final CartItem item;
   final String currency;
-  final VoidCallback onDecrease;
-  final VoidCallback onIncrease;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
 
@@ -17,8 +15,6 @@ class CheckoutItemTile extends StatelessWidget {
     super.key,
     required this.item,
     required this.currency,
-    required this.onDecrease,
-    required this.onIncrease,
     required this.onEdit,
     required this.onRemove,
   });
@@ -94,11 +90,7 @@ class CheckoutItemTile extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              CheckoutQuantityStepper(
-                quantity: item.quantity,
-                onDecrease: onDecrease,
-                onIncrease: onIncrease,
-              ),
+              CheckoutQuantityPill(quantity: item.quantity),
               if (canConfigure) ...[
                 const SizedBox(width: AppSpacing.sm),
                 TextButton.icon(
@@ -123,17 +115,10 @@ class CheckoutItemTile extends StatelessWidget {
   }
 }
 
-class CheckoutQuantityStepper extends StatelessWidget {
+class CheckoutQuantityPill extends StatelessWidget {
   final int quantity;
-  final VoidCallback onDecrease;
-  final VoidCallback onIncrease;
 
-  const CheckoutQuantityStepper({
-    super.key,
-    required this.quantity,
-    required this.onDecrease,
-    required this.onIncrease,
-  });
+  const CheckoutQuantityPill({super.key, required this.quantity});
 
   @override
   Widget build(BuildContext context) {
@@ -148,27 +133,17 @@ class CheckoutQuantityStepper extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: const Icon(Icons.remove_rounded, size: 14),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 30),
-            onPressed: onDecrease,
-          ),
-          SizedBox(
-            width: 24,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
             child: Text(
-              '$quantity',
-              textAlign: TextAlign.center,
+              'Qty $quantity',
               style: theme.textTheme.labelLarge?.copyWith(
                 fontWeight: FontWeight.w900,
+                color: theme.textTheme.labelLarge?.color?.withValues(
+                  alpha: 0.72,
+                ),
               ),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.add_rounded, size: 14),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 30),
-            onPressed: onIncrease,
           ),
         ],
       ),

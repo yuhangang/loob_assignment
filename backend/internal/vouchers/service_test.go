@@ -49,16 +49,17 @@ func TestTitle(t *testing.T) {
 		code         string
 		discountType string
 		value        int
+		currencyCode string
 		want         string
 	}{
-		{"SAVE10", "PERCENTAGE", 10, "10% off"},
-		{"CASH5", "FIXED_AMOUNT", 500, "CASH5 reward"},
-		{"UNKNOWN", "OTHER", 0, "UNKNOWN"},
+		{"SAVE10", "PERCENTAGE", 10, "MYR", "10% off"},
+		{"CASH5", "FIXED_AMOUNT", 500, "MYR", "RM 5 off"},
+		{"UNKNOWN", "OTHER", 0, "MYR", "UNKNOWN"},
 	}
 
 	for _, tt := range tests {
-		if got := title(tt.code, tt.discountType, tt.value); got != tt.want {
-			t.Errorf("title(%q, %q, %d) = %q, want %q", tt.code, tt.discountType, tt.value, got, tt.want)
+		if got := title(tt.code, tt.discountType, tt.value, tt.currencyCode); got != tt.want {
+			t.Errorf("title(%q, %q, %d, %q) = %q, want %q", tt.code, tt.discountType, tt.value, tt.currencyCode, got, tt.want)
 		}
 	}
 }
@@ -97,6 +98,15 @@ func TestWallet(t *testing.T) {
 		}
 		if wallet.Vouchers[0].Code != "PROMO1" {
 			t.Errorf("expected PROMO1, got %s", wallet.Vouchers[0].Code)
+		}
+		if wallet.Vouchers[0].Description != "Save 10% when you spend at least RM 1." {
+			t.Errorf("unexpected voucher description %q", wallet.Vouchers[0].Description)
+		}
+		if wallet.Vouchers[0].TermsAndConditionsMarkdown == "" {
+			t.Error("expected voucher markdown terms")
+		}
+		if wallet.Vouchers[0].TermsAndConditionsHTML == "" {
+			t.Error("expected voucher html terms")
 		}
 		if wallet.WalletBalance != 1200 {
 			t.Errorf("expected wallet balance 1200, got %d", wallet.WalletBalance)

@@ -845,7 +845,9 @@
       "applicable_store_ids": null,
       "applicable_category_ids": null,
       "applicable_item_ids": null,
-      "applicable_payment_methods": null
+      "applicable_payment_methods": null,
+      "terms_and_conditions_markdown": "- Valid for new users in Thailand only.\n- Save 15% on your first order.\n- No minimum spend required.\n- Valid until 31 Dec 2030.",
+      "terms_and_conditions_html": "<ul><li>Valid for new users in Thailand only.</li><li>Save 15% on your first order.</li><li>No minimum spend required.</li><li>Valid until 31 Dec 2030.</li></ul>"
     },
     {
       "code": "THAI_BOBA",
@@ -862,7 +864,9 @@
       "applicable_store_ids": null,
       "applicable_category_ids": null,
       "applicable_item_ids": null,
-      "applicable_payment_methods": null
+      "applicable_payment_methods": null,
+      "terms_and_conditions_markdown": "- Save ฿ 40 on Tealive Boba.\n- Minimum spend of ฿ 100 is required.\n- Valid for boba items only.\n- Valid until 31 Dec 2030.",
+      "terms_and_conditions_html": "<ul><li>Save ฿ 40 on Tealive Boba.</li><li>Minimum spend of ฿ 100 is required.</li><li>Valid for boba items only.</li><li>Valid until 31 Dec 2030.</li></ul>"
     }
   ]
 }

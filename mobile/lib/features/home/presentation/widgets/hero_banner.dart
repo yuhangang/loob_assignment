@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/di/injection.dart';
@@ -61,20 +62,17 @@ class _HeroBannerState extends State<HeroBanner> {
                     children: [
                       // Banner Background Image or fallback gradient
                       imageUrl.isNotEmpty
-                          ? Image.network(
-                              imageUrl,
+                          ? CachedNetworkImage(
+                              imageUrl: imageUrl,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
+                              errorWidget: (context, url, error) =>
                                   _buildFallbackGradient(theme),
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Container(
-                                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                                  child: const Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                );
-                              },
+                              placeholder: (context, url) => Container(
+                                color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                                child: const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
                             )
                           : _buildFallbackGradient(theme),
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
+	"math"
 	"strings"
 )
 
@@ -60,18 +62,34 @@ func (s *Service) Wallet(ctx context.Context, countryID, language, userID string
 		if status == "" {
 			status = "AVAILABLE"
 		}
+		tncMarkdown := ""
+		if row.TermsAndConditionsMarkdown.Valid && row.TermsAndConditionsMarkdown.String != "" {
+			tncMarkdown = row.TermsAndConditionsMarkdown.String
+		} else {
+			tncMarkdown = termsMarkdown(row, summary.CurrencyCode)
+		}
+
+		tncHTML := ""
+		if row.TermsAndConditionsHTML.Valid && row.TermsAndConditionsHTML.String != "" {
+			tncHTML = row.TermsAndConditionsHTML.String
+		} else {
+			tncHTML = termsHTML(row, summary.CurrencyCode)
+		}
+
 		voucher := Voucher{
-			ID:            row.ID,
-			Code:          row.Code,
-			Title:         title(row.Code, row.DiscountType, row.DiscountValue),
-			Description:   description(row.DiscountType, row.DiscountValue, row.MinSpend),
-			VoucherType:   row.VoucherType,
-			DiscountType:  row.DiscountType,
-			DiscountValue: row.DiscountValue,
-			MinSpend:      row.MinSpend,
-			Status:        status,
-			StartsAt:      row.StartsAt.Format("2006-01-02T15:04:05Z07:00"),
-			ExpiresAt:     row.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
+			ID:                         row.ID,
+			Code:                       row.Code,
+			Title:                      title(row.Code, row.DiscountType, row.DiscountValue, summary.CurrencyCode),
+			Description:                description(row.DiscountType, row.DiscountValue, row.MinSpend, summary.CurrencyCode),
+			TermsAndConditionsMarkdown: tncMarkdown,
+			TermsAndConditionsHTML:     tncHTML,
+			VoucherType:                row.VoucherType,
+			DiscountType:               row.DiscountType,
+			DiscountValue:              row.DiscountValue,
+			MinSpend:                   row.MinSpend,
+			Status:                     status,
+			StartsAt:                   row.StartsAt.Format("2006-01-02T15:04:05Z07:00"),
+			ExpiresAt:                  row.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
 		if row.MaxDiscountCap.Valid {
 			capValue := int(row.MaxDiscountCap.Int64)
@@ -99,24 +117,81 @@ func resolveLanguage(language, fallback string) string {
 	return language
 }
 
-func title(code, discountType string, value int) string {
+func title(code, discountType string, value int, currencyCode string) string {
 	switch discountType {
 	case "PERCENTAGE":
 		return fmt.Sprintf("%d%% off", value)
 	case "FIXED_AMOUNT":
-		return fmt.Sprintf("%s reward", code)
+		return fmt.Sprintf("%s off", formatMoney(value, currencyCode))
 	default:
 		return code
 	}
 }
 
-func description(discountType string, value, minSpend int) string {
+func description(discountType string, value, minSpend int, currencyCode string) string {
 	switch discountType {
 	case "PERCENTAGE":
-		return fmt.Sprintf("Save %d%% when you spend at least %d.", value, minSpend)
+		return fmt.Sprintf("Save %d%% when you spend at least %s.", value, formatMoney(minSpend, currencyCode))
 	case "FIXED_AMOUNT":
-		return fmt.Sprintf("Save %d when you spend at least %d.", value, minSpend)
+		return fmt.Sprintf("Save %s when you spend at least %s.", formatMoney(value, currencyCode), formatMoney(minSpend, currencyCode))
 	default:
-		return fmt.Sprintf("Minimum spend %d.", minSpend)
+		return fmt.Sprintf("Minimum spend %s.", formatMoney(minSpend, currencyCode))
 	}
+}
+
+func termsMarkdown(row VoucherRow, currencyCode string) string {
+	lines := termsLines(row, currencyCode)
+	for i, line := range lines {
+		lines[i] = "- " + line
+	}
+	return strings.Join(lines, "\n")
+}
+
+func termsHTML(row VoucherRow, currencyCode string) string {
+	lines := termsLines(row, currencyCode)
+	var b strings.Builder
+	b.WriteString("<ul>")
+	for _, line := range lines {
+		b.WriteString("<li>")
+		b.WriteString(html.EscapeString(line))
+		b.WriteString("</li>")
+	}
+	b.WriteString("</ul>")
+	return b.String()
+}
+
+func termsLines(row VoucherRow, currencyCode string) []string {
+	lines := []string{}
+	if row.MinSpend > 0 {
+		lines = append(lines, fmt.Sprintf("Minimum spend %s.", formatMoney(row.MinSpend, currencyCode)))
+	} else {
+		lines = append(lines, "No minimum spend required.")
+	}
+	if row.MaxDiscountCap.Valid {
+		lines = append(lines, fmt.Sprintf("Discount capped at %s.", formatMoney(int(row.MaxDiscountCap.Int64), currencyCode)))
+	}
+	if row.BrandID.Valid {
+		lines = append(lines, "Valid only for selected brand items.")
+	}
+	if row.ZoneID.Valid {
+		lines = append(lines, "Valid only for selected stores or zones.")
+	}
+	if !row.ExpiresAt.IsZero() {
+		lines = append(lines, fmt.Sprintf("Valid until %s.", row.ExpiresAt.Format("2 Jan 2006")))
+	}
+	lines = append(lines, "Cannot be exchanged for cash.")
+	return lines
+}
+
+func formatMoney(amount int, currencyCode string) string {
+	symbol := currencyCode
+	switch strings.ToUpper(strings.TrimSpace(currencyCode)) {
+	case "MYR":
+		symbol = "RM"
+	}
+	major := float64(amount) / 100
+	if math.Mod(major, 1) == 0 {
+		return fmt.Sprintf("%s %.0f", symbol, major)
+	}
+	return fmt.Sprintf("%s %.2f", symbol, major)
 }

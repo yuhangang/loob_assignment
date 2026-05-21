@@ -13,7 +13,7 @@ type CatalogRepository interface {
 	ResolveStoreContext(ctx context.Context, countryID string, storeID int, storeCode string) (StoreContext, error)
 	ListCategories(ctx context.Context, brandID int) ([]CategoryRow, error)
 	ListProducts(ctx context.Context, storeID int, zoneID string, brandID int, categoryID int) ([]ProductRow, error)
-	GetProductByID(ctx context.Context, storeID int, zoneID string, itemID int) (ProductRow, error)
+	GetProductByID(ctx context.Context, storeID int, zoneID string, brandID int, itemID int) (ProductRow, error)
 	ListCustomizationGroups(ctx context.Context, menuItemIDs []int) ([]GroupRow, error)
 	ListCustomizationOptions(ctx context.Context, storeID int, zoneID string, groupIDs []int) ([]OptionRow, error)
 	ListBrands(ctx context.Context) ([]BrandRow, error)
@@ -257,7 +257,7 @@ func (r *mysqlRepository) ListProducts(ctx context.Context, storeID int, zoneID 
 	return products, rows.Err()
 }
 
-func (r *mysqlRepository) GetProductByID(ctx context.Context, storeID int, zoneID string, itemID int) (ProductRow, error) {
+func (r *mysqlRepository) GetProductByID(ctx context.Context, storeID int, zoneID string, brandID int, itemID int) (ProductRow, error) {
 	query := `
 		SELECT mi.id, mi.category_id, mi.sku_code,
 		       COALESCE(smis.is_available, true) AS is_available,
@@ -269,6 +269,7 @@ func (r *mysqlRepository) GetProductByID(ctx context.Context, storeID int, zoneI
 		INNER JOIN menu_item_pricing mip ON mip.menu_item_id = mi.id AND mip.zone_id = ?
 		LEFT JOIN store_menu_item_status smis ON smis.store_id = ? AND smis.menu_item_id = mi.id
 		WHERE mi.id = ?
+		  AND mi.brand_id = ?
 		  AND mi.item_type = 'MAIN'
 		  AND mi.is_active = true
 		  AND mi.deleted_at IS NULL
@@ -277,7 +278,7 @@ func (r *mysqlRepository) GetProductByID(ctx context.Context, storeID int, zoneI
 	`
 	var product ProductRow
 	var nameJSON, descJSON, tagsJSON []byte
-	err := r.db.QueryRowContext(ctx, query, zoneID, storeID, itemID).Scan(
+	err := r.db.QueryRowContext(ctx, query, zoneID, storeID, itemID, brandID).Scan(
 		&product.ID, &product.CategoryID, &product.SKUCode, &product.IsAvailable,
 		&nameJSON, &descJSON, &product.ImageURLSmall, &product.ImageURLLarge, &tagsJSON,
 		&product.BasePrice, &product.TaxInclusive, &product.IsPromo,

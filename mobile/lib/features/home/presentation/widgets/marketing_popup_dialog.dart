@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/config/app_config.dart';
@@ -35,12 +36,18 @@ class MarketingPopupDialog extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               child: AspectRatio(
                 aspectRatio: 1.1,
-                child: Image.network(
-                  popup.imageUrl.startsWith('http')
+                child: CachedNetworkImage(
+                  imageUrl: popup.imageUrl.startsWith('http')
                       ? popup.imageUrl
                       : '${sl<AppConfig>().baseUrl}${popup.imageUrl}',
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
+                  placeholder: (context, url) => Container(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.05),
+                    child: const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
                     color: theme.colorScheme.primary.withValues(alpha: 0.05),
                     child: Icon(
                       Icons.celebration_rounded,

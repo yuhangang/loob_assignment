@@ -80,7 +80,7 @@ class _AppShellState extends State<AppShell> {
                 Positioned(
                   left: AppSpacing.pageHorizontal,
                   right: AppSpacing.pageHorizontal,
-                  bottom: MediaQuery.paddingOf(context).bottom,
+                  bottom: AppSpacing.pageVertical,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -100,6 +100,7 @@ class _AppShellState extends State<AppShell> {
                           icon: const Icon(Icons.celebration_rounded),
                           backgroundColor: theme.colorScheme.secondary,
                           foregroundColor: theme.colorScheme.onSecondary,
+                          elevation: 0.5,
                         ),
                       BlocBuilder<CartBloc, CartState>(
                         builder: (context, cartState) {
@@ -114,9 +115,14 @@ class _AppShellState extends State<AppShell> {
                                 return const SizedBox.shrink();
                               }
 
-                              return ActiveOverlayBar(
-                                cartState: cartState,
-                                activeOrder: activeOrder,
+                              return Padding(
+                                padding: const EdgeInsets.only(
+                                  top: AppSpacing.md,
+                                ),
+                                child: ActiveOverlayBar(
+                                  cartState: cartState,
+                                  activeOrder: activeOrder,
+                                ),
                               );
                             },
                           );

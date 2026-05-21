@@ -103,6 +103,31 @@ func (h *Handler) GetItem(c echo.Context) error {
 	return c.JSON(http.StatusOK, item)
 }
 
+func (h *Handler) GetItemAvailability(c echo.Context) error {
+	rc := contextx.FromEcho(c)
+	itemID, err := strconv.Atoi(c.Param("item_id"))
+	if err != nil || itemID <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "item_id must be a positive number"})
+	}
+	storeID, err := intQuery(c, "store_id")
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, map[string]string{"error": "store_id must be a number"})
+	}
+	storeCode := c.QueryParam("store_code")
+
+	availability, err := h.service.GetItemAvailability(c.Request().Context(), ItemRequest{
+		CountryCode: rc.CountryCode,
+		Language:    rc.Language,
+		StoreID:     storeID,
+		StoreCode:   storeCode,
+		ItemID:      itemID,
+	})
+	if err != nil {
+		return catalogError(err, "failed to get item availability")
+	}
+	return c.JSON(http.StatusOK, availability)
+}
+
 func (h *Handler) ListBrands(c echo.Context) error {
 	brands, err := h.service.ListBrands(c.Request().Context())
 	if err != nil {

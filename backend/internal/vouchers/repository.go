@@ -23,18 +23,20 @@ type Country struct {
 }
 
 type VoucherRow struct {
-	ID             int
-	Code           string
-	ZoneID         sql.NullString
-	BrandID        sql.NullInt64
-	VoucherType    string
-	DiscountType   string
-	DiscountValue  int
-	MinSpend       int
-	MaxDiscountCap sql.NullInt64
-	StartsAt       time.Time
-	ExpiresAt      time.Time
-	Status         sql.NullString
+	ID                         int
+	Code                       string
+	ZoneID                     sql.NullString
+	BrandID                    sql.NullInt64
+	VoucherType                string
+	DiscountType               string
+	DiscountValue              int
+	MinSpend                   int
+	MaxDiscountCap             sql.NullInt64
+	StartsAt                   time.Time
+	ExpiresAt                  time.Time
+	Status                     sql.NullString
+	TermsAndConditionsMarkdown sql.NullString
+	TermsAndConditionsHTML     sql.NullString
 }
 
 type WalletSummary struct {
@@ -96,7 +98,7 @@ func (r *Repository) ListWallet(ctx context.Context, countryID, userID string, b
 	query := `
 		SELECT v.id, v.code, v.zone_id, v.brand_id, v.voucher_type, v.discount_type,
 		       v.discount_value, v.min_spend, v.max_discount_cap, v.starts_at, v.expires_at,
-		       uv.status
+		       uv.status, v.terms_and_conditions_markdown, v.terms_and_conditions_html
 		FROM vouchers v
 		LEFT JOIN user_vouchers uv ON uv.voucher_id = v.id AND uv.user_id = ?
 		WHERE v.country_id = ? AND v.is_active = true AND NOW() BETWEEN v.starts_at AND v.expires_at
@@ -117,7 +119,11 @@ func (r *Repository) ListWallet(ctx context.Context, countryID, userID string, b
 	var vouchers []VoucherRow
 	for rows.Next() {
 		var row VoucherRow
-		if err := rows.Scan(&row.ID, &row.Code, &row.ZoneID, &row.BrandID, &row.VoucherType, &row.DiscountType, &row.DiscountValue, &row.MinSpend, &row.MaxDiscountCap, &row.StartsAt, &row.ExpiresAt, &row.Status); err != nil {
+		if err := rows.Scan(
+			&row.ID, &row.Code, &row.ZoneID, &row.BrandID, &row.VoucherType, &row.DiscountType,
+			&row.DiscountValue, &row.MinSpend, &row.MaxDiscountCap, &row.StartsAt, &row.ExpiresAt,
+			&row.Status, &row.TermsAndConditionsMarkdown, &row.TermsAndConditionsHTML,
+		); err != nil {
 			return nil, err
 		}
 		vouchers = append(vouchers, row)

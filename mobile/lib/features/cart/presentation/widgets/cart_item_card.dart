@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/localization/app_localizations.dart';
@@ -69,12 +70,24 @@ class CartItemCard extends StatelessWidget {
                     color: theme.colorScheme.primary.withValues(alpha: 0.05),
                     child: Stack(
                       children: [
-                        Image.network(
-                          item.product.media.imageUrlSm,
+                        CachedNetworkImage(
+                          imageUrl: item.product.media.imageUrlSm,
                           fit: BoxFit.cover,
                           width: 72,
                           height: 72,
-                          errorBuilder: (context, error, stackTrace) => Icon(
+                          placeholder: (context, url) => Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: theme.colorScheme.primary.withValues(
+                                  alpha: 0.4,
+                                ),
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Icon(
                             Icons.local_cafe_rounded,
                             color: theme.colorScheme.primary.withValues(
                               alpha: 0.4,

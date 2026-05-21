@@ -181,6 +181,8 @@ class CartPage extends StatelessWidget {
     );
     if (!context.mounted || result is! Map<String, dynamic>) return;
 
+    final resolvedProduct =
+        result['product'] as ProductModel? ?? enrichedProduct;
     final quantity = result['quantity'] as int? ?? item.quantity;
     final action = result['action'] as String? ?? 'update';
     final selectionsMap = result['selections'] as Map<dynamic, dynamic>? ?? {};
@@ -190,14 +192,14 @@ class CartPage extends StatelessWidget {
         selectedIds.addAll(ids.whereType<int>());
       }
     }
-    final selectedOptions = enrichedProduct.customizationGroups
+    final selectedOptions = resolvedProduct.customizationGroups
         .expand((group) => group.options)
         .where((option) => selectedIds.contains(option.id))
         .toList();
 
     if (action == 'buy_now') {
       final buyNowItem = CartItem(
-        product: enrichedProduct,
+        product: resolvedProduct,
         selectedOptions: selectedOptions,
         customizationOptionIds: selectedIds,
         quantity: quantity,
@@ -209,7 +211,7 @@ class CartPage extends StatelessWidget {
     if (action == 'add') {
       context.read<CartBloc>().add(
         CartItemAdded(
-          product: enrichedProduct,
+          product: resolvedProduct,
           selectedOptions: selectedOptions,
           customizationOptionIds: selectedIds,
           quantity: quantity,

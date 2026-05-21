@@ -23,7 +23,7 @@ type mockRepository struct {
 	resolveStoreContext      func(ctx context.Context, countryID string, storeID int, storeCode string) (StoreContext, error)
 	listCategories           func(ctx context.Context, brandID int) ([]CategoryRow, error)
 	listProducts             func(ctx context.Context, storeID int, zoneID string, brandID int, categoryID int) ([]ProductRow, error)
-	getProductByID           func(ctx context.Context, storeID int, zoneID string, itemID int) (ProductRow, error)
+	getProductByID           func(ctx context.Context, storeID int, zoneID string, brandID int, itemID int) (ProductRow, error)
 	listCustomizationGroups  func(ctx context.Context, menuItemIDs []int) ([]GroupRow, error)
 	listCustomizationOptions func(ctx context.Context, storeID int, zoneID string, groupIDs []int) ([]OptionRow, error)
 	listStores               func(ctx context.Context, countryID string, brandID int, activeOnly bool, limit int, offset int) ([]StoreRow, error)
@@ -41,12 +41,12 @@ func (m *mockRepository) ListCategories(ctx context.Context, brandID int) ([]Cat
 func (m *mockRepository) ListProducts(ctx context.Context, storeID int, zoneID string, brandID int, categoryID int) ([]ProductRow, error) {
 	return m.listProducts(ctx, storeID, zoneID, brandID, categoryID)
 }
-func (m *mockRepository) GetProductByID(ctx context.Context, storeID int, zoneID string, itemID int) (ProductRow, error) {
+func (m *mockRepository) GetProductByID(ctx context.Context, storeID int, zoneID string, brandID int, itemID int) (ProductRow, error) {
 	if m.getProductByID != nil {
-		return m.getProductByID(ctx, storeID, zoneID, itemID)
+		return m.getProductByID(ctx, storeID, zoneID, brandID, itemID)
 	}
 	// Default fallback using ListProducts
-	products, err := m.listProducts(ctx, storeID, zoneID, 0, 0)
+	products, err := m.listProducts(ctx, storeID, zoneID, brandID, 0)
 	if err != nil {
 		return ProductRow{}, err
 	}
@@ -489,4 +489,38 @@ func TestCatalogService_RedisCaching(t *testing.T) {
 		}
 		requireDBCalls(t, 5, "on store_id cache miss after invalidation")
 	})
+}
+
+func TestGetItemRejectsBrandMismatchForSelectedStore(t *testing.T) {
+	repo := &mockRepository{
+		getCountry: func(ctx context.Context, countryID string) (Country, error) {
+			return Country{ID: "MY", CurrencyCode: "MYR", DefaultLanguage: "en-US"}, nil
+		},
+		resolveStoreContext: func(ctx context.Context, countryID string, storeID int, storeCode string) (StoreContext, error) {
+			return StoreContext{StoreID: 1, ZoneID: "MY_KV", BrandID: 1}, nil
+		},
+		getProductByID: func(ctx context.Context, storeID int, zoneID string, brandID int, itemID int) (ProductRow, error) {
+			if brandID != 1 {
+				t.Fatalf("expected store brand id 1, got %d", brandID)
+			}
+			return ProductRow{}, ErrNotFound
+		},
+		listCustomizationGroups: func(ctx context.Context, menuItemIDs []int) ([]GroupRow, error) {
+			return []GroupRow{}, nil
+		},
+		listCustomizationOptions: func(ctx context.Context, storeID int, zoneID string, groupIDs []int) ([]OptionRow, error) {
+			return []OptionRow{}, nil
+		},
+	}
+
+	svc := NewService(repo, "")
+
+	_, err := svc.GetItem(context.Background(), ItemRequest{
+		CountryCode: "MY",
+		StoreCode:   "MY-TL-PAV",
+		ItemID:      102,
+	})
+	if !errors.Is(err, ErrItemNotFound) {
+		t.Fatalf("expected ErrItemNotFound, got %v", err)
+	}
 }

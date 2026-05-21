@@ -16,6 +16,8 @@ class ApiEndpoints {
   static String catalogCategoryItems(int categoryId) =>
       '/api/v1/catalog/categories/$categoryId/items';
   static String catalogItem(int itemId) => '/api/v1/catalog/items/$itemId';
+  static String catalogItemAvailability(int itemId) =>
+      '/api/v1/catalog/items/$itemId/availability';
   static const String catalogBrands = '/api/v1/catalog/brands';
   static const String catalogStores = '/api/v1/catalog/stores';
 

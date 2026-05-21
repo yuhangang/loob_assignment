@@ -10,13 +10,15 @@ import '../../features/cart/presentation/cart_page.dart';
 import '../../features/cart/presentation/checkout_page.dart';
 import '../../features/cart/presentation/order_status_page.dart';
 import '../../features/home/presentation/barcode_page.dart';
+import '../../features/vouchers/data/models/voucher_model.dart';
+import '../../features/vouchers/presentation/voucher_terms_page.dart';
 import '../../features/vouchers/presentation/voucher_wallet_page.dart';
 import '../../features/home/presentation/home_page.dart';
 import '../../features/menu/presentation/menu_page.dart';
 import '../../features/menu/presentation/menu_search_page.dart';
 import '../../features/orders/presentation/orders_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
-import '../../shell.dart';
+import '../../app_shell.dart';
 
 /// Named route constants and route generation using GoRouter.
 class AppRouter {
@@ -26,8 +28,9 @@ class AppRouter {
       GlobalKey<NavigatorState>();
   static final ValueNotifier<String?> currentRouteNotifier =
       ValueNotifier<String?>(null);
-  static final ValueNotifier<bool> isDialogOpenNotifier =
-      ValueNotifier<bool>(false);
+  static final ValueNotifier<bool> isDialogOpenNotifier = ValueNotifier<bool>(
+    false,
+  );
   static final NavigatorObserver routeObserver = _RouteObserver();
 
   // A refresh signal ValueNotifier to communicate between AppShell tab double-tap and OrdersPage.
@@ -41,6 +44,7 @@ class AppRouter {
   static const String checkout = '/checkout';
   static const String orderStatus = '/order';
   static const String vouchers = '/vouchers';
+  static const String voucherTerms = '/voucher-terms';
   static const String campaigns = '/campaigns';
   static const String settings = '/settings';
   static const String barcode = '/barcode';
@@ -104,6 +108,15 @@ class AppRouter {
         builder: (context, state) => const VoucherWalletPage(),
       ),
       GoRoute(
+        path: voucherTerms,
+        name: voucherTerms,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final voucher = extra?['voucher'] as VoucherModel;
+          return VoucherTermsPage(voucher: voucher);
+        },
+      ),
+      GoRoute(
         path: cart,
         name: cart,
         builder: (context, state) => const CartPage(),
@@ -116,13 +129,14 @@ class AppRouter {
           final product = extra?['product'] as ProductModel;
           final currency = extra?['currency'] as String? ?? 'MYR';
           final cartItem = extra?['cartItem'] as CartItem?;
+          final isEditing = extra?['isEditing'] as bool? ?? (cartItem != null);
           return ProductDetailPage(
             product: product,
             currency: currency,
             initialQuantity: cartItem?.quantity ?? 1,
             initialCustomizationOptionIds:
                 cartItem?.selectedCustomizationIds ?? const [],
-            isEditingCartItem: cartItem != null,
+            isEditingCartItem: isEditing,
           );
         },
       ),
@@ -168,7 +182,8 @@ class AppRouter {
           final catalog = extra['catalog'] as CatalogModel;
           final currency = extra['currency'] as String;
           final favouritedIds = extra['favouritedIds'] as Set<int>? ?? const {};
-          final onFavouriteToggled = extra['onFavouriteToggled'] as ValueChanged<int>;
+          final onFavouriteToggled =
+              extra['onFavouriteToggled'] as ValueChanged<int>;
           final initialSelectedDietaryTags =
               extra['initialSelectedDietaryTags'] as Set<String>? ?? const {};
           return MenuSearchPage(
@@ -196,7 +211,8 @@ class _RouteObserver extends NavigatorObserver {
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     _updateRoute(route.settings.name);
-    if (route is PopupRoute || route.runtimeType.toString().contains('DialogRoute')) {
+    if (route is PopupRoute ||
+        route.runtimeType.toString().contains('DialogRoute')) {
       _activeDialogCount++;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         AppRouter.isDialogOpenNotifier.value = _activeDialogCount > 0;
@@ -207,7 +223,8 @@ class _RouteObserver extends NavigatorObserver {
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     _updateRoute(previousRoute?.settings.name);
-    if (route is PopupRoute || route.runtimeType.toString().contains('DialogRoute')) {
+    if (route is PopupRoute ||
+        route.runtimeType.toString().contains('DialogRoute')) {
       _activeDialogCount = (_activeDialogCount - 1).clamp(0, 999);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         AppRouter.isDialogOpenNotifier.value = _activeDialogCount > 0;
@@ -217,7 +234,8 @@ class _RouteObserver extends NavigatorObserver {
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    if (route is PopupRoute || route.runtimeType.toString().contains('DialogRoute')) {
+    if (route is PopupRoute ||
+        route.runtimeType.toString().contains('DialogRoute')) {
       _activeDialogCount = (_activeDialogCount - 1).clamp(0, 999);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         AppRouter.isDialogOpenNotifier.value = _activeDialogCount > 0;
@@ -228,10 +246,12 @@ class _RouteObserver extends NavigatorObserver {
   @override
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
     _updateRoute(newRoute?.settings.name);
-    if (oldRoute is PopupRoute || oldRoute?.runtimeType.toString().contains('DialogRoute') == true) {
+    if (oldRoute is PopupRoute ||
+        oldRoute?.runtimeType.toString().contains('DialogRoute') == true) {
       _activeDialogCount = (_activeDialogCount - 1).clamp(0, 999);
     }
-    if (newRoute is PopupRoute || newRoute?.runtimeType.toString().contains('DialogRoute') == true) {
+    if (newRoute is PopupRoute ||
+        newRoute?.runtimeType.toString().contains('DialogRoute') == true) {
       _activeDialogCount++;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {

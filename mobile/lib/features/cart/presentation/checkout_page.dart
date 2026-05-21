@@ -1,37 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:loob_app/features/menu/data/models/catalog_model.dart';
 import 'package:loob_app/features/orders/presentation/bloc/active_order_cubit.dart';
 
-import '../../../core/config/app_config.dart';
-import '../../../core/di/injection.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/router/app_router.dart';
-import '../../../core/theme/tokens/colors.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
-import '../../vouchers/data/models/wallet_model.dart';
-import '../../vouchers/data/models/voucher_model.dart';
-import '../../vouchers/domain/repositories/voucher_repository.dart';
-import '../../../core/network/api_exception.dart';
-import '../data/models/checkout_request_model.dart';
-import '../data/models/checkout_response_model.dart';
+import '../../../core/widgets/loob_error_dialog.dart';
+import '../../../core/widgets/loob_loading_overlay.dart';
 import 'bloc/cart_bloc.dart';
 import 'bloc/cart_event.dart';
 import 'bloc/cart_item.dart';
 import 'bloc/cart_state.dart';
 import 'bloc/checkout_cubit.dart';
 import 'bloc/checkout_state.dart';
-import '../../../core/widgets/loob_error_dialog.dart';
-import '../../../core/widgets/loob_loading_overlay.dart';
-import '../../../core/widgets/loob_skeleton.dart';
 import 'widgets/checkout_amount_row.dart';
-import 'widgets/checkout_collection_card.dart';
-import 'widgets/payment_success_header.dart';
+import 'widgets/checkout_floating_button.dart';
 import 'widgets/checkout_item_tile.dart';
+import 'widgets/checkout_payment_result.dart';
+import 'widgets/checkout_payment_section.dart';
 import 'widgets/checkout_section.dart';
+import 'widgets/checkout_voucher_section.dart';
 import 'widgets/store_closed_warning.dart';
+import 'widgets/vouchers_bottom_sheet.dart';
 
 class CheckoutPage extends StatefulWidget {
   final CartItem? buyNowItem;
@@ -44,11 +37,31 @@ class CheckoutPage extends StatefulWidget {
 
 class _CheckoutPageState extends State<CheckoutPage> {
   final TextEditingController _voucherController = TextEditingController();
+  bool _isRefreshingAvailability = false;
+  bool _availabilityRefreshFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshAvailabilityForSelectedStore();
+  }
 
   @override
   void dispose() {
     _voucherController.dispose();
     super.dispose();
+  }
+
+  void _refreshAvailabilityForSelectedStore() {
+    if (widget.buyNowItem != null) return;
+
+    final cartBloc = context.read<CartBloc>();
+    final storeId = cartBloc.state.storeId;
+    if (storeId <= 0 || cartBloc.userId.isEmpty) return;
+
+    _isRefreshingAvailability = true;
+    _availabilityRefreshFailed = false;
+    cartBloc.add(CartLoadRequested(storeId: storeId));
   }
 
   void _submitCheckout(BuildContext context, CartState cart) {
@@ -93,82 +106,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  void _confirmMockPayment(
-    BuildContext context,
-    CheckoutResponseModel checkout,
-  ) {
-    final appConfig = sl<AppConfig>();
-    final transactionId = checkout.payment?.id ?? '';
-    context.read<CheckoutCubit>().confirmMockPayment(
-      orderTrackingId: checkout.orderTrackingId,
-      transactionId: transactionId,
-      mockSecret: appConfig.mockGatewaySecret,
-      onCartCleared: () => context.read<CartBloc>().add(const CartCleared()),
-    );
-  }
-
-  void _confirmRemoveItem(BuildContext parentContext, CartItem item) {
-    final theme = Theme.of(parentContext);
-    showDialog(
-      context: parentContext,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(parentContext.l10n.removeItemTitle),
-        content: Text(parentContext.l10n.removeItemContent),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(parentContext.l10n.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: theme.colorScheme.error,
-            ),
-            onPressed: () {
-              parentContext.read<CartBloc>().add(
-                CartItemQuantityUpdated(item: item, quantity: 0),
-              );
-              Navigator.pop(dialogContext);
-            },
-            child: Text(parentContext.l10n.itemUnavailableRemove),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmRemoveBuyNowItem(BuildContext parentContext) {
-    final theme = Theme.of(parentContext);
-    showDialog(
-      context: parentContext,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(parentContext.l10n.removeItemTitle),
-        content: Text(parentContext.l10n.removeItemContent),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(parentContext.l10n.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: theme.colorScheme.error,
-            ),
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              Navigator.pop(parentContext);
-            },
-            child: Text(parentContext.l10n.itemUnavailableRemove),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _showEditItemSheet(
     BuildContext context,
     CartItem item,
@@ -182,7 +119,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
     if (!context.mounted || result is! Map<String, dynamic>) return;
 
-    final quantity = result['quantity'] as int? ?? item.quantity;
+    final resolvedProduct = result['product'] as ProductModel? ?? item.product;
+    final quantity = item.quantity;
     final action = result['action'] as String? ?? 'update';
     final selectionsMap = result['selections'] as Map<dynamic, dynamic>? ?? {};
     final selectedIds = <int>[];
@@ -191,7 +129,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         selectedIds.addAll(ids.whereType<int>());
       }
     }
-    final selectedOptions = item.product.customizationGroups
+    final selectedOptions = resolvedProduct.customizationGroups
         .expand((group) => group.options)
         .where((option) => selectedIds.contains(option.id))
         .toList();
@@ -276,8 +214,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
           if (state.error != null) {
             final error = state.error!;
-            final isSelectOutletError =
-                error == context.l10n.selectOutletFirst;
+            final isSelectOutletError = error == context.l10n.selectOutletFirst;
 
             // Clear error in cubit so listener can trigger again if same error occurs
             context.read<CheckoutCubit>().clearError();
@@ -297,154 +234,71 @@ class _CheckoutPageState extends State<CheckoutPage> {
             );
           }
         },
-        child: BlocBuilder<CheckoutCubit, CheckoutState>(
-          builder: (context, state) {
-            return BlocBuilder<CartBloc, CartState>(
-              builder: (context, cart) {
-                final checkout = state.checkout;
-                return PopScope(
-                  canPop: checkout == null,
-                  onPopInvokedWithResult: (didPop, result) {
-                    if (didPop) return;
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  },
-                  child: Scaffold(
-                    appBar: AppBar(
-                      title: Text(
-                        checkout == null
-                            ? context.l10n.checkoutTitle
-                            : context.l10n.paymentTitle,
-                      ),
-                    ),
-                    body: checkout == null
-                        ? _buildCheckoutForm(context, cart, state)
-                        : _buildPaymentResult(
-                            context,
-                            checkout,
-                            cart.currency,
-                            state,
-                          ),
-                    bottomNavigationBar:
-                        checkout == null &&
-                            state
-                                .getItems(cart)
-                                .where((item) => item.isAvailable)
-                                .isNotEmpty
-                        ? _buildFloatingCheckoutButton(context, cart, state)
-                        : null,
-                  ),
-                );
-              },
-            );
+        child: BlocListener<CartBloc, CartState>(
+          listenWhen: (previous, current) =>
+              previous.loadStatus != current.loadStatus,
+          listener: (context, cart) {
+            if (!_isRefreshingAvailability) return;
+            if (cart.loadStatus == CartLoadStatus.loaded) {
+              setState(() {
+                _isRefreshingAvailability = false;
+                _availabilityRefreshFailed = false;
+              });
+            } else if (cart.loadStatus == CartLoadStatus.error) {
+              setState(() {
+                _isRefreshingAvailability = false;
+                _availabilityRefreshFailed = true;
+              });
+            }
           },
-        ),
-      ),
-    );
-  }
+          child: BlocBuilder<CheckoutCubit, CheckoutState>(
+            builder: (context, state) {
+              return BlocBuilder<CartBloc, CartState>(
+                builder: (context, cart) {
+                  final checkout = state.checkout;
+                  final canShowCheckoutButton =
+                      !_isRefreshingAvailability &&
+                      !_availabilityRefreshFailed &&
+                      checkout == null &&
+                      state
+                          .getItems(cart)
+                          .where((item) => item.isAvailable)
+                          .isNotEmpty;
 
-  Widget _buildFloatingCheckoutButton(
-    BuildContext context,
-    CartState cart,
-    CheckoutState state,
-  ) {
-    final theme = Theme.of(context);
-    final methods = state.methods
-        .where((method) => state.getSubtotal(cart) >= method.minAmount)
-        .toList(growable: false);
-    final estimatedDiscount = state.currentVoucherDiscount(
-      state.getSubtotal(cart),
-    );
-    final estimatedPayable = (state.getSubtotal(cart) - estimatedDiscount)
-        .clamp(0, state.getSubtotal(cart));
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(alpha: 0.96),
-        border: Border(
-          top: BorderSide(
-            color: theme.dividerColor.withValues(alpha: 0.08),
-            width: 1,
-          ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.pageHorizontal,
-            vertical: AppSpacing.md,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      context.l10n.totalAmount,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.textTheme.bodySmall?.color?.withValues(
-                          alpha: 0.6,
+                  return PopScope(
+                    canPop: checkout == null,
+                    onPopInvokedWithResult: (didPop, result) {
+                      if (didPop) return;
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                    },
+                    child: Scaffold(
+                      appBar: AppBar(
+                        title: Text(
+                          checkout == null
+                              ? context.l10n.checkoutTitle
+                              : context.l10n.paymentTitle,
                         ),
-                        fontWeight: FontWeight.w500,
                       ),
+                      body: checkout == null
+                          ? _buildCheckoutForm(context, cart, state)
+                          : CheckoutPaymentResult(
+                              checkout: checkout,
+                              currency: cart.currency,
+                              state: state,
+                            ),
+                      bottomNavigationBar: canShowCheckoutButton
+                          ? CheckoutFloatingButton(
+                              cart: cart,
+                              state: state,
+                              onCheckoutPressed: () =>
+                                  _submitCheckout(context, cart),
+                            )
+                          : null,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      estimatedPayable.toDisplayPrice(cart.currency),
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              SizedBox(
-                height: 52,
-                child: FilledButton.icon(
-                  onPressed:
-                      state.isCheckingOut ||
-                          state.isLoadingMethods ||
-                          methods.isEmpty ||
-                          cart.isSelectedStoreClosed
-                      ? null
-                      : () => _submitCheckout(context, cart),
-                  icon: state.isCheckingOut
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.white,
-                          ),
-                        )
-                      : const Icon(Icons.lock_rounded, size: 18),
-                  label: Text(
-                    state.isCheckingOut
-                        ? context.l10n.placingOrder
-                        : context.l10n.placeOrder,
-                  ),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xl,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusFull,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+                  );
+                },
+              );
+            },
           ),
         ),
       ),
@@ -457,10 +311,59 @@ class _CheckoutPageState extends State<CheckoutPage> {
     CheckoutState state,
   ) {
     final theme = Theme.of(context);
-    final methods = state.methods
-        .where((method) => state.getSubtotal(cart) >= method.minAmount)
-        .toList(growable: false);
-    final voucherValidation = state.voucherValidation;
+
+    if (_isRefreshingAvailability) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                context.l10n.checkingCheckoutAvailability,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_availabilityRefreshFailed) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                context.l10n.checkoutAvailabilityRefreshFailed,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              FilledButton(
+                onPressed: () {
+                  setState(() {
+                    _availabilityRefreshFailed = false;
+                  });
+                  _refreshAvailabilityForSelectedStore();
+                },
+                child: Text(context.l10n.retry),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final estimatedDiscount = state.currentVoucherDiscount(
       state.getSubtotal(cart),
     );
@@ -497,42 +400,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 CheckoutItemTile(
                   item: item,
                   currency: cart.currency,
-                  onDecrease: () {
-                    if (widget.buyNowItem != null) {
-                      if (state.buyNowItem!.quantity > 1) {
-                        context.read<CheckoutCubit>().updateBuyNowItemQuantity(
-                          state.buyNowItem!.quantity - 1,
-                        );
-                      } else {
-                        _confirmRemoveBuyNowItem(context);
-                      }
-                    } else {
-                      if (item.quantity == 1) {
-                        _confirmRemoveItem(context, item);
-                      } else {
-                        context.read<CartBloc>().add(
-                          CartItemQuantityUpdated(
-                            item: item,
-                            quantity: item.quantity - 1,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  onIncrease: () {
-                    if (widget.buyNowItem != null) {
-                      context.read<CheckoutCubit>().updateBuyNowItemQuantity(
-                        state.buyNowItem!.quantity + 1,
-                      );
-                    } else {
-                      context.read<CartBloc>().add(
-                        CartItemQuantityUpdated(
-                          item: item,
-                          quantity: item.quantity + 1,
-                        ),
-                      );
-                    }
-                  },
                   onEdit: () =>
                       _showEditItemSheet(context, item, cart.currency),
                   onRemove: () {
@@ -572,241 +439,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
-        CheckoutSection(
-          title: context.l10n.voucherLabel,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _voucherController,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: InputDecoration(
-                        hintText: context.l10n.optionalVoucherCode,
-                        prefixIcon: const Icon(
-                          Icons.confirmation_number_outlined,
-                        ),
-                      ),
-                      onChanged: (value) {
-                        context.read<CheckoutCubit>().onVoucherCodeChanged(
-                          value,
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  ElevatedButton.icon(
-                    onPressed: () => _showVouchersBottomSheet(context, cart),
-                    icon: const Icon(Icons.local_activity_rounded, size: 18),
-                    label: Text(context.l10n.browseBtn),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: 16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppSpacing.radiusMd,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              if (state.activeVoucherCodes.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: state.activeVoucherCodes.map((code) {
-                    final voucher = state.selectedVouchers.cast<VoucherModel?>().firstWhere(
-                      (v) => v?.code.toUpperCase() == code.toUpperCase(),
-                      orElse: () => null,
-                    );
-
-                    final isThisInvalid = voucherValidation != null &&
-                        !voucherValidation.isValid &&
-                        voucherValidation.code.toUpperCase() == code.toUpperCase();
-
-                    final text = isThisInvalid
-                        ? voucherValidation.reason ?? context.l10n.checkoutFailedMsg
-                        : voucher == null
-                            ? context.l10n.voucherWillBeValidated(code)
-                            : context.l10n.voucherApplied(voucher.code);
-
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: AppSpacing.xs,
-                      ),
-                      decoration: BoxDecoration(
-                        color: (isThisInvalid
-                                ? theme.colorScheme.errorContainer
-                                : theme.colorScheme.primaryContainer)
-                            .withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                        border: Border.all(
-                          color: (isThisInvalid
-                                  ? theme.colorScheme.error
-                                  : theme.colorScheme.primary)
-                              .withValues(alpha: 0.25),
-                          width: 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: (isThisInvalid
-                                    ? theme.colorScheme.error
-                                    : theme.colorScheme.primary)
-                                .withValues(alpha: 0.02),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isThisInvalid
-                                ? Icons.error_outline_rounded
-                                : Icons.check_circle_rounded,
-                            color: isThisInvalid
-                                ? theme.colorScheme.error
-                                : theme.colorScheme.primary,
-                            size: 16,
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Flexible(
-                            child: Text(
-                              text,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: isThisInvalid
-                                    ? theme.colorScheme.error
-                                    : theme.colorScheme.primary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
-                          GestureDetector(
-                            onTap: () {
-                              context.read<CheckoutCubit>().removeVoucher(code);
-                            },
-                            child: MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: BoxDecoration(
-                                  color: (isThisInvalid
-                                          ? theme.colorScheme.error
-                                          : theme.colorScheme.primary)
-                                      .withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.close_rounded,
-                                  color: isThisInvalid
-                                      ? theme.colorScheme.error
-                                      : theme.colorScheme.primary,
-                                  size: 14,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ],
-          ),
+        CheckoutVoucherSection(
+          voucherController: _voucherController,
+          cart: cart,
+          state: state,
+          onBrowsePressed: () => VouchersBottomSheet.show(context, cart),
         ),
         const SizedBox(height: AppSpacing.lg),
-        CheckoutSection(
-          title: context.l10n.paymentTitle,
-          child: state.isLoadingMethods
-              ? Column(
-                  children: [
-                    for (int i = 0; i < 2; i++)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: AppSpacing.sm,
-                          horizontal: AppSpacing.md,
-                        ),
-                        child: Row(
-                          children: [
-                            const LoobSkeleton(
-                              width: 24,
-                              height: 24,
-                              borderRadius: 12,
-                            ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const LoobSkeleton(
-                                    width: 120,
-                                    height: 16,
-                                    borderRadius: 4,
-                                  ),
-                                  const SizedBox(height: AppSpacing.xs),
-                                  const LoobSkeleton(
-                                    width: 180,
-                                    height: 12,
-                                    borderRadius: 4,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.md),
-                            const LoobSkeleton(
-                              width: 24,
-                              height: 24,
-                              borderRadius: 6,
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                )
-              : methods.isEmpty
-              ? Text(
-                  context.l10n.noPaymentMethods,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                )
-              : Column(
-                  children: [
-                    for (final method in methods)
-                      ListTile(
-                        onTap: () => context
-                            .read<CheckoutCubit>()
-                            .selectPaymentMethod(method.code),
-                        leading: Icon(
-                          state.selectedMethod == method.code
-                              ? Icons.radio_button_checked_rounded
-                              : Icons.radio_button_off_rounded,
-                          color: state.selectedMethod == method.code
-                              ? theme.colorScheme.primary
-                              : null,
-                        ),
-                        title: Text(method.displayName),
-                        subtitle: Text(method.description),
-                        trailing: Icon(
-                          method.providerCode == 'mock_gateway'
-                              ? Icons.bolt_rounded
-                              : Icons.account_balance_wallet_outlined,
-                        ),
-                      ),
-                  ],
-                ),
-        ),
+        CheckoutPaymentSection(cart: cart, state: state),
         if (state.error != null) ...[
           const SizedBox(height: AppSpacing.md),
           Text(
@@ -820,666 +460,5 @@ class _CheckoutPageState extends State<CheckoutPage> {
         const SizedBox(height: 80),
       ],
     );
-  }
-
-  Widget _buildPaymentResult(
-    BuildContext context,
-    CheckoutResponseModel checkout,
-    String currency,
-    CheckoutState state,
-  ) {
-    final theme = Theme.of(context);
-    final isPaid = state.mockPaidOrders.contains(checkout.orderTrackingId);
-
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.pageHorizontal),
-      children: [
-        if (isPaid)
-          PaymentSuccessHeader(
-            orderTrackingId: checkout.orderTrackingId,
-            title: context.l10n.mockPaymentApproved,
-          )
-        else ...[
-          Icon(
-            Icons.pending_actions_rounded,
-            size: 72,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text(
-            context.l10n.paymentPending,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            checkout.orderTrackingId,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
-            ),
-          ),
-        ],
-        const SizedBox(height: AppSpacing.xl),
-
-        // ── Collection QR + PIN (shown once payment is confirmed) ────────
-        if (isPaid) ...[
-          CheckoutCollectionCard(trackingId: checkout.orderTrackingId),
-          const SizedBox(height: AppSpacing.xl),
-        ],
-
-        CheckoutSection(
-          title: context.l10n.paymentDetails,
-          child: Column(
-            children: [
-              CheckoutAmountRow(
-                label: context.l10n.subtotalLabel,
-                value: checkout.subtotal.toDisplayPrice(currency),
-              ),
-              for (final charge in checkout.charges.where(
-                (charge) => !charge.waived,
-              ))
-                CheckoutAmountRow(
-                  label: charge.name.isEmpty ? charge.code : charge.name,
-                  value: charge.amount.toDisplayPrice(currency),
-                ),
-              for (final charge in checkout.charges.where(
-                (charge) => charge.waived,
-              ))
-                CheckoutAmountRow(
-                  label: charge.name.isEmpty ? charge.code : charge.name,
-                  value: context.l10n.waivedLabel,
-                ),
-              CheckoutAmountRow(
-                label: context.l10n.taxLabel,
-                value: checkout.taxAmount.toDisplayPrice(currency),
-              ),
-              if (checkout.discountAmount > 0)
-                CheckoutAmountRow(
-                  label: context.l10n.discountLabel,
-                  value: '-${checkout.discountAmount.toDisplayPrice(currency)}',
-                ),
-              const Divider(height: AppSpacing.xl),
-              CheckoutAmountRow(
-                label: context.l10n.totalLabel,
-                value: checkout.totalAmount.toDisplayPrice(currency),
-                isTotal: true,
-              ),
-              if (checkout.payment != null) ...[
-                const SizedBox(height: AppSpacing.md),
-                CheckoutAmountRow(
-                  label: context.l10n.methodLabel,
-                  value: checkout.payment!.methodCode,
-                ),
-                CheckoutAmountRow(
-                  label: context.l10n.providerLabel,
-                  value: checkout.payment!.provider,
-                ),
-                CheckoutAmountRow(
-                  label: context.l10n.statusLabel,
-                  value: isPaid ? 'SUCCESS' : checkout.payment!.status,
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        if (!isPaid)
-          SizedBox(
-            height: 52,
-            child: FilledButton.icon(
-              onPressed: state.isCheckingOut
-                  ? null
-                  : () => _confirmMockPayment(context, checkout),
-              icon: state.isCheckingOut
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.white,
-                      ),
-                    )
-                  : const Icon(Icons.verified_rounded),
-              label: Text(
-                state.isCheckingOut
-                    ? 'Confirming...'
-                    : context.l10n.confirmMockPayment,
-              ),
-            ),
-          )
-        else
-          SizedBox(
-            height: 52,
-            child: FilledButton.icon(
-              onPressed: () {
-                context.pushReplacement(
-                  AppRouter.orderStatus,
-                  extra: {'trackingId': checkout.orderTrackingId},
-                );
-              },
-              icon: const Icon(Icons.receipt_long_rounded),
-              label: Text(context.l10n.viewOrderStatus),
-            ),
-          ),
-        const SizedBox(height: AppSpacing.xl),
-      ],
-    );
-  }
-
-  void _showVouchersBottomSheet(BuildContext parentContext, CartState cart) {
-    final theme = Theme.of(parentContext);
-    final checkoutCubit = parentContext.read<CheckoutCubit>();
-
-    showModalBottomSheet(
-      context: parentContext,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      backgroundColor: theme.colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppSpacing.radiusLg),
-        ),
-      ),
-      builder: (modalContext) {
-        return BlocProvider.value(
-          value: checkoutCubit,
-          child: DraggableScrollableSheet(
-            initialChildSize: 0.6,
-            minChildSize: 0.4,
-            maxChildSize: 0.85,
-            expand: false,
-            builder: (scrollContext, scrollController) {
-              return FutureBuilder<WalletModel>(
-                future: sl<IVoucherRepository>().getWallet(
-                  countryCode: cart.countryCode,
-                  userId: scrollContext.read<CartBloc>().userId,
-                ),
-                builder: (futureContext, snapshot) {
-                  return BlocBuilder<CheckoutCubit, CheckoutState>(
-                    builder: (context, state) {
-                      final hasVouchers = snapshot.hasData && (snapshot.data?.vouchers.isNotEmpty ?? false);
-                      return Column(
-                        children: [
-                          // Header
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(
-                              AppSpacing.lg,
-                              AppSpacing.md,
-                              AppSpacing.lg,
-                              AppSpacing.sm,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  futureContext.l10n.selectVoucherTitle,
-                                  style: theme.textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () => Navigator.pop(futureContext),
-                                  icon: const Icon(Icons.close_rounded),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Divider(height: 1),
-                          // Content
-                          Expanded(
-                            child: _buildBottomSheetContent(
-                              futureContext,
-                              snapshot,
-                              cart,
-                              scrollController,
-                              state,
-                            ),
-                          ),
-                          if (hasVouchers) ...[
-                            const Divider(height: 1),
-                            SafeArea(
-                              top: false,
-                              child: Padding(
-                                padding: const EdgeInsets.all(AppSpacing.lg),
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  height: 50,
-                                  child: FilledButton(
-                                    onPressed: () => Navigator.pop(futureContext),
-                                    style: FilledButton.styleFrom(
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          AppSpacing.radiusFull,
-                                        ),
-                                      ),
-                                    ),
-                                    child: const Text('Apply Selection'),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      );
-                    },
-                  );
-                },
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildBottomSheetContent(
-    BuildContext context,
-    AsyncSnapshot<WalletModel> snapshot,
-    CartState cart,
-    ScrollController scrollController,
-    CheckoutState state,
-  ) {
-    final theme = Theme.of(context);
-
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return ListView(
-        controller: scrollController,
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        children: [
-          for (int i = 0; i < 3; i++)
-            Card(
-              margin: const EdgeInsets.only(bottom: AppSpacing.md),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-                side: BorderSide(
-                  color: theme.dividerColor.withValues(alpha: 0.08),
-                ),
-              ),
-              elevation: 0,
-              child: const Padding(
-                padding: EdgeInsets.all(AppSpacing.cardPadding),
-                child: Row(
-                  children: [
-                    LoobSkeleton(
-                      width: 64,
-                      height: 64,
-                      borderRadius: AppSpacing.radiusMd,
-                      // The custom shimmer will render concentric skeleton card structure
-                    ),
-                    SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          LoobSkeleton(width: 140, height: 16, borderRadius: 4),
-                          SizedBox(height: AppSpacing.sm),
-                          LoobSkeleton(width: 200, height: 12, borderRadius: 4),
-                          SizedBox(height: AppSpacing.xs),
-                          LoobSkeleton(width: 160, height: 12, borderRadius: 4),
-                          SizedBox(height: AppSpacing.md),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              LoobSkeleton(
-                                width: 80,
-                                height: 20,
-                                borderRadius: 4,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      );
-    }
-
-    if (snapshot.hasError) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.error_outline_rounded,
-                color: AppColors.error,
-                size: 48,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                context.l10n.unableLoadVouchers,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                snapshot.error.toString(),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.textTheme.bodyMedium?.color?.withValues(
-                    alpha: 0.6,
-                  ),
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final wallet = snapshot.data;
-    final vouchers = wallet?.vouchers ?? const [];
-
-    if (vouchers.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.local_activity_outlined,
-                color: theme.colorScheme.primary.withValues(alpha: 0.4),
-                size: 64,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                context.l10n.noVouchersAvailable,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                context.l10n.noActiveVouchersSub,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.textTheme.bodyMedium?.color?.withValues(
-                    alpha: 0.6,
-                  ),
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      controller: scrollController,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      itemCount: vouchers.length,
-      itemBuilder: (context, index) {
-        final voucher = vouchers[index];
-        final isEligible = state.getSubtotal(cart) >= voucher.minSpend;
-        final isSelected = state.selectedVouchers.any((v) => v.code.toUpperCase() == voucher.code.toUpperCase());
-
-        return Opacity(
-          opacity: isEligible ? 1.0 : 0.6,
-          child: Card(
-            margin: const EdgeInsets.only(bottom: AppSpacing.md),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-              side: BorderSide(
-                color: isSelected
-                    ? theme.colorScheme.primary
-                    : theme.dividerColor.withValues(alpha: 0.08),
-                width: isSelected ? 2 : 1,
-              ),
-            ),
-            elevation: isSelected ? 2 : 0,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
-              onTap: isEligible
-                  ? () async {
-                      final isSelected = state.selectedVouchers.any((v) => v.code.toUpperCase() == voucher.code.toUpperCase());
-                      if (isSelected) {
-                        context.read<CheckoutCubit>().selectVoucher(voucher);
-                        return;
-                      }
-
-                      LoobLoadingOverlay.show(context, message: 'Validating voucher...');
-                      try {
-                        final voucherCodes = [...state.activeVoucherCodes, voucher.code];
-                        final items = state.getItems(cart)
-                            .where((item) => item.isAvailable)
-                            .map(
-                              (item) => CartItemModel(
-                                menuItemId: item.product.id,
-                                quantity: item.quantity,
-                                customizationOptionIds: item.selectedCustomizationIds,
-                              ),
-                            )
-                            .toList();
-
-                        final validation = await sl<IVoucherRepository>().validateVoucher(
-                          countryCode: cart.countryCode,
-                          body: {
-                            'store_id': cart.storeId,
-                            'voucher_code': voucher.code,
-                            'voucher_codes': voucherCodes,
-                            'payment_method': state.selectedMethod ?? '',
-                            'items': items.map((e) => e.toJson()).toList(),
-                          },
-                        );
-
-                        if (!context.mounted) return;
-                        LoobLoadingOverlay.hide();
-
-                        if (!validation.isValid) {
-                          LoobErrorDialog.show(
-                            context,
-                            title: 'Voucher Not Eligible',
-                            message: validation.reason ?? 'This voucher is not eligible for this order.',
-                          );
-                          return;
-                        }
-
-                        context.read<CheckoutCubit>().selectVoucher(voucher);
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        LoobLoadingOverlay.hide();
-                        final message = e is ApiException ? e.message : 'Voucher validation failed';
-                        LoobErrorDialog.show(
-                          context,
-                          title: 'Validation Error',
-                          message: message,
-                        );
-                      }
-                    }
-                  : null,
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.cardPadding),
-                child: Row(
-                  children: [
-                    // Discount badge container
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color:
-                            (isEligible
-                                    ? theme.colorScheme.primary
-                                    : AppColors.grey500)
-                                .withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(
-                          AppSpacing.radiusMd,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          voucher.discountType == 'PERCENTAGE'
-                              ? '${voucher.discountValue}%'
-                              : voucher.discountValue.toDisplayPrice(
-                                  cart.currency,
-                                ),
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: isEligible
-                                ? theme.colorScheme.primary
-                                : AppColors.grey500,
-                            fontWeight: FontWeight.w900,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    // Details column
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  voucher.title,
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (isSelected)
-                                Icon(
-                                  Icons.check_circle_rounded,
-                                  color: theme.colorScheme.primary,
-                                  size: 16,
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpacing.xxs),
-                          Text(
-                            voucher.description,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.textTheme.bodySmall?.color
-                                  ?.withValues(alpha: 0.6),
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              GestureDetector(
-                                onTap: () {
-                                  Clipboard.setData(
-                                    ClipboardData(text: voucher.code),
-                                  );
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        context.l10n.voucherCodeCopied,
-                                      ),
-                                      duration: const Duration(seconds: 2),
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.sm,
-                                    vertical: AppSpacing.xxs,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        (isEligible
-                                                ? theme.colorScheme.primary
-                                                : AppColors.grey500)
-                                            .withValues(alpha: 0.05),
-                                    borderRadius: BorderRadius.circular(
-                                      AppSpacing.radiusSm,
-                                    ),
-                                    border: Border.all(
-                                      color:
-                                          (isEligible
-                                                  ? theme.colorScheme.primary
-                                                  : AppColors.grey500)
-                                              .withValues(alpha: 0.15),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        voucher.code,
-                                        style: theme.textTheme.labelSmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w900,
-                                              color: isEligible
-                                                  ? theme.colorScheme.primary
-                                                  : AppColors.grey500,
-                                              letterSpacing: 0.5,
-                                            ),
-                                      ),
-                                      const SizedBox(width: AppSpacing.xs),
-                                      Icon(
-                                        Icons.copy_rounded,
-                                        size: 12,
-                                        color:
-                                            (isEligible
-                                                    ? theme.colorScheme.primary
-                                                    : AppColors.grey500)
-                                                .withValues(alpha: 0.7),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              if (!isEligible)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.sm,
-                                    vertical: AppSpacing.xxs,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.error.withValues(
-                                      alpha: 0.1,
-                                    ),
-                                    borderRadius: BorderRadius.circular(
-                                      AppSpacing.radiusSm,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    context.l10n.spendMoreToUse(
-                                      (voucher.minSpend -
-                                              state.getSubtotal(cart))
-                                          .toDisplayPrice(cart.currency),
-                                    ),
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.error,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// Helper to pop the modal bottom sheet
-  BuildContext modalContextOf(BuildContext context) {
-    return Navigator.of(context).context;
   }
 }

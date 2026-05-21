@@ -439,7 +439,7 @@ func (s *Service) GetItem(ctx context.Context, req ItemRequest) (Product, error)
 	}
 
 	// Scope query to a single product point lookup directly in DB to optimize detail path under load
-	foundRow, err := s.repo.GetProductByID(ctx, store.StoreID, store.ZoneID, req.ItemID)
+	foundRow, err := s.repo.GetProductByID(ctx, store.StoreID, store.ZoneID, store.BrandID, req.ItemID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return Product{}, ErrItemNotFound
@@ -469,6 +469,75 @@ func (s *Service) GetItem(ctx context.Context, req ItemRequest) (Product, error)
 		return Product{}, ErrItemNotFound
 	}
 	return productsPayload[0], nil
+}
+
+func (s *Service) GetItemAvailability(ctx context.Context, req ItemRequest) (ProductAvailability, error) {
+	countryCode := req.CountryCode
+	if req.StoreCode != "" {
+		parts := strings.SplitN(req.StoreCode, "-", 2)
+		if len(parts) >= 2 && len(parts[0]) == 2 {
+			countryCode = strings.ToUpper(parts[0])
+		}
+	}
+
+	if _, ok := CountryConfigMap[countryCode]; !ok {
+		if _, err := s.repo.GetCountry(ctx, countryCode); err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return ProductAvailability{}, ErrUnsupportedCountry
+			}
+			return ProductAvailability{}, err
+		}
+	}
+
+	store, err := s.resolveStoreContextCached(ctx, countryCode, req.StoreID, req.StoreCode)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return ProductAvailability{}, ErrStoreNotFound
+		}
+		return ProductAvailability{}, err
+	}
+
+	foundRow, err := s.repo.GetProductByID(ctx, store.StoreID, store.ZoneID, store.BrandID, req.ItemID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return ProductAvailability{
+				ItemID:      req.ItemID,
+				StoreID:     store.StoreID,
+				IsAvailable: false,
+			}, nil
+		}
+		return ProductAvailability{}, err
+	}
+
+	groups, err := s.repo.ListCustomizationGroups(ctx, []int{foundRow.ID})
+	if err != nil {
+		return ProductAvailability{}, err
+	}
+
+	groupIDs := make([]int, 0, len(groups))
+	for _, group := range groups {
+		groupIDs = append(groupIDs, group.ID)
+	}
+
+	options, err := s.repo.ListCustomizationOptions(ctx, store.StoreID, store.ZoneID, groupIDs)
+	if err != nil {
+		return ProductAvailability{}, err
+	}
+
+	optionStatus := make([]CustomizationAvailability, 0, len(options))
+	for _, option := range options {
+		optionStatus = append(optionStatus, CustomizationAvailability{
+			ID:          option.ID,
+			IsAvailable: option.IsAvailable,
+		})
+	}
+
+	return ProductAvailability{
+		ItemID:       foundRow.ID,
+		StoreID:      store.StoreID,
+		IsAvailable:  foundRow.IsAvailable,
+		OptionStatus: optionStatus,
+	}, nil
 }
 
 func buildProducts(products []ProductRow, groups []GroupRow, options []OptionRow, language string, fallback string, publicBaseURL string) ([]Product, bool) {

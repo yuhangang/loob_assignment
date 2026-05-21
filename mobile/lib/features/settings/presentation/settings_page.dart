@@ -56,18 +56,18 @@ class _SettingsPageState extends State<SettingsPage> {
               Text(context.l10n.profile, style: theme.textTheme.headlineMedium),
               const SizedBox(height: AppSpacing.xl),
 
-              if (!isAuthenticated)
-                const GuestCard()
-              else if (state is UserProfileLoading)
+              if (!isAuthenticated) ...[
+                const GuestCard(),
+              ] else if (state is UserProfileLoading)
                 const Center(child: CircularProgressIndicator())
-              else if (state is UserProfileError)
+              else if (state is UserProfileError) ...[
                 SettingsErrorCard(
                   message: state.message,
                   errorCode: state.errorCode,
                   traceId: state.traceId,
                   onRetry: () => context.read<UserProfileCubit>().loadProfile(),
-                )
-              else if (loadedState != null && profile != null) ...[
+                ),
+              ] else if (loadedState != null && profile != null) ...[
                 ProfileCard(profile: profile),
                 const SizedBox(height: AppSpacing.lg),
                 RewardsCard(

@@ -36,6 +36,7 @@ class AppLocalizations {
       'cart_empty_sub': 'Browse the menu and add your favorites',
       'browse_menu': 'Browse Menu',
       'my_vouchers': 'My Vouchers',
+      'my_vouchers_desc': 'View and redeem your discount vouchers',
       'campaigns_title': 'Campaigns & Rewards',
       'banners': 'Banners',
       'activities': 'Activities',
@@ -114,6 +115,10 @@ class AppLocalizations {
           'The selected outlet is closed and cannot accept checkout.',
       'checkout_failed_msg':
           'Checkout failed. Review your cart and payment method.',
+      'checking_checkout_availability':
+          'Checking availability for your selected outlet...',
+      'checkout_availability_refresh_failed':
+          'We could not refresh item availability for this outlet. Try again before checkout.',
       'order_summary': 'Order summary',
       'voucher_label': 'Voucher',
       'tax_and_total_confirm': 'Final tax and total are confirmed by checkout.',
@@ -131,6 +136,7 @@ class AppLocalizations {
       'payment_pending': 'Payment pending',
       'payment_details': 'Payment details',
       'tax_label': 'Tax',
+      'included_tax_label': 'Included tax',
       'discount_label': 'Discount',
       'total_label': 'Total',
       'waived_label': 'Waived',
@@ -256,6 +262,7 @@ class AppLocalizations {
       'cart_empty_sub': 'Teroka menu dan tambah kegemaran anda',
       'browse_menu': 'Teroka Menu',
       'my_vouchers': 'Baucher Saya',
+      'my_vouchers_desc': 'Lihat dan tebus baucher diskaun anda',
       'campaigns_title': 'Kempen & Ganjaran',
       'banners': 'Sepanduk',
       'activities': 'Aktiviti',
@@ -336,6 +343,10 @@ class AppLocalizations {
           'Cawangan yang dipilih ditutup dan tidak boleh menerima daftar keluar.',
       'checkout_failed_msg':
           'Daftar keluar gagal. Sila semak troli dan kaedah pembayaran anda.',
+      'checking_checkout_availability':
+          'Sedang menyemak ketersediaan untuk outlet yang dipilih...',
+      'checkout_availability_refresh_failed':
+          'Kami tidak dapat menyegar semula ketersediaan item untuk outlet ini. Cuba lagi sebelum daftar keluar.',
       'order_summary': 'Ringkasan pesanan',
       'voucher_label': 'Baucher',
       'tax_and_total_confirm':
@@ -496,6 +507,7 @@ class AppLocalizations {
   String get bannerBaskbearSubtitle => _translate('banner_baskbear_subtitle');
 
   String get myVouchers => _translate('my_vouchers');
+  String get myVouchersDesc => _translate('my_vouchers_desc');
 
   String get statusAvailable => _translate('status_available');
   String get statusUsed => _translate('status_used');
@@ -563,6 +575,10 @@ class AppLocalizations {
   String get selectedStoreClosedCheckout =>
       _translate('selected_store_closed_checkout');
   String get checkoutFailedMsg => _translate('checkout_failed_msg');
+  String get checkingCheckoutAvailability =>
+      _translate('checking_checkout_availability');
+  String get checkoutAvailabilityRefreshFailed =>
+      _translate('checkout_availability_refresh_failed');
   String get orderSummary => _translate('order_summary');
   String get voucherLabel => _translate('voucher_label');
   String get taxAndTotalConfirm => _translate('tax_and_total_confirm');
@@ -578,6 +594,7 @@ class AppLocalizations {
   String get paymentPending => _translate('payment_pending');
   String get paymentDetails => _translate('payment_details');
   String get taxLabel => _translate('tax_label');
+  String get includedTaxLabel => _translate('included_tax_label');
   String get discountLabel => _translate('discount_label');
   String get totalLabel => _translate('total_label');
   String get waivedLabel => _translate('waived_label');

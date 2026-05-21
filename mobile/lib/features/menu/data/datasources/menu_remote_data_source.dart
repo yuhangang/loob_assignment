@@ -5,6 +5,7 @@ import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/api_exception.dart';
 import '../models/brand_model.dart';
 import '../models/catalog_model.dart';
+import '../models/product_availability_model.dart';
 import '../models/store_model.dart';
 
 /// Remote data source for catalog endpoints.
@@ -46,6 +47,24 @@ class MenuRemoteDataSource {
         queryParameters: {'store_id': storeId, 'brand_id': brandId},
       );
       return CategoryItemsModel.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<ProductAvailabilityModel> getItemAvailability({
+    required String countryCode,
+    required int storeId,
+    required int itemId,
+  }) async {
+    try {
+      final response = await _client.dio.get(
+        ApiEndpoints.catalogItemAvailability(itemId),
+        queryParameters: {'store_id': storeId},
+      );
+      return ProductAvailabilityModel.fromJson(
+        response.data as Map<String, dynamic>,
+      );
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

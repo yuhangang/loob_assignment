@@ -42,6 +42,18 @@ type Product struct {
 	IsPromo             bool                 `json:"is_promo"`
 }
 
+type ProductAvailability struct {
+	ItemID       int                         `json:"item_id"`
+	StoreID      int                         `json:"store_id"`
+	IsAvailable  bool                        `json:"is_available"`
+	OptionStatus []CustomizationAvailability `json:"customization_options"`
+}
+
+type CustomizationAvailability struct {
+	ID          int  `json:"id"`
+	IsAvailable bool `json:"is_available"`
+}
+
 type Media struct {
 	ImageURLSmall string `json:"image_url_sm"`
 	ImageURLLarge string `json:"image_url_lg"`

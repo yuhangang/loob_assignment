@@ -5,6 +5,7 @@ import 'package:loob_app/features/menu/data/models/catalog_model.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../vouchers/data/models/voucher_model.dart';
+import '../../../vouchers/data/models/voucher_validation_model.dart';
 import '../../../vouchers/domain/repositories/voucher_repository.dart';
 import '../../data/models/checkout_request_model.dart';
 import '../../domain/repositories/cart_repository.dart';
@@ -59,7 +60,9 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   }
 
   void selectVoucher(VoucherModel voucher) {
-    final isAlreadySelected = state.selectedVouchers.any((v) => v.code == voucher.code);
+    final isAlreadySelected = state.selectedVouchers.any(
+      (v) => v.code == voucher.code,
+    );
     final updatedVouchers = List<VoucherModel>.from(state.selectedVouchers);
     if (isAlreadySelected) {
       updatedVouchers.removeWhere((v) => v.code == voucher.code);
@@ -107,6 +110,65 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         selectedVouchers: const [],
         voucherValidation: () => null,
       ),
+    );
+  }
+
+  Future<VoucherSelectionResult> validateAndSelectVoucher({
+    required VoucherModel voucher,
+    required CartState cart,
+    String fallbackMessage = 'This voucher is not eligible for this order.',
+  }) async {
+    final normalizedCode = voucher.code.toUpperCase();
+    final isAlreadySelected = state.selectedVouchers.any(
+      (v) => v.code.toUpperCase() == normalizedCode,
+    );
+    if (isAlreadySelected) {
+      selectVoucher(voucher);
+      return const VoucherSelectionResult(isValid: true);
+    }
+
+    final currentCodes = state.activeVoucherCodes;
+    final combinedCodes = _appendVoucherCode(currentCodes, normalizedCode);
+    final combinedValidation = await _validateVoucherCodes(
+      cart: cart,
+      codes: combinedCodes,
+      code: normalizedCode,
+    );
+    if (combinedValidation.isValid) {
+      selectVoucher(voucher);
+      emit(state.copyWith(voucherValidation: () => combinedValidation));
+      return const VoucherSelectionResult(isValid: true);
+    }
+
+    if (currentCodes.isNotEmpty) {
+      final singleValidation = await _validateVoucherCodes(
+        cart: cart,
+        codes: [normalizedCode],
+        code: normalizedCode,
+      );
+      if (singleValidation.isValid) {
+        emit(
+          state.copyWith(
+            voucherCodeInput: voucher.code,
+            selectedVoucherCode: () => voucher.code,
+            selectedVouchers: [voucher],
+            voucherValidation: () => singleValidation,
+          ),
+        );
+        return const VoucherSelectionResult(
+          isValid: true,
+          replacedSelection: true,
+        );
+      }
+      return VoucherSelectionResult(
+        isValid: false,
+        message: singleValidation.reason ?? fallbackMessage,
+      );
+    }
+
+    return VoucherSelectionResult(
+      isValid: false,
+      message: combinedValidation.reason ?? fallbackMessage,
     );
   }
 
@@ -252,4 +314,60 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       emit(state.copyWith(isCheckingOut: false, error: () => message));
     }
   }
+
+  Future<VoucherValidationModel> _validateVoucherCodes({
+    required CartState cart,
+    required List<String> codes,
+    required String code,
+  }) {
+    final items = state
+        .getItems(cart)
+        .where((item) => item.isAvailable)
+        .map(
+          (item) => CartItemModel(
+            menuItemId: item.product.id,
+            quantity: item.quantity,
+            customizationOptionIds: item.selectedCustomizationIds,
+          ),
+        )
+        .toList();
+
+    return _voucherRepository.validateVoucher(
+      countryCode: cart.countryCode,
+      body: {
+        'store_id': cart.storeId,
+        'voucher_code': code,
+        'voucher_codes': codes,
+        'payment_method': state.selectedMethod ?? '',
+        'items': items.map((e) => e.toJson()).toList(),
+      },
+    );
+  }
+
+  List<String> _appendVoucherCode(List<String> codes, String code) {
+    final normalizedCode = code.toUpperCase();
+    final updated = <String>[];
+    for (final value in codes) {
+      final normalized = value.toUpperCase();
+      if (normalized.isNotEmpty && !updated.contains(normalized)) {
+        updated.add(normalized);
+      }
+    }
+    if (!updated.contains(normalizedCode)) {
+      updated.add(normalizedCode);
+    }
+    return updated;
+  }
+}
+
+class VoucherSelectionResult {
+  final bool isValid;
+  final bool replacedSelection;
+  final String? message;
+
+  const VoucherSelectionResult({
+    required this.isValid,
+    this.replacedSelection = false,
+    this.message,
+  });
 }

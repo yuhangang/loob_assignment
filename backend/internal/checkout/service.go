@@ -1045,25 +1045,43 @@ func (s *Service) calculateVoucherStack(ctx context.Context, req voucherStackReq
 func (s *Service) validateVoucherEligibility(ctx context.Context, voucher Voucher, req voucherEligibilityRequest) error {
 	eligibleSubtotal := voucherEligibleSubtotal(voucher, req)
 	if eligibleSubtotal <= 0 {
-		return ErrVoucherNotEligible
+		switch {
+		case len(voucher.ApplicableStoreIDs) > 0 && !containsInt(voucher.ApplicableStoreIDs, req.StoreID):
+			return newVoucherEligibilityError("This voucher is not valid for the selected outlet.")
+		case len(voucher.ApplicableItemIDs) > 0:
+			return newVoucherEligibilityError("This voucher is not eligible for the items in your cart.")
+		case len(voucher.ApplicableCategoryIDs) > 0:
+			return newVoucherEligibilityError("This voucher is not eligible for the categories in your cart.")
+		case voucher.BrandID.Valid:
+			return newVoucherEligibilityError("This voucher is not eligible for the items in your cart.")
+		case !voucher.AllowPromoItems:
+			return newVoucherEligibilityError("This voucher does not apply to promotional items.")
+		default:
+			return newVoucherEligibilityError("This voucher is not eligible for this order.")
+		}
 	}
 	if eligibleSubtotal < voucher.MinSpend {
-		return ErrVoucherNotEligible
+		return newVoucherEligibilityError("Minimum spend has not been reached for this voucher.")
 	}
 	if voucher.UserVoucherStatus.Valid && voucher.UserVoucherStatus.String != "AVAILABLE" {
-		return ErrVoucherNotEligible
+		switch strings.ToUpper(strings.TrimSpace(voucher.UserVoucherStatus.String)) {
+		case "USED":
+			return newVoucherEligibilityError("This voucher has already been used.")
+		default:
+			return newVoucherEligibilityError("This voucher is not available in your wallet.")
+		}
 	}
 	if voucher.ZoneID.Valid && voucher.ZoneID.String != req.ZoneID {
-		return ErrVoucherNotEligible
+		return newVoucherEligibilityError("This voucher is not valid for the selected delivery zone.")
 	}
 	if voucher.MaxRedemptions.Valid && voucher.TotalRedemptions >= int(voucher.MaxRedemptions.Int64) {
-		return ErrVoucherNotEligible
+		return newVoucherEligibilityError("This voucher has reached its maximum redemptions.")
 	}
 	if voucher.MaxRedemptionsPerUser.Valid && voucher.UserRedemptions >= int(voucher.MaxRedemptionsPerUser.Int64) {
-		return ErrVoucherNotEligible
+		return newVoucherEligibilityError("You have reached the redemption limit for this voucher.")
 	}
 	if len(voucher.ApplicablePaymentMethods) > 0 && req.PaymentMethod != "" && !containsStringFold(voucher.ApplicablePaymentMethods, req.PaymentMethod) {
-		return ErrVoucherNotEligible
+		return newVoucherEligibilityError("This voucher is not valid for the selected payment method.")
 	}
 
 	// Dynamic scalable voucher rules registry execution:
@@ -1093,8 +1111,11 @@ func validateVoucherStackPolicy(vouchers []Voucher) error {
 		if voucher.Exclusive {
 			return ErrVoucherNotEligible
 		}
-		if _, exists := seenGroups[group]; exists {
-			return ErrVoucherNotEligible
+		if existingCode, exists := seenGroups[group]; exists {
+			existing := voucherByCode(vouchers, existingCode)
+			if !voucherCanStackWithGroup(voucher, group) || !voucherCanStackWithGroup(existing, group) {
+				return ErrVoucherNotEligible
+			}
 		}
 		seenGroups[group] = voucher.Code
 	}
@@ -1112,6 +1133,19 @@ func validateVoucherStackPolicy(vouchers []Voucher) error {
 		}
 	}
 	return nil
+}
+
+func voucherByCode(vouchers []Voucher, code string) Voucher {
+	for _, voucher := range vouchers {
+		if voucher.Code == code {
+			return voucher
+		}
+	}
+	return Voucher{}
+}
+
+func voucherCanStackWithGroup(voucher Voucher, group string) bool {
+	return containsStringFold(voucher.CombinableWithGroups, group)
 }
 
 func calculateVoucherDiscount(voucher Voucher, eligibleSubtotal int) int {
@@ -1414,3 +1448,19 @@ var (
 	ErrOrderNotFound            = errors.New("order not found")
 	ErrPaymentMethodUnavailable = errors.New("payment method unavailable")
 )
+
+type voucherEligibilityError struct {
+	message string
+}
+
+func (e voucherEligibilityError) Error() string {
+	return e.message
+}
+
+func (e voucherEligibilityError) Unwrap() error {
+	return ErrVoucherNotEligible
+}
+
+func newVoucherEligibilityError(message string) error {
+	return voucherEligibilityError{message: message}
+}

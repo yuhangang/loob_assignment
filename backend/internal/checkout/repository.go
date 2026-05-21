@@ -551,6 +551,9 @@ func (r *Repository) CreateIntent(ctx context.Context, intent Intent) error {
 		return err
 	}
 	defer tx.Rollback()
+	if err := enforceVoucherRedemptionLimits(ctx, tx, intent); err != nil {
+		return err
+	}
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO order_intents (
 			tracking_id, trace_id, idempotency_key, user_id, store_id, country_id,
@@ -578,6 +581,9 @@ func (r *Repository) CreateIntentWithPayment(ctx context.Context, intent Intent,
 	}
 	defer tx.Rollback()
 
+	if err := enforceVoucherRedemptionLimits(ctx, tx, intent); err != nil {
+		return err
+	}
 	if err := insertIntent(ctx, tx, intent); err != nil {
 		return err
 	}
@@ -661,6 +667,69 @@ func insertAppliedVouchers(ctx context.Context, exec txExecutor, intent Intent) 
 		`, intent.TrackingID, voucher.VoucherID, voucher.Code, voucher.StackingGroup, voucher.StackingPriority, voucher.EligibleSubtotal, voucher.DiscountAmount, voucher.AppliedOrder)
 		if err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func enforceVoucherRedemptionLimits(ctx context.Context, tx *sql.Tx, intent Intent) error {
+	for _, voucher := range intent.Vouchers {
+		if voucher.VoucherID <= 0 {
+			continue
+		}
+
+		var maxRedemptions, maxRedemptionsPerUser sql.NullInt64
+		var redemptionCount int
+		if err := tx.QueryRowContext(ctx, `
+			SELECT max_redemptions, max_redemptions_per_user, COALESCE(redemption_count, 0)
+			FROM vouchers
+			WHERE id = ? AND country_id = ?
+			FOR UPDATE
+		`, voucher.VoucherID, intent.CountryID).Scan(&maxRedemptions, &maxRedemptionsPerUser, &redemptionCount); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrVoucherNotFound
+			}
+			return err
+		}
+
+		if maxRedemptions.Valid {
+			var pendingRedemptions int
+			if err := tx.QueryRowContext(ctx, `
+				SELECT COALESCE(COUNT(*), 0)
+				FROM order_intent_vouchers oiv
+				INNER JOIN order_intents oi ON oi.tracking_id = oiv.order_tracking_id
+				WHERE oiv.voucher_id = ? AND oi.country_id = ? AND oi.status = 'PAYMENT_PENDING'
+			`, voucher.VoucherID, intent.CountryID).Scan(&pendingRedemptions); err != nil {
+				return err
+			}
+			if redemptionCount+pendingRedemptions >= int(maxRedemptions.Int64) {
+				return ErrVoucherNotEligible
+			}
+		}
+
+		if maxRedemptionsPerUser.Valid {
+			var userRedemptions int
+			if err := tx.QueryRowContext(ctx, `
+				SELECT COALESCE(redemption_count, 0)
+				FROM voucher_user_redemption_counters
+				WHERE voucher_id = ? AND user_id = ?
+				FOR UPDATE
+			`, voucher.VoucherID, intent.UserID).Scan(&userRedemptions); err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+
+			var pendingUserRedemptions int
+			if err := tx.QueryRowContext(ctx, `
+				SELECT COALESCE(COUNT(*), 0)
+				FROM order_intent_vouchers oiv
+				INNER JOIN order_intents oi ON oi.tracking_id = oiv.order_tracking_id
+				WHERE oiv.voucher_id = ? AND oi.country_id = ? AND oi.user_id = ? AND oi.status = 'PAYMENT_PENDING'
+			`, voucher.VoucherID, intent.CountryID, intent.UserID).Scan(&pendingUserRedemptions); err != nil {
+				return err
+			}
+			if userRedemptions+pendingUserRedemptions >= int(maxRedemptionsPerUser.Int64) {
+				return ErrVoucherNotEligible
+			}
 		}
 	}
 	return nil
@@ -1059,4 +1128,3 @@ func (r *Repository) GetUserTransactionCount(ctx context.Context, userID string)
 	`, userID).Scan(&count)
 	return count, err
 }
-

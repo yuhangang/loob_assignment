@@ -815,6 +815,7 @@ class _MenuPageState extends State<MenuPage> {
     );
 
     if (result != null && result is Map<String, dynamic> && mounted) {
+      final resolvedProduct = result['product'] as ProductModel? ?? product;
       final quantity = result['quantity'] as int;
       final selectionsMap =
           result['selections'] as Map<dynamic, dynamic>? ?? {};
@@ -828,7 +829,7 @@ class _MenuPageState extends State<MenuPage> {
       }
 
       // Resolve CustomizationOptionModel objects from the product definition.
-      final selectedOptions = product.customizationGroups
+      final selectedOptions = resolvedProduct.customizationGroups
           .expand((g) => g.options)
           .where((o) => allOptionIds.contains(o.id))
           .toList();
@@ -837,7 +838,7 @@ class _MenuPageState extends State<MenuPage> {
 
       if (action == 'buy_now') {
         final buyNowItem = CartItem(
-          product: product,
+          product: resolvedProduct,
           selectedOptions: selectedOptions,
           customizationOptionIds: allOptionIds,
           quantity: quantity,
@@ -849,7 +850,7 @@ class _MenuPageState extends State<MenuPage> {
         AuthGuard.run(context, () {
           context.read<CartBloc>().add(
             CartItemAdded(
-              product: product,
+              product: resolvedProduct,
               selectedOptions: selectedOptions,
               customizationOptionIds: allOptionIds,
               quantity: quantity,

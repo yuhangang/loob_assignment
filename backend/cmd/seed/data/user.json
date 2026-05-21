@@ -57,6 +57,31 @@
       "status": "AVAILABLE"
     },
     {
+      "code": "USEDONCE5",
+      "country_id": "MY",
+      "status": "USED"
+    },
+    {
+      "code": "MAXEDOUT10",
+      "country_id": "MY",
+      "status": "AVAILABLE"
+    },
+    {
+      "code": "ITEM109ONLY",
+      "country_id": "MY",
+      "status": "AVAILABLE"
+    },
+    {
+      "code": "BIGSPEND15",
+      "country_id": "MY",
+      "status": "AVAILABLE"
+    },
+    {
+      "code": "EVERYDAY5",
+      "country_id": "MY",
+      "status": "AVAILABLE"
+    },
+    {
       "code": "THAI_WELCOME",
       "country_id": "TH",
       "status": "AVAILABLE"

@@ -55,6 +55,7 @@ func registerRoutes(cfg routesConfig) {
 	catalogGroup := v1.Group("/catalog")
 	catalogGroup.GET("/categories", cfg.catalogHandler.ListCategories)
 	catalogGroup.GET("/categories/:category_id/items", cfg.catalogHandler.ListCategoryItems)
+	catalogGroup.GET("/items/:item_id/availability", cfg.catalogHandler.GetItemAvailability)
 	catalogGroup.GET("/items/:item_id", cfg.catalogHandler.GetItem)
 	catalogGroup.GET("/brands", cfg.catalogHandler.ListBrands)
 	catalogGroup.GET("/stores", cfg.catalogHandler.ListStores)

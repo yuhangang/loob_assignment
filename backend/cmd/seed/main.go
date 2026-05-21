@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -13,6 +14,42 @@ import (
 
 	"github.com/loob/backend/internal/database"
 )
+
+const seedPricesTaxInclusive = true
+
+func seedPriceStep(countryID string) int {
+	switch strings.ToUpper(strings.TrimSpace(countryID)) {
+	case "TH":
+		return 100
+	default:
+		return 10
+	}
+}
+
+func chooseSeedDisplayPrice(countryID string, minPrice int, maxPrice int) int {
+	if maxPrice < minPrice {
+		minPrice, maxPrice = maxPrice, minPrice
+	}
+	step := seedPriceStep(countryID)
+	if step <= 1 {
+		if maxPrice == minPrice {
+			return minPrice
+		}
+		return minPrice + rand.Intn(maxPrice-minPrice+1)
+	}
+
+	alignedMin := ((minPrice + step - 1) / step) * step
+	alignedMax := (maxPrice / step) * step
+	if alignedMin > alignedMax {
+		return minPrice
+	}
+	if alignedMin == alignedMax {
+		return alignedMin
+	}
+
+	steps := ((alignedMax - alignedMin) / step) + 1
+	return alignedMin + rand.Intn(steps)*step
+}
 
 type BaseData struct {
 	Countries []CountryData `json:"countries"`
@@ -54,13 +91,20 @@ type VoucherData struct {
 	MinSpend                 int             `json:"min_spend"`
 	MaxDiscountCap           *int            `json:"max_discount_cap"`
 	VoidedAt                 *string         `json:"voided_at"`
+	RedemptionCount          *int            `json:"redemption_count"`
 	MaxRedemptions           *int            `json:"max_redemptions"`
 	MaxRedemptionsPerUser    *int            `json:"max_redemptions_per_user"`
 	AllowPromoItems          bool            `json:"allow_promo_items"`
+	StackingGroup            string          `json:"stacking_group"`
+	StackingPriority         int             `json:"stacking_priority"`
+	Exclusive                bool            `json:"exclusive"`
+	CombinableWithGroups     json.RawMessage `json:"combinable_with_groups"`
 	ApplicableStoreIDs       json.RawMessage `json:"applicable_store_ids"`
 	ApplicableCategoryIDs    json.RawMessage `json:"applicable_category_ids"`
 	ApplicableItemIDs        json.RawMessage `json:"applicable_item_ids"`
 	ApplicablePaymentMethods json.RawMessage `json:"applicable_payment_methods"`
+	TermsAndConditionsMarkdown *string       `json:"terms_and_conditions_markdown"`
+	TermsAndConditionsHTML     *string       `json:"terms_and_conditions_html"`
 }
 
 type ZoneData struct {
@@ -197,6 +241,7 @@ type PaymentData struct {
 
 func main() {
 	database.InitDB()
+	database.InitRedis()
 	db := database.DB
 
 	country := strings.ToUpper(os.Getenv("COUNTRY"))
@@ -206,6 +251,7 @@ func main() {
 	}
 
 	seed(db, country)
+	invalidateSeedCaches(country)
 	log.Printf("Seeding for %s completed successfully!", getCountryLabel(country))
 }
 
@@ -216,12 +262,26 @@ func getCountryLabel(c string) string {
 	return c
 }
 
+func invalidateSeedCaches(country string) {
+	if database.RedisClientInstance == nil {
+		return
+	}
+
+	ctx := context.Background()
+	patterns := []string{"catalog:*", "lock:catalog:*"}
+	for _, pattern := range patterns {
+		if err := database.RedisClientInstance.DelPattern(ctx, pattern); err != nil {
+			log.Printf("Failed to invalidate Redis pattern %s after seed: %v", pattern, err)
+		}
+	}
+}
+
 func cleanDB(db *sql.DB, country string) {
 	log.Printf("Cleaning database (Target: %s)...", getCountryLabel(country))
 	_, _ = db.Exec("SET FOREIGN_KEY_CHECKS = 0")
 	if country == "" {
 		tables := []string{
-			"loyalty_transactions", "wallet_transactions", "payment_events", "payment_transactions", "order_intents", "wallet_accounts", "loyalty_accounts", "loyalty_checkins", "user_vouchers", "vouchers", "store_menu_item_status", "customization_options", "customization_groups",
+			"loyalty_transactions", "wallet_transactions", "payment_events", "payment_transactions", "order_intent_item_options", "order_intent_items", "order_intent_vouchers", "order_intents", "voucher_user_redemption_counters", "wallet_accounts", "loyalty_accounts", "loyalty_checkins", "user_vouchers", "vouchers", "store_menu_item_status", "customization_options", "customization_groups",
 			"menu_item_pricing", "menu_items", "categories", "stores", "zones",
 			"brands", "users", "countries", "campaigns", "payment_methods", "payment_providers",
 		}
@@ -233,7 +293,11 @@ func cleanDB(db *sql.DB, country string) {
 		_, _ = db.Exec("DELETE FROM wallet_transactions WHERE country_id = ?", country)
 		_, _ = db.Exec("DELETE FROM payment_events WHERE payment_transaction_id IN (SELECT id FROM payment_transactions WHERE country_id = ?)", country)
 		_, _ = db.Exec("DELETE FROM payment_transactions WHERE country_id = ?", country)
+		_, _ = db.Exec("DELETE oio FROM order_intent_item_options oio INNER JOIN order_intent_items oii ON oii.id = oio.order_intent_item_id INNER JOIN order_intents oi ON oi.tracking_id = oii.order_tracking_id WHERE oi.country_id = ?", country)
+		_, _ = db.Exec("DELETE oii FROM order_intent_items oii INNER JOIN order_intents oi ON oi.tracking_id = oii.order_tracking_id WHERE oi.country_id = ?", country)
+		_, _ = db.Exec("DELETE oiv FROM order_intent_vouchers oiv INNER JOIN order_intents oi ON oi.tracking_id = oiv.order_tracking_id WHERE oi.country_id = ?", country)
 		_, _ = db.Exec("DELETE FROM order_intents WHERE country_id = ?", country)
+		_, _ = db.Exec("DELETE vurc FROM voucher_user_redemption_counters vurc INNER JOIN vouchers v ON v.id = vurc.voucher_id WHERE v.country_id = ?", country)
 		_, _ = db.Exec("DELETE FROM user_vouchers WHERE voucher_id IN (SELECT id FROM vouchers WHERE country_id = ?)", country)
 		_, _ = db.Exec("DELETE FROM vouchers WHERE country_id = ?", country)
 		_, _ = db.Exec("DELETE FROM wallet_accounts WHERE country_id = ?", country)
@@ -347,6 +411,24 @@ func seedBase(db *sql.DB, data BaseData) {
 			`, method.code, c.ID, method.name, method.description, c.CurrencyCode, method.order)
 		}
 	}
+
+	_, _ = db.ExecContext(ctx, `
+		INSERT INTO checkout_charge_definitions (
+			code, name, country_id, zone_id, brand_id, fulfillment_type, scope,
+			calculation_type, amount, taxable, tax_inclusive, display_order
+		)
+		VALUES (
+			'PACKAGING_FEE', 'Packaging fee', NULL, NULL, NULL, NULL, 'ORDER',
+			'FIXED_AMOUNT', 100, true, ?, 10
+		)
+		ON DUPLICATE KEY UPDATE
+			name = VALUES(name),
+			amount = VALUES(amount),
+			taxable = VALUES(taxable),
+			tax_inclusive = VALUES(tax_inclusive),
+			display_order = VALUES(display_order),
+			is_active = true
+	`, seedPricesTaxInclusive)
 }
 
 func seedRegional(db *sql.DB, cid string, data RegionalData) {
@@ -439,12 +521,14 @@ func seedRegional(db *sql.DB, cid string, data RegionalData) {
 		`, it.ID, it.CID, it.BID, itemType, it.SKU, names, desc, it.ImageURLSmall, it.ImageURLLarge, tags, it.IsPromo)
 
 		for _, z := range data.Zones {
-			price := it.PriceMin + rand.Intn(it.PriceMax-it.PriceMin+1)
+			price := chooseSeedDisplayPrice(cid, it.PriceMin, it.PriceMax)
 			_, _ = db.ExecContext(ctx, `
-				INSERT INTO menu_item_pricing (menu_item_id, zone_id, base_price)
-				VALUES (?, ?, ?)
-				ON DUPLICATE KEY UPDATE base_price = VALUES(base_price)
-			`, it.ID, z.ID, price)
+				INSERT INTO menu_item_pricing (menu_item_id, zone_id, base_price, tax_inclusive)
+				VALUES (?, ?, ?, ?)
+				ON DUPLICATE KEY UPDATE
+					base_price = VALUES(base_price),
+					tax_inclusive = VALUES(tax_inclusive)
+			`, it.ID, z.ID, price, seedPricesTaxInclusive)
 		}
 	}
 
@@ -860,6 +944,17 @@ func seedUserData(db *sql.DB, targetCountry string) {
 func seedRegionalVouchers(db *sql.DB, countryID string, vouchers []VoucherData) {
 	ctx := context.Background()
 	log.Printf("Seeding vouchers for %s...", countryID)
+	hasRedemptionCount, err := hasColumn(ctx, db, "vouchers", "redemption_count")
+	if err != nil {
+		log.Printf("Failed to inspect vouchers.redemption_count support: %v", err)
+		hasRedemptionCount = false
+	}
+	hasTNC, err := hasColumn(ctx, db, "vouchers", "terms_and_conditions_markdown")
+	if err != nil {
+		log.Printf("Failed to inspect vouchers.terms_and_conditions_markdown support: %v", err)
+		hasTNC = false
+	}
+
 	for _, v := range vouchers {
 		var applicableStoreIDs any = nil
 		if len(v.ApplicableStoreIDs) > 0 && string(v.ApplicableStoreIDs) != "null" {
@@ -877,31 +972,116 @@ func seedRegionalVouchers(db *sql.DB, countryID string, vouchers []VoucherData) 
 		if len(v.ApplicablePaymentMethods) > 0 && string(v.ApplicablePaymentMethods) != "null" {
 			applicablePaymentMethods = string(v.ApplicablePaymentMethods)
 		}
+		var combinableWithGroups any = nil
+		if len(v.CombinableWithGroups) > 0 && string(v.CombinableWithGroups) != "null" {
+			combinableWithGroups = string(v.CombinableWithGroups)
+		}
+		stackingGroup := v.StackingGroup
+		if stackingGroup == "" {
+			stackingGroup = v.VoucherType
+		}
+		stackingPriority := v.StackingPriority
+		if stackingPriority == 0 {
+			stackingPriority = 100
+		}
+		redemptionCount := 0
+		if v.RedemptionCount != nil {
+			redemptionCount = *v.RedemptionCount
+		}
 
-		_, err := db.ExecContext(ctx, `
-			INSERT INTO vouchers (
-				code, country_id, brand_id, voucher_type, discount_type,
-				discount_value, min_spend, max_discount_cap, voided_at,
-				max_redemptions, max_redemptions_per_user, allow_promo_items,
-				applicable_store_ids, applicable_category_ids, applicable_item_ids, applicable_payment_methods,
-				starts_at, expires_at, is_active
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), '2026-01-01 00:00:00', '2030-01-01 00:00:00', true)
-			ON DUPLICATE KEY UPDATE
-				discount_value = VALUES(discount_value),
-				min_spend = VALUES(min_spend),
-				max_discount_cap = VALUES(max_discount_cap),
-				voided_at = VALUES(voided_at),
-				max_redemptions = VALUES(max_redemptions),
-				max_redemptions_per_user = VALUES(max_redemptions_per_user),
-				allow_promo_items = VALUES(allow_promo_items),
-				applicable_store_ids = VALUES(applicable_store_ids),
-				applicable_category_ids = VALUES(applicable_category_ids),
-				applicable_item_ids = VALUES(applicable_item_ids),
-				applicable_payment_methods = VALUES(applicable_payment_methods),
-				is_active = true
-		`, v.Code, countryID, v.BrandID, v.VoucherType, v.DiscountType, v.DiscountValue, v.MinSpend, v.MaxDiscountCap, v.VoidedAt, v.MaxRedemptions, v.MaxRedemptionsPerUser, v.AllowPromoItems, applicableStoreIDs, applicableCategoryIDs, applicableItemIDs, applicablePaymentMethods)
+		var termsMarkdown any = nil
+		if v.TermsAndConditionsMarkdown != nil {
+			termsMarkdown = *v.TermsAndConditionsMarkdown
+		}
+		var termsHTML any = nil
+		if v.TermsAndConditionsHTML != nil {
+			termsHTML = *v.TermsAndConditionsHTML
+		}
+
+		columns := []string{
+			"code", "country_id", "brand_id", "voucher_type", "discount_type",
+			"discount_value", "min_spend", "max_discount_cap", "voided_at",
+			"max_redemptions", "max_redemptions_per_user", "allow_promo_items",
+			"stacking_group", "stacking_priority", "exclusive", "combinable_with_groups",
+			"applicable_store_ids", "applicable_category_ids", "applicable_item_ids", "applicable_payment_methods",
+			"starts_at", "expires_at", "is_active",
+		}
+		values := []string{
+			"?", "?", "?", "?", "?",
+			"?", "?", "?", "?",
+			"?", "?", "?",
+			"?", "?", "?", "CAST(? AS JSON)",
+			"CAST(? AS JSON)", "CAST(? AS JSON)", "CAST(? AS JSON)", "CAST(? AS JSON)",
+			"'2026-01-01 00:00:00'", "'2030-01-01 00:00:00'", "true",
+		}
+		args := []any{
+			v.Code, countryID, v.BrandID, v.VoucherType, v.DiscountType,
+			v.DiscountValue, v.MinSpend, v.MaxDiscountCap, v.VoidedAt,
+			v.MaxRedemptions, v.MaxRedemptionsPerUser, v.AllowPromoItems,
+			stackingGroup, stackingPriority, v.Exclusive, combinableWithGroups,
+			applicableStoreIDs, applicableCategoryIDs, applicableItemIDs, applicablePaymentMethods,
+		}
+
+		updates := []string{
+			"discount_value = VALUES(discount_value)",
+			"min_spend = VALUES(min_spend)",
+			"max_discount_cap = VALUES(max_discount_cap)",
+			"voided_at = VALUES(voided_at)",
+			"max_redemptions = VALUES(max_redemptions)",
+			"max_redemptions_per_user = VALUES(max_redemptions_per_user)",
+			"allow_promo_items = VALUES(allow_promo_items)",
+			"stacking_group = VALUES(stacking_group)",
+			"stacking_priority = VALUES(stacking_priority)",
+			"exclusive = VALUES(exclusive)",
+			"combinable_with_groups = VALUES(combinable_with_groups)",
+			"applicable_store_ids = VALUES(applicable_store_ids)",
+			"applicable_category_ids = VALUES(applicable_category_ids)",
+			"applicable_item_ids = VALUES(applicable_item_ids)",
+			"applicable_payment_methods = VALUES(applicable_payment_methods)",
+			"is_active = true",
+		}
+
+		if hasRedemptionCount {
+			columns = append(columns, "redemption_count")
+			values = append(values, "?")
+			args = append(args, redemptionCount)
+			updates = append(updates, "redemption_count = VALUES(redemption_count)")
+		}
+
+		if hasTNC {
+			columns = append(columns, "terms_and_conditions_markdown", "terms_and_conditions_html")
+			values = append(values, "?", "?")
+			args = append(args, termsMarkdown, termsHTML)
+			updates = append(updates, "terms_and_conditions_markdown = VALUES(terms_and_conditions_markdown)", "terms_and_conditions_html = VALUES(terms_and_conditions_html)")
+		}
+
+		query := fmt.Sprintf(`
+			INSERT INTO vouchers (%s)
+			VALUES (%s)
+			ON DUPLICATE KEY UPDATE %s
+		`, strings.Join(columns, ", "), strings.Join(values, ", "), strings.Join(updates, ", "))
+
+		_, err = db.ExecContext(ctx, query, args...)
 		if err != nil {
 			log.Printf("Failed to seed voucher %s: %v", v.Code, err)
 		}
 	}
+}
+
+func hasColumn(ctx context.Context, db *sql.DB, tableName, columnName string) (bool, error) {
+	var count int
+	err := db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_schema = DATABASE()
+		  AND table_name = ?
+		  AND column_name = ?
+	`, tableName, columnName).Scan(&count)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return count > 0, nil
 }

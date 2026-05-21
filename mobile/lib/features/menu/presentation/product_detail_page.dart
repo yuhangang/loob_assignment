@@ -3,14 +3,20 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:loob_app/features/menu/data/models/catalog_model.dart';
 import 'dart:ui';
+import '../../../../core/di/injection.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/quantity_stepper.dart';
+import '../../../../core/auth/auth_guard.dart';
 import '../../cart/presentation/bloc/cart_bloc.dart';
+import '../../cart/presentation/bloc/cart_event.dart';
+import '../../cart/presentation/bloc/cart_item.dart';
 import '../../cart/presentation/bloc/cart_state.dart';
+import '../data/models/product_availability_model.dart';
+import '../domain/repositories/menu_repository.dart';
 
 /// Fullscreen premium product details and customization page inspired by HeyTea.
 class ProductDetailPage extends StatefulWidget {
@@ -35,8 +41,13 @@ class ProductDetailPage extends StatefulWidget {
 
 class _ProductDetailPageState extends State<ProductDetailPage> {
   int _quantity = 1;
+  ProductAvailabilityModel? _availability;
+  int? _resolvedStoreId;
+  bool _isRefreshingAvailability = false;
   // group.id -> selected option ids
   final Map<int, Set<int>> _selections = {};
+
+  ProductModel get _product => widget.product;
 
   @override
   void initState() {
@@ -58,7 +69,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
       final defaults = <int>{};
       for (final option in group.options) {
-        if (option.isDefault) {
+        if (option.isDefault && option.isAvailable) {
           defaults.add(option.id);
           if (_isSingleSelect(group)) {
             break;
@@ -69,11 +80,64 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         _selections[group.id] = defaults;
       }
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _refreshResolvedProduct(force: true);
+    });
+  }
+
+  Future<void> _refreshResolvedProduct({bool force = false}) async {
+    final cartState = context.read<CartBloc>().state;
+    final storeId = cartState.storeId;
+    if (storeId <= 0) {
+      if (!mounted) return;
+      setState(() {
+        _resolvedStoreId = null;
+        _availability = null;
+        _isRefreshingAvailability = false;
+      });
+      return;
+    }
+    if (!force && _resolvedStoreId == storeId) {
+      return;
+    }
+
+    setState(() {
+      _isRefreshingAvailability = true;
+    });
+
+    try {
+      final availability = await sl<IMenuRepository>().getItemAvailability(
+        countryCode: cartState.countryCode,
+        storeId: storeId,
+        itemId: widget.product.id,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _resolvedStoreId = storeId;
+        _availability = availability;
+        _isRefreshingAvailability = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _resolvedStoreId = storeId;
+        _availability = ProductAvailabilityModel(
+          itemId: widget.product.id,
+          storeId: storeId,
+          isAvailable: false,
+          optionAvailability: const {},
+        );
+        _isRefreshingAvailability = false;
+      });
+    }
   }
 
   int get _totalPrice {
-    var price = widget.product.basePrice;
-    for (final group in widget.product.customizationGroups) {
+    var price = _product.basePrice;
+    for (final group in _product.customizationGroups) {
       final selectedIds = _selections[group.id] ?? const <int>{};
       for (final option in group.options) {
         if (selectedIds.contains(option.id)) {
@@ -93,7 +157,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   }
 
   bool get _hasValidSelections {
-    for (final group in widget.product.customizationGroups) {
+    for (final group in _product.customizationGroups) {
       final count = (_selections[group.id] ?? const <int>{}).length;
       if (count < group.minSelections) {
         return false;
@@ -106,6 +170,22 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
       }
     }
     return true;
+  }
+
+  bool get _hasUnavailableSelectedOptions {
+    for (final group in _product.customizationGroups) {
+      final selectedIds = _selections[group.id] ?? const <int>{};
+      for (final option in group.options) {
+        if (selectedIds.contains(option.id) && !_optionIsAvailable(option)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool _optionIsAvailable(CustomizationOptionModel option) {
+    return _availability?.optionAvailability[option.id] ?? option.isAvailable;
   }
 
   void _toggleOption(CustomizationGroupModel group, int optionID) {
@@ -152,6 +232,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   Map<String, dynamic> _result(String action) {
     return {
       'action': action,
+      'product': _product,
       'selections': {
         for (final entry in _selections.entries)
           entry.key: entry.value.toList(),
@@ -160,96 +241,114 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     };
   }
 
+  void _executeOrderNow() {
+    final allOptionIds = <int>[];
+    for (final ids in _selections.values) {
+      allOptionIds.addAll(ids);
+    }
+
+    final selectedOptions = _product.customizationGroups
+        .expand((g) => g.options)
+        .where((o) => allOptionIds.contains(o.id))
+        .toList();
+
+    final buyNowItem = CartItem(
+      product: _product,
+      selectedOptions: selectedOptions,
+      customizationOptionIds: allOptionIds,
+      quantity: _quantity,
+    );
+
+    AuthGuard.run(context, () {
+      context.push(AppRouter.checkout, extra: {'buyNowItem': buyNowItem});
+    });
+  }
+
+  void _executeAddToCart() {
+    final allOptionIds = <int>[];
+    for (final ids in _selections.values) {
+      allOptionIds.addAll(ids);
+    }
+
+    final selectedOptions = _product.customizationGroups
+        .expand((g) => g.options)
+        .where((o) => allOptionIds.contains(o.id))
+        .toList();
+
+    AuthGuard.run(context, () {
+      context.read<CartBloc>().add(
+        CartItemAdded(
+          product: _product,
+          selectedOptions: selectedOptions,
+          customizationOptionIds: allOptionIds,
+          quantity: _quantity,
+        ),
+      );
+
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.addedToCartToast(_quantity, _product.name),
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final size = MediaQuery.of(context).size;
+    final cartState = context.watch<CartBloc>().state;
+    if (cartState.storeId > 0 && cartState.storeId != _resolvedStoreId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _refreshResolvedProduct();
+      });
+    }
+    final submitBlockReason = _submitBlockReason(context, cartState);
+    final canSubmit = submitBlockReason == null && !_isRefreshingAvailability;
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Scrollable Customization Content
-          Positioned.fill(
-            child: CustomScrollView(
-              slivers: [
-                // 1. Premium Parallax Hero Image Area
-                SliverAppBar(
-                  expandedHeight: size.height * 0.38,
-                  pinned: true,
-                  stretch: true,
-                  automaticallyImplyLeading: false,
-                  backgroundColor: theme.scaffoldBackgroundColor,
-                  elevation: 0,
-                  flexibleSpace: FlexibleSpaceBar(
-                    stretchModes: const [
-                      StretchMode.zoomBackground,
-                      StretchMode.blurBackground,
-                    ],
-                    background: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Stylized Premium Gradient & Vector Placeholder
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                theme.colorScheme.primary.withValues(
-                                  alpha: 0.12,
-                                ),
-                                theme.colorScheme.secondary.withValues(
-                                  alpha: 0.05,
-                                ),
-                                theme.scaffoldBackgroundColor,
-                              ],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
-                          ),
-                        ),
-                        // Soft elegant background concentric rings
-                        Positioned(
-                          top: -50,
-                          right: -50,
-                          child: Container(
-                            width: 250,
-                            height: 250,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: theme.colorScheme.primary.withValues(
-                                  alpha: 0.03,
-                                ),
-                                width: 20,
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Cup icon/illustration with floating design
-                        Center(
-                          child: Hero(
-                            tag: 'product_hero_${widget.product.id}',
-                            child: Icon(
-                              Icons.local_cafe_rounded,
-                              size: 110,
-                              color: theme.colorScheme.primary.withValues(
-                                alpha: 0.45,
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Glassmorphic gradient overlay at bottom of hero area
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          height: 60,
-                          child: Container(
+    return BlocListener<CartBloc, CartState>(
+      listenWhen: (previous, current) => previous.storeId != current.storeId,
+      listener: (context, state) {
+        _refreshResolvedProduct(force: true);
+      },
+      child: Scaffold(
+        body: Stack(
+          children: [
+            // Scrollable Customization Content
+            Positioned.fill(
+              child: CustomScrollView(
+                slivers: [
+                  // 1. Premium Parallax Hero Image Area
+                  SliverAppBar(
+                    expandedHeight: size.height * 0.38,
+                    pinned: true,
+                    stretch: true,
+                    automaticallyImplyLeading: false,
+                    backgroundColor: theme.scaffoldBackgroundColor,
+                    elevation: 0,
+                    flexibleSpace: FlexibleSpaceBar(
+                      stretchModes: const [
+                        StretchMode.zoomBackground,
+                        StretchMode.blurBackground,
+                      ],
+                      background: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Stylized Premium Gradient & Vector Placeholder
+                          Container(
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  AppColors.transparent,
-                                  theme.scaffoldBackgroundColor.withValues(
-                                    alpha: 0.6,
+                                  theme.colorScheme.primary.withValues(
+                                    alpha: 0.12,
+                                  ),
+                                  theme.colorScheme.secondary.withValues(
+                                    alpha: 0.05,
                                   ),
                                   theme.scaffoldBackgroundColor,
                                 ],
@@ -258,533 +357,633 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // 2. Product Summary Card
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.pageHorizontal,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Product Name
-                        Text(
-                          widget.product.name,
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            height: 1.25,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-
-                        // Pricing and Tags
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Text(
-                              widget.product.basePrice.toDisplayPrice(
-                                widget.currency,
-                              ),
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.w800,
+                          // Soft elegant background concentric rings
+                          Positioned(
+                            top: -50,
+                            right: -50,
+                            child: Container(
+                              width: 250,
+                              height: 250,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: theme.colorScheme.primary.withValues(
+                                    alpha: 0.03,
+                                  ),
+                                  width: 20,
+                                ),
                               ),
                             ),
-                            const SizedBox(width: AppSpacing.md),
-                            if (widget.product.dietaryTags.isNotEmpty)
-                              ...widget.product.dietaryTags.map(
-                                (tag) => Container(
-                                  margin: const EdgeInsets.only(
-                                    right: AppSpacing.xs,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.md,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary.withValues(
-                                      alpha: 0.08,
-                                    ),
-                                    borderRadius: BorderRadius.circular(
-                                      AppSpacing.radiusSm,
-                                    ),
-                                    border: Border.all(
-                                      color: theme.colorScheme.primary
-                                          .withValues(alpha: 0.15),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    tag,
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: theme.colorScheme.primary,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 10,
-                                    ),
-                                  ),
+                          ),
+                          // Cup icon/illustration with floating design
+                          Center(
+                            child: Hero(
+                              tag: 'product_hero_${widget.product.id}',
+                              child: Icon(
+                                Icons.local_cafe_rounded,
+                                size: 110,
+                                color: theme.colorScheme.primary.withValues(
+                                  alpha: 0.45,
                                 ),
                               ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-
-                        // Description
-                        Text(
-                          widget.product.description,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.textTheme.bodyMedium?.color
-                                ?.withValues(alpha: 0.6),
-                            height: 1.5,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                        Divider(
-                          color: theme.dividerColor.withValues(alpha: 0.1),
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                      ],
+                          // Glassmorphic gradient overlay at bottom of hero area
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: 60,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppColors.transparent,
+                                    theme.scaffoldBackgroundColor.withValues(
+                                      alpha: 0.6,
+                                    ),
+                                    theme.scaffoldBackgroundColor,
+                                  ],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
 
-                // 3. Grouped Customization Cards
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.pageHorizontal,
-                  ),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final group = widget.product.customizationGroups[index];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surface,
-                          borderRadius: BorderRadius.circular(
-                            AppSpacing.radiusXl,
-                          ),
-                          border: Border.all(
-                            color: theme.dividerColor.withValues(alpha: 0.08),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.black.withValues(alpha: 0.02),
-                              blurRadius: 15,
-                              offset: const Offset(0, 8),
+                  // 2. Product Summary Card
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.pageHorizontal,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Product Name
+                          Text(
+                            _product.name,
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              height: 1.25,
                             ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Group header (Name & Required)
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  group.name,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.2,
-                                  ),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+
+                          // Pricing and Tags
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                _product.basePrice.toDisplayPrice(
+                                  widget.currency,
                                 ),
-                                Text(
-                                  _groupHint(group),
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.textTheme.bodySmall?.color
-                                        ?.withValues(alpha: 0.6),
-                                  ),
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w800,
                                 ),
-                                if (group.required)
-                                  Container(
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              if (_product.dietaryTags.isNotEmpty)
+                                ..._product.dietaryTags.map(
+                                  (tag) => Container(
+                                    margin: const EdgeInsets.only(
+                                      right: AppSpacing.xs,
+                                    ),
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: AppSpacing.md,
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
                                       color: theme.colorScheme.primary
-                                          .withValues(alpha: 0.1),
+                                          .withValues(alpha: 0.08),
                                       borderRadius: BorderRadius.circular(
                                         AppSpacing.radiusSm,
                                       ),
+                                      border: Border.all(
+                                        color: theme.colorScheme.primary
+                                            .withValues(alpha: 0.15),
+                                        width: 1,
+                                      ),
                                     ),
                                     child: Text(
-                                      context.l10n.requiredText,
+                                      tag,
                                       style: theme.textTheme.labelSmall
                                           ?.copyWith(
                                             color: theme.colorScheme.primary,
+                                            fontWeight: FontWeight.w600,
                                             fontSize: 10,
-                                            fontWeight: FontWeight.bold,
                                           ),
                                     ),
                                   ),
-                              ],
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-
-                            // Selection list
-                            Wrap(
-                              spacing: AppSpacing.sm,
-                              runSpacing: AppSpacing.sm,
-                              children: group.options.map((option) {
-                                final isSelected = _isSelected(
-                                  group,
-                                  option.id,
-                                );
-                                return _buildSelectionChip(
-                                  theme: theme,
-                                  option: option,
-                                  isSelected: isSelected,
-                                  onTap: () {
-                                    _toggleOption(group, option.id);
-                                  },
-                                );
-                              }).toList(),
-                            ),
-                          ],
-                        ),
-                      );
-                    }, childCount: widget.product.customizationGroups.length),
-                  ),
-                ),
-
-                // Spacing to keep content clear of the floating action panel
-                const SliverToBoxAdapter(child: SizedBox(height: 120)),
-              ],
-            ),
-          ),
-
-          // 4. Premium Floating Back Button
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            left: AppSpacing.pageHorizontal,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: theme.brightness == Brightness.dark
-                        ? AppColors.white.withValues(alpha: 0.1)
-                        : AppColors.black.withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: AppColors.white,
-                      size: 18,
-                    ),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // Premium Floating Glassmorphic Cart Button with Badge
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            right: AppSpacing.pageHorizontal,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                child: BlocBuilder<CartBloc, CartState>(
-                  builder: (context, cartState) {
-                    final count = cartState.totalQuantity;
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: theme.brightness == Brightness.dark
-                                ? AppColors.white.withValues(alpha: 0.1)
-                                : AppColors.black.withValues(alpha: 0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(
-                              Icons.shopping_bag_outlined,
-                              color: AppColors.white,
-                              size: 20,
-                            ),
-                            onPressed: () => context.push(AppRouter.cart),
-                          ),
-                        ),
-                        if (count > 0)
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 16,
-                                minHeight: 16,
-                              ),
-                              child: Text(
-                                '$count',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
                                 ),
-                                textAlign: TextAlign.center,
-                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+
+                          // Description
+                          Text(
+                            _product.description,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withValues(alpha: 0.6),
+                              height: 1.5,
                             ),
                           ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-
-          // 5. Elegant Glassmorphic Bottom Sticky Bar
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: ClipRRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: theme.brightness == Brightness.dark
-                        ? theme.scaffoldBackgroundColor.withValues(alpha: 0.82)
-                        : AppColors.white.withValues(alpha: 0.85),
-                    border: Border(
-                      top: BorderSide(
-                        color: theme.dividerColor.withValues(alpha: 0.1),
-                        width: 1,
+                          const SizedBox(height: AppSpacing.lg),
+                          Divider(
+                            color: theme.dividerColor.withValues(alpha: 0.1),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                        ],
                       ),
                     ),
                   ),
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.pageHorizontal,
-                    AppSpacing.md,
-                    AppSpacing.pageHorizontal,
-                    AppSpacing.lg,
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: Column(
-                      children: [
-                        // Top Row: Total Price and Quantity Stepper
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  context.l10n.totalLabel,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.textTheme.bodySmall?.color
-                                        ?.withValues(alpha: 0.5),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _totalPrice.toDisplayPrice(widget.currency),
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            QuantityStepper(
-                              quantity: _quantity,
-                              style: QuantityStepperStyle.standard,
-                              compactButtonSize: widget.isEditingCartItem,
-                              onDecrease: _quantity > 1
-                                  ? () => setState(() => _quantity--)
-                                  : null,
-                              onIncrease: () => setState(() => _quantity++),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.md),
 
-                        // Action Button
-                        SizedBox(
-                          height: 52,
-                          child: widget.isEditingCartItem
-                              ? Row(
-                                  children: [
-                                    Expanded(
-                                      child: FilledButton.tonal(
-                                        style: FilledButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              AppSpacing.radiusXl,
-                                            ),
-                                          ),
-                                          elevation: 0,
+                  // 3. Grouped Customization Cards
+                  SliverPadding(
+                    padding: const EdgeInsets.only(
+                      left: AppSpacing.pageHorizontal,
+                      right: AppSpacing.pageHorizontal,
+                      bottom: kToolbarHeight + AppSpacing.lg,
+                    ),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final group = _product.customizationGroups[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(
+                              AppSpacing.radiusXl,
+                            ),
+                            border: Border.all(
+                              color: theme.dividerColor.withValues(alpha: 0.08),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.black.withValues(alpha: 0.02),
+                                blurRadius: 15,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Group header (Name & Required)
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    group.name,
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.2,
                                         ),
-                                        onPressed: () {
-                                          context.pushReplacement(
-                                            AppRouter.productDetail,
-                                            extra: {
-                                              'product': widget.product,
-                                              'currency': widget.currency,
-                                            },
-                                          );
-                                        },
-                                        child: const FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          child: Text(
-                                            'Order other',
-                                            maxLines: 1,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
+                                  ),
+                                  Text(
+                                    _groupHint(group),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.textTheme.bodySmall?.color
+                                          ?.withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                  if (group.required)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.md,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary
+                                            .withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(
+                                          AppSpacing.radiusSm,
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Expanded(
-                                      child: FilledButton(
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor:
-                                              theme.colorScheme.primary,
-                                          foregroundColor:
-                                              theme.colorScheme.onPrimary,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              AppSpacing.radiusXl,
+                                      child: Text(
+                                        context.l10n.requiredText,
+                                        style: theme.textTheme.labelSmall
+                                            ?.copyWith(
+                                              color: theme.colorScheme.primary,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
                                             ),
-                                          ),
-                                          elevation: 0,
-                                        ),
-                                        onPressed: _hasValidSelections
-                                            ? () {
-                                                Navigator.of(
-                                                  context,
-                                                ).pop(_result('update'));
-                                              }
-                                            : null,
-                                        child: FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          child: Text(
-                                            context.l10n.update,
-                                            maxLines: 1,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
                                       ),
                                     ),
-                                  ],
-                                )
-                              : Row(
-                                  children: [
-                                    Expanded(
-                                      child: FilledButton.tonal(
-                                        style: FilledButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              AppSpacing.radiusXl,
-                                            ),
-                                          ),
-                                          elevation: 0,
-                                        ),
-                                        onPressed: _hasValidSelections
-                                            ? () {
-                                                Navigator.of(
-                                                  context,
-                                                ).pop(_result('buy_now'));
-                                              }
-                                            : null,
-                                        child: FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          child: Text(
-                                            context.l10n.orderNow,
-                                            maxLines: 1,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Expanded(
-                                      child: FilledButton(
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor:
-                                              theme.colorScheme.primary,
-                                          foregroundColor:
-                                              theme.colorScheme.onPrimary,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              AppSpacing.radiusXl,
-                                            ),
-                                          ),
-                                          elevation: 0,
-                                        ),
-                                        onPressed: _hasValidSelections
-                                            ? () {
-                                                Navigator.of(
-                                                  context,
-                                                ).pop(_result('add'));
-                                              }
-                                            : null,
-                                        child: FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          child: Text(
-                                            context.l10n.addToCart,
-                                            maxLines: 1,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                      ],
+                                ],
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+
+                              // Selection list
+                              Wrap(
+                                spacing: AppSpacing.sm,
+                                runSpacing: AppSpacing.sm,
+                                children: group.options.map((option) {
+                                  final isSelected = _isSelected(
+                                    group,
+                                    option.id,
+                                  );
+                                  return _buildSelectionChip(
+                                    theme: theme,
+                                    option: option,
+                                    isSelected: isSelected,
+                                    onTap: () {
+                                      _toggleOption(group, option.id);
+                                    },
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        );
+                      }, childCount: _product.customizationGroups.length),
+                    ),
+                  ),
+
+                  // Spacing to keep content clear of the floating action panel
+                  const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                ],
+              ),
+            ),
+
+            // 4. Premium Floating Back Button
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              left: AppSpacing.pageHorizontal,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: theme.brightness == Brightness.dark
+                          ? AppColors.white.withValues(alpha: 0.1)
+                          : AppColors.black.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: AppColors.white,
+                        size: 18,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+
+            // Premium Floating Glassmorphic Cart Button with Badge
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              right: AppSpacing.pageHorizontal,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                  child: BlocBuilder<CartBloc, CartState>(
+                    builder: (context, cartState) {
+                      final count = cartState.totalQuantity;
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: theme.brightness == Brightness.dark
+                                  ? AppColors.white.withValues(alpha: 0.1)
+                                  : AppColors.black.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.shopping_bag_outlined,
+                                color: AppColors.white,
+                                size: 20,
+                              ),
+                              onPressed: () => context.push(AppRouter.cart),
+                            ),
+                          ),
+                          if (count > 0)
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 16,
+                                  minHeight: 16,
+                                ),
+                                child: Text(
+                                  '$count',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+
+            // 5. Elegant Glassmorphic Bottom Sticky Bar
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: ClipRRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.brightness == Brightness.dark
+                          ? theme.scaffoldBackgroundColor.withValues(
+                              alpha: 0.82,
+                            )
+                          : AppColors.white.withValues(alpha: 0.85),
+                      border: Border(
+                        top: BorderSide(
+                          color: theme.dividerColor.withValues(alpha: 0.1),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.pageHorizontal,
+                      AppSpacing.md,
+                      AppSpacing.pageHorizontal,
+                      AppSpacing.lg,
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: Column(
+                        children: [
+                          // Top Row: Total Price and Quantity Stepper
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    context.l10n.totalLabel,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.textTheme.bodySmall?.color
+                                          ?.withValues(alpha: 0.5),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    _totalPrice.toDisplayPrice(widget.currency),
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                          color: theme.colorScheme.primary,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 18,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                              QuantityStepper(
+                                quantity: _quantity,
+                                style: QuantityStepperStyle.standard,
+                                compactButtonSize: widget.isEditingCartItem,
+                                onDecrease: _quantity > 1
+                                    ? () => setState(() => _quantity--)
+                                    : null,
+                                onIncrease: () => setState(() => _quantity++),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+
+                          if (_isRefreshingAvailability) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest
+                                    .withValues(alpha: 0.7),
+                                borderRadius: BorderRadius.circular(
+                                  AppSpacing.radiusLg,
+                                ),
+                              ),
+                              child: Text(
+                                context.l10n.checkingCheckoutAvailability,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ] else if (submitBlockReason != null) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.errorContainer
+                                    .withValues(alpha: 0.7),
+                                borderRadius: BorderRadius.circular(
+                                  AppSpacing.radiusLg,
+                                ),
+                              ),
+                              child: Text(
+                                submitBlockReason,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onErrorContainer,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+
+                          // Action Button
+                          SizedBox(
+                            height: 52,
+                            child: widget.isEditingCartItem
+                                ? Row(
+                                    children: [
+                                      Expanded(
+                                        child: FilledButton.tonal(
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                    AppSpacing.radiusXl,
+                                                  ),
+                                            ),
+                                            elevation: 0,
+                                          ),
+                                          onPressed: () {
+                                            context.pushReplacement(
+                                              AppRouter.productDetail,
+                                              extra: {
+                                                'product': _product,
+                                                'currency': widget.currency,
+                                              },
+                                            );
+                                          },
+                                          child: const FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Text(
+                                              'Order other',
+                                              maxLines: 1,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppSpacing.sm),
+                                      Expanded(
+                                        child: FilledButton(
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor:
+                                                theme.colorScheme.primary,
+                                            foregroundColor:
+                                                theme.colorScheme.onPrimary,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                    AppSpacing.radiusXl,
+                                                  ),
+                                            ),
+                                            elevation: 0,
+                                          ),
+                                          onPressed:
+                                              _hasValidSelections && canSubmit
+                                              ? () {
+                                                  Navigator.of(
+                                                    context,
+                                                  ).pop(_result('update'));
+                                                }
+                                              : null,
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Text(
+                                              context.l10n.update,
+                                              maxLines: 1,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Row(
+                                    children: [
+                                      Expanded(
+                                        child: FilledButton.tonal(
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                    AppSpacing.radiusXl,
+                                                  ),
+                                            ),
+                                            elevation: 0,
+                                          ),
+                                          onPressed:
+                                              _hasValidSelections && canSubmit
+                                              ? _executeOrderNow
+                                              : null,
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Text(
+                                              context.l10n.orderNow,
+                                              maxLines: 1,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppSpacing.sm),
+                                      Expanded(
+                                        child: FilledButton(
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor:
+                                                theme.colorScheme.primary,
+                                            foregroundColor:
+                                                theme.colorScheme.onPrimary,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                    AppSpacing.radiusXl,
+                                                  ),
+                                            ),
+                                            elevation: 0,
+                                          ),
+                                          onPressed:
+                                              _hasValidSelections && canSubmit
+                                              ? _executeAddToCart
+                                              : null,
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: Text(
+                                              context.l10n.addToCart,
+                                              maxLines: 1,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -796,8 +995,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
+    final optionAvailable = _optionIsAvailable(option);
     return GestureDetector(
-      onTap: option.isAvailable ? onTap : null,
+      onTap: optionAvailable ? onTap : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeInOut,
@@ -813,7 +1013,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               : theme.dividerColor.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
           border: Border.all(
-            color: !option.isAvailable
+            color: !optionAvailable
                 ? theme.disabledColor.withValues(alpha: 0.3)
                 : isSelected
                 ? theme.colorScheme.primary
@@ -828,7 +1028,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               option.name,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: !option.isAvailable
+                color: !optionAvailable
                     ? theme.disabledColor
                     : isSelected
                     ? theme.colorScheme.primary
@@ -853,5 +1053,21 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         ),
       ),
     );
+  }
+
+  String? _submitBlockReason(BuildContext context, CartState cartState) {
+    if (cartState.storeId <= 0) {
+      return context.l10n.selectOutletFirst;
+    }
+    if (cartState.isSelectedStoreClosed) {
+      return context.l10n.selectedStoreClosedCheckout;
+    }
+    if (!(_availability?.isAvailable ?? _product.isAvailable)) {
+      return context.l10n.productUnavailable;
+    }
+    if (_hasUnavailableSelectedOptions) {
+      return context.l10n.someOptionsUnavailable;
+    }
+    return null;
   }
 }

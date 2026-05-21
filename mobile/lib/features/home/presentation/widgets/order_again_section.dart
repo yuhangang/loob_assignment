@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -97,6 +98,7 @@ class OrderAgainSection extends StatelessWidget {
       if (result is! Map<String, dynamic>) return;
       if (!context.mounted) return;
 
+      final resolvedProduct = result['product'] as ProductModel? ?? fullProduct;
       final quantity = result['quantity'] as int? ?? 1;
       final selectionsMap =
           result['selections'] as Map<dynamic, dynamic>? ?? {};
@@ -104,7 +106,7 @@ class OrderAgainSection extends StatelessWidget {
       for (final ids in selectionsMap.values) {
         if (ids is List) allOptionIds.addAll(ids.whereType<int>());
       }
-      final selectedOptions = fullProduct.customizationGroups
+      final selectedOptions = resolvedProduct.customizationGroups
           .expand((g) => g.options)
           .where((o) => allOptionIds.contains(o.id))
           .toList();
@@ -113,7 +115,7 @@ class OrderAgainSection extends StatelessWidget {
 
       if (action == 'buy_now') {
         final buyNowItem = CartItem(
-          product: fullProduct,
+          product: resolvedProduct,
           selectedOptions: selectedOptions,
           customizationOptionIds: allOptionIds,
           quantity: quantity,
@@ -124,7 +126,7 @@ class OrderAgainSection extends StatelessWidget {
       } else {
         context.read<CartBloc>().add(
           CartItemAdded(
-            product: fullProduct,
+            product: resolvedProduct,
             selectedOptions: selectedOptions,
             customizationOptionIds: allOptionIds,
             quantity: quantity,
@@ -152,6 +154,99 @@ class OrderAgainSection extends StatelessWidget {
         .where((option) => optionIds.contains(option.id))
         .map((option) => option.toCustomizationOption())
         .toList();
+  }
+
+  /// Fetches the full product and navigates to its detail page with customizations pre-loaded.
+  Future<void> _navigateToProductDetail(
+    BuildContext context,
+    LocalOrderItemModel orderItem,
+  ) async {
+    AuthGuard.run(context, () async {
+      ProductModel fullProduct = orderItem.toProduct();
+      try {
+        final cartState = context.read<CartBloc>().state;
+        final resolvedStoreId = storeId > 0 ? storeId : cartState.storeId;
+        final response = await sl<ApiClient>().dio.get(
+          ApiEndpoints.catalogItem(orderItem.menuItemId),
+          queryParameters: resolvedStoreId > 0
+              ? {'store_id': resolvedStoreId}
+              : null,
+        );
+        fullProduct = ProductModel.fromJson(
+          response.data as Map<String, dynamic>,
+        );
+      } catch (_) {
+        // Fall back to the local snapshot
+      }
+
+      if (!context.mounted) return;
+
+      final selectedOptions = _resolveSelectedOptions(
+        fullProduct,
+        orderItem,
+        orderItem.customizationOptionIds,
+      );
+
+      final cartItem = CartItem(
+        product: fullProduct,
+        selectedOptions: selectedOptions,
+        customizationOptionIds: orderItem.customizationOptionIds,
+        quantity: orderItem.quantity < 1 ? 1 : orderItem.quantity,
+      );
+
+      final result = await context.push(
+        AppRouter.productDetail,
+        extra: {
+          'product': fullProduct,
+          'currency': currency,
+          'cartItem': cartItem,
+          'isEditing': false,
+        },
+      );
+
+      if (result is! Map<String, dynamic>) return;
+      if (!context.mounted) return;
+
+      final resolvedProduct = result['product'] as ProductModel? ?? fullProduct;
+      final quantity = result['quantity'] as int? ?? 1;
+      final selectionsMap =
+          result['selections'] as Map<dynamic, dynamic>? ?? {};
+      final allOptionIds = <int>[];
+      for (final ids in selectionsMap.values) {
+        if (ids is List) allOptionIds.addAll(ids.whereType<int>());
+      }
+      final selectedOptionsFromDetail = resolvedProduct.customizationGroups
+          .expand((g) => g.options)
+          .where((o) => allOptionIds.contains(o.id))
+          .toList();
+
+      final action = result['action'] as String? ?? 'add';
+
+      if (action == 'buy_now') {
+        final buyNowItem = CartItem(
+          product: resolvedProduct,
+          selectedOptions: selectedOptionsFromDetail,
+          customizationOptionIds: allOptionIds,
+          quantity: quantity,
+        );
+        AuthGuard.run(context, () {
+          context.push(AppRouter.checkout, extra: {'buyNowItem': buyNowItem});
+        });
+      } else {
+        context.read<CartBloc>().add(
+          CartItemAdded(
+            product: resolvedProduct,
+            selectedOptions: selectedOptionsFromDetail,
+            customizationOptionIds: allOptionIds,
+            quantity: quantity,
+          ),
+        );
+        if (!context.mounted) return;
+        context.showSuccessSnackBar(
+          context.l10n.addedToCartReorderToast(orderItem.name),
+        );
+      }
+    });
   }
 
   @override
@@ -208,83 +303,97 @@ class OrderAgainSection extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Row(
-                  children: [
-                    // Product Image (CDN loaded)
-                    ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(AppSpacing.radiusLg),
-                        bottomLeft: Radius.circular(AppSpacing.radiusLg),
-                      ),
-                      child: SizedBox(
-                        width: 90,
-                        height: double.infinity,
-                        child: Image.network(
-                          product.imageUrlSm,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                    onTap: () => _navigateToProductDetail(context, product),
+                    child: Row(
+                      children: [
+                        // Product Image (CDN loaded)
+                        ClipRRect(
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(AppSpacing.radiusLg),
+                            bottomLeft: Radius.circular(AppSpacing.radiusLg),
+                          ),
+                          child: SizedBox(
+                            width: 90,
+                            height: double.infinity,
+                            child: CachedNetworkImage(
+                              imageUrl: product.imageUrlSm,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(
                                 color: theme.colorScheme.primary.withValues(
                                   alpha: 0.05,
                                 ),
-                                child: Icon(
-                                  Icons.local_cafe_rounded,
-                                  color: theme.colorScheme.primary.withValues(
-                                    alpha: 0.3,
+                                child: const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) =>
+                                  Container(
+                                    color: theme.colorScheme.primary.withValues(
+                                      alpha: 0.05,
+                                    ),
+                                    child: Icon(
+                                      Icons.local_cafe_rounded,
+                                      color: theme.colorScheme.primary
+                                          .withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                            ),
+                          ),
+                        ),
+                        // Product details + Direct quick reorder action
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  product.name,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  product.basePrice.toDisplayPrice(currency),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                              ),
-                        ),
-                      ),
-                    ),
-                    // Product details + Direct quick reorder action
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              product.name,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              product.basePrice.toDisplayPrice(currency),
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const Spacer(),
-                            // Reorder Action button
-                            Align(
-                              alignment: Alignment.bottomRight,
-                              child: FilledButton.tonal(
-                                style: FilledButton.styleFrom(
-                                  padding: const EdgeInsets.all(8),
-                                  shape: CircleBorder(),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
+                                const Spacer(),
+                                // Reorder Action button
+                                Align(
+                                  alignment: Alignment.bottomRight,
+                                  child: FilledButton.tonal(
+                                    style: FilledButton.styleFrom(
+                                      padding: const EdgeInsets.all(8),
+                                      shape: CircleBorder(),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    onPressed: () => _reorder(context, product),
+                                    child: const Icon(
+                                      Icons.add_shopping_cart_rounded,
+                                      size: 14,
+                                    ),
+                                  ),
                                 ),
-                                onPressed: () => _reorder(context, product),
-                                child: const Icon(
-                                  Icons.add_shopping_cart_rounded,
-                                  size: 14,
-                                ),
-                              ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               );
             },
