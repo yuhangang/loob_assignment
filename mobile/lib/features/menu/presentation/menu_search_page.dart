@@ -73,7 +73,9 @@ class _MenuSearchPageState extends State<MenuSearchPage> {
 
   List<ProductModel> _getFilteredProducts() {
     // Flatten all products across all categories
-    final allProducts = widget.catalog.categories.expand((c) => c.products).toList();
+    final allProducts = widget.catalog.categories
+        .expand((c) => c.products)
+        .toList();
 
     // Deduplicate products by id
     final seenIds = <int>{};
@@ -175,7 +177,7 @@ class _MenuSearchPageState extends State<MenuSearchPage> {
           product: product,
           selectedOptions: selectedOptions,
           customizationOptionIds: allOptionIds,
-          quantity: 1,
+          quantity: quantity,
         );
         AuthGuard.run(context, () {
           context.push(AppRouter.checkout, extra: {'buyNowItem': buyNowItem});
@@ -275,7 +277,9 @@ class _MenuSearchPageState extends State<MenuSearchPage> {
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(color: primaryColor, width: 1.5),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.radiusFull,
+                        ),
                       ),
                     ),
                     child: Text(
@@ -293,9 +297,14 @@ class _MenuSearchPageState extends State<MenuSearchPage> {
                   OutlinedButton(
                     onPressed: () => _searchController.clear(),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.grey400, width: 1.5),
+                      side: const BorderSide(
+                        color: AppColors.grey400,
+                        width: 1.5,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.radiusFull,
+                        ),
                       ),
                     ),
                     child: Text(
@@ -354,7 +363,9 @@ class _MenuSearchPageState extends State<MenuSearchPage> {
                       height: 46,
                       decoration: BoxDecoration(
                         color: AppColors.white,
-                        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.radiusLg,
+                        ),
                         boxShadow: [
                           BoxShadow(
                             color: AppColors.black.withValues(alpha: 0.04),
@@ -362,10 +373,7 @@ class _MenuSearchPageState extends State<MenuSearchPage> {
                             offset: const Offset(0, 2),
                           ),
                         ],
-                        border: Border.all(
-                          color: AppColors.grey200,
-                          width: 1,
-                        ),
+                        border: Border.all(color: AppColors.grey200, width: 1),
                       ),
                       child: TextField(
                         controller: _searchController,
@@ -433,16 +441,19 @@ class _MenuSearchPageState extends State<MenuSearchPage> {
                   ? _buildEmptyState(primaryColor)
                   : GridView.builder(
                       padding: const EdgeInsets.all(AppSpacing.md),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.65,
-                        crossAxisSpacing: AppSpacing.md,
-                        mainAxisSpacing: AppSpacing.md,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 0.65,
+                            crossAxisSpacing: AppSpacing.md,
+                            mainAxisSpacing: AppSpacing.md,
+                          ),
                       itemCount: filteredProducts.length,
                       itemBuilder: (context, index) {
                         final product = filteredProducts[index];
-                        final isFavourited = _favouritedIds.contains(product.id);
+                        final isFavourited = _favouritedIds.contains(
+                          product.id,
+                        );
 
                         return ProductCard(
                           product: product,
@@ -458,14 +469,10 @@ class _MenuSearchPageState extends State<MenuSearchPage> {
                               }
                             });
                           },
-                          onTap: () => _showCustomization(
-                            product,
-                            widget.currency,
-                          ),
-                          onCartPressed: () => _handleCartShortcut(
-                            product,
-                            widget.currency,
-                          ),
+                          onTap: () =>
+                              _showCustomization(product, widget.currency),
+                          onCartPressed: () =>
+                              _handleCartShortcut(product, widget.currency),
                         );
                       },
                     ),

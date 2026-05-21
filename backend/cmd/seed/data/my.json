@@ -135,11 +135,7 @@
         "en-US": "Classic milk tea finished with chewy pearls.",
         "ms-MY": "Teh susu klasik dengan mutiara kenyal."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "caffeine",
-        "vegetarian"
-      ],
+      "dietary_tags": ["contains_dairy", "caffeine", "vegetarian"],
       "price_min": 800,
       "price_max": 1200,
       "customization_groups": [
@@ -287,11 +283,7 @@
         "en-US": "Milk tea with grass jelly and a mellow finish.",
         "ms-MY": "Teh susu dengan cincau dan rasa yang lembut."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "caffeine",
-        "vegetarian"
-      ],
+      "dietary_tags": ["contains_dairy", "caffeine", "vegetarian"],
       "price_min": 850,
       "price_max": 1300,
       "customization_groups": [
@@ -386,11 +378,7 @@
         "en-US": "Rich milk tea infused with caramelized brown sugar syrup and pearls.",
         "ms-MY": "Teh susu pekat dengan sirap gula perang karamel dan mutiara."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "caffeine",
-        "vegetarian"
-      ],
+      "dietary_tags": ["contains_dairy", "caffeine", "vegetarian"],
       "price_min": 900,
       "price_max": 1300,
       "customization_groups": [
@@ -485,11 +473,7 @@
         "en-US": "Fragrant roasted milk tea served with cooling grass jelly.",
         "ms-MY": "Teh susu panggang wangi dihidangkan dengan cincau sejuk."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "caffeine",
-        "vegetarian"
-      ],
+      "dietary_tags": ["contains_dairy", "caffeine", "vegetarian"],
       "price_min": 850,
       "price_max": 1250,
       "customization_groups": [
@@ -544,11 +528,7 @@
         "en-US": "Refreshing green tea blended with sweet mango puree and coconut jelly.",
         "ms-MY": "Teh hijau menyegarkan diadun dengan puri mangga manis dan jeli kelapa."
       },
-      "dietary_tags": [
-        "caffeine",
-        "vegan",
-        "gluten_free"
-      ],
+      "dietary_tags": ["caffeine", "vegan", "gluten_free"],
       "price_min": 950,
       "price_max": 1350,
       "customization_groups": [
@@ -602,11 +582,7 @@
         "en-US": "A vibrant blend of black tea, fresh orange, passion fruit, and apple slices.",
         "ms-MY": "Campuran teh hitam, oren segar, markisa, dan hiasan epal."
       },
-      "dietary_tags": [
-        "caffeine",
-        "vegan",
-        "gluten_free"
-      ],
+      "dietary_tags": ["caffeine", "vegan", "gluten_free"],
       "price_min": 1000,
       "price_max": 1400,
       "image_url_sm": "/cdn/my-tl-sft.png",
@@ -626,11 +602,7 @@
         "en-US": "Premium Japanese Nishio matcha whisked with fresh milk.",
         "ms-MY": "Matcha Nishio Jepun premium dipukul bersama susu segar."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "caffeine",
-        "vegetarian"
-      ],
+      "dietary_tags": ["contains_dairy", "caffeine", "vegetarian"],
       "price_min": 1050,
       "price_max": 1450,
       "customization_groups": [
@@ -684,10 +656,7 @@
         "en-US": "Rich and indulgent premium Belgian chocolate with fresh milk.",
         "ms-MY": "Coklat Belgium premium yang pekat dan lazat dengan susu segar."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "vegetarian"
-      ],
+      "dietary_tags": ["contains_dairy", "vegetarian"],
       "price_min": 1000,
       "price_max": 1400,
       "image_url_sm": "/cdn/my-tl-bcc.png",
@@ -708,10 +677,7 @@
         "en-US": "Grilled toastie with chicken and cheese.",
         "ms-MY": "Roti bakar panas dengan ayam dan keju."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "contains_gluten"
-      ],
+      "dietary_tags": ["contains_dairy", "contains_gluten"],
       "price_min": 1200,
       "price_max": 1500,
       "image_url_sm": "/cdn/my-bb-chz.png",
@@ -731,10 +697,7 @@
         "en-US": "Toasted bread stuffed with savory beef bacon, cheddar, and signature sauce.",
         "ms-MY": "Roti bakar dengan daging bacon lembu, keju cheddar dan sos istimewa."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "contains_gluten"
-      ],
+      "dietary_tags": ["contains_dairy", "contains_gluten"],
       "price_min": 1350,
       "price_max": 1650,
       "image_url_sm": "/cdn/my-bb-bft.png",
@@ -754,11 +717,7 @@
         "en-US": "Healthy toastie loaded with mashed avocado, fluffy scrambled eggs, and cheese.",
         "ms-MY": "Roti bakar sihat dimuatkan dengan avokado lecek, telur hancur gebu dan keju."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "contains_gluten",
-        "vegetarian"
-      ],
+      "dietary_tags": ["contains_dairy", "contains_gluten", "vegetarian"],
       "price_min": 1400,
       "price_max": 1750,
       "image_url_sm": "/cdn/my-bb-avt.png",
@@ -778,10 +737,7 @@
         "en-US": "Smooth espresso latte with oat milk support.",
         "ms-MY": "Latte espresso lembut dengan pilihan susu oat."
       },
-      "dietary_tags": [
-        "caffeine",
-        "vegetarian"
-      ],
+      "dietary_tags": ["caffeine", "vegetarian"],
       "price_min": 1100,
       "price_max": 1450,
       "customization_groups": [
@@ -944,11 +900,7 @@
         "en-US": "Our famous espresso coffee sweetened with natural and aromatic Aren palm sugar.",
         "ms-MY": "Kopi espresso terkenal kami dimaniskan dengan gula kabung Aren yang wangi semula jadi."
       },
-      "dietary_tags": [
-        "caffeine",
-        "contains_dairy",
-        "vegetarian"
-      ],
+      "dietary_tags": ["caffeine", "contains_dairy", "vegetarian"],
       "price_min": 1000,
       "price_max": 1350,
       "customization_groups": [
@@ -1002,11 +954,7 @@
         "en-US": "Ice-blended creamy cookies and milk, topped with whipped cream.",
         "ms-MY": "Kuki berkrim dan susu kisar ais, dihiasi krim putar."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "contains_gluten",
-        "vegetarian"
-      ],
+      "dietary_tags": ["contains_dairy", "contains_gluten", "vegetarian"],
       "price_min": 1300,
       "price_max": 1600,
       "image_url_sm": "/cdn/my-bb-ccf.png",
@@ -1026,11 +974,7 @@
         "en-US": "Unique combination of Japanese matcha, milk, and Aren palm sugar.",
         "ms-MY": "Kombinasi unik teh hijau matcha Jepun, susu dan gula kabung Aren."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "caffeine",
-        "vegetarian"
-      ],
+      "dietary_tags": ["contains_dairy", "caffeine", "vegetarian"],
       "price_min": 1400,
       "price_max": 1700,
       "image_url_sm": "/cdn/my-bb-amf.png",
@@ -1051,10 +995,7 @@
         "en-US": "Fragrant coconut rice served with spicy sambal, crispy anchovies, boiled egg, and fried chicken.",
         "ms-MY": "Nasi lemak wangi dihidangkan dengan sambal pedas, bilis rangup, telur rebus dan ayam goreng."
       },
-      "dietary_tags": [
-        "contains_peanuts",
-        "contains_gluten"
-      ],
+      "dietary_tags": ["contains_peanuts", "contains_gluten"],
       "price_min": 1690,
       "price_max": 1990,
       "image_url_sm": "/cdn/my-bb-nlm.png",
@@ -1074,10 +1015,7 @@
         "en-US": "Spaghetti tossed in rich creamy white sauce with mushrooms and chicken ham.",
         "ms-MY": "Spageti digaul dengan sos putih berkrim bersama cendawan dan ham ayam."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "contains_gluten"
-      ],
+      "dietary_tags": ["contains_dairy", "contains_gluten"],
       "price_min": 1590,
       "price_max": 1890,
       "image_url_sm": "/cdn/my-bb-mcp.png",
@@ -1097,10 +1035,7 @@
         "en-US": "Chewy tapioca pearls.",
         "ms-MY": "Mutiara ubi kayu kenyal."
       },
-      "dietary_tags": [
-        "vegan",
-        "gluten_free"
-      ],
+      "dietary_tags": ["vegan", "gluten_free"],
       "price_min": 120,
       "price_max": 120
     },
@@ -1118,10 +1053,7 @@
         "en-US": "Cooling grass jelly topping.",
         "ms-MY": "Add-on cincau yang menyegarkan."
       },
-      "dietary_tags": [
-        "vegan",
-        "gluten_free"
-      ],
+      "dietary_tags": ["vegan", "gluten_free"],
       "price_min": 120,
       "price_max": 120
     },
@@ -1139,10 +1071,7 @@
         "en-US": "Silky pudding topping.",
         "ms-MY": "Add-on puding lembut."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "vegetarian"
-      ],
+      "dietary_tags": ["contains_dairy", "vegetarian"],
       "price_min": 150,
       "price_max": 150
     },
@@ -1160,10 +1089,7 @@
         "en-US": "Sweet and chewable coconut jelly cubes.",
         "ms-MY": "Kiub jeli kelapa manis dan kenyal."
       },
-      "dietary_tags": [
-        "vegan",
-        "gluten_free"
-      ],
+      "dietary_tags": ["vegan", "gluten_free"],
       "price_min": 150,
       "price_max": 150
     },
@@ -1181,10 +1107,7 @@
         "en-US": "Refreshing aloe vera chunks.",
         "ms-MY": "Kepingan aloe vera yang segar."
       },
-      "dietary_tags": [
-        "vegan",
-        "gluten_free"
-      ],
+      "dietary_tags": ["vegan", "gluten_free"],
       "price_min": 150,
       "price_max": 150
     },
@@ -1202,9 +1125,7 @@
         "en-US": "Oat milk substitute.",
         "ms-MY": "Pengganti susu oat."
       },
-      "dietary_tags": [
-        "vegan"
-      ],
+      "dietary_tags": ["vegan"],
       "price_min": 200,
       "price_max": 200
     },
@@ -1222,11 +1143,7 @@
         "en-US": "Additional espresso shot.",
         "ms-MY": "Tambahan satu shot espresso."
       },
-      "dietary_tags": [
-        "caffeine",
-        "vegan",
-        "gluten_free"
-      ],
+      "dietary_tags": ["caffeine", "vegan", "gluten_free"],
       "price_min": 250,
       "price_max": 250
     },
@@ -1244,10 +1161,7 @@
         "en-US": "Whipped cream topping.",
         "ms-MY": "Add-on krim putar."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "vegetarian"
-      ],
+      "dietary_tags": ["contains_dairy", "vegetarian"],
       "price_min": 180,
       "price_max": 180
     },
@@ -1265,10 +1179,7 @@
         "en-US": "Melted cheddar slice for cheese lovers.",
         "ms-MY": "Kepingan keju cheddar cair untuk peminat tegar keju."
       },
-      "dietary_tags": [
-        "contains_dairy",
-        "vegetarian"
-      ],
+      "dietary_tags": ["contains_dairy", "vegetarian"],
       "price_min": 150,
       "price_max": 150
     },
@@ -1286,9 +1197,7 @@
         "en-US": "Sweet caramel sauce drizzle.",
         "ms-MY": "Curahan sos karamel manis."
       },
-      "dietary_tags": [
-        "vegetarian"
-      ],
+      "dietary_tags": ["vegetarian"],
       "price_min": 120,
       "price_max": 120
     }
@@ -1342,17 +1251,15 @@
       "brand_id": 1,
       "voucher_type": "BRAND_DISCOUNT",
       "discount_type": "FIXED_AMOUNT",
-      "discount_value": 500,
-      "min_spend": 1000,
+      "discount_value": 5,
+      "min_spend": 20,
       "max_discount_cap": null,
       "voided_at": null,
       "max_redemptions": 500,
       "max_redemptions_per_user": 2,
       "allow_promo_items": true,
       "applicable_store_ids": null,
-      "applicable_category_ids": [
-        1
-      ],
+      "applicable_category_ids": [1],
       "applicable_item_ids": null,
       "applicable_payment_methods": null
     },
@@ -1362,7 +1269,7 @@
       "voucher_type": "BRAND_DISCOUNT",
       "discount_type": "PERCENTAGE",
       "discount_value": 30,
-      "min_spend": 1500,
+      "min_spend": 500,
       "max_discount_cap": 1000,
       "voided_at": null,
       "max_redemptions": 300,
@@ -1371,17 +1278,15 @@
       "applicable_store_ids": null,
       "applicable_category_ids": null,
       "applicable_item_ids": null,
-      "applicable_payment_methods": [
-        "EWALLET"
-      ]
+      "applicable_payment_methods": ["EWALLET"]
     },
     {
       "code": "LOOBDELIGHT",
       "brand_id": null,
       "voucher_type": "CART_DISCOUNT",
       "discount_type": "FIXED_AMOUNT",
-      "discount_value": 800,
-      "min_spend": 2000,
+      "discount_value": 300,
+      "min_spend": 800,
       "max_discount_cap": null,
       "voided_at": null,
       "max_redemptions": 100,

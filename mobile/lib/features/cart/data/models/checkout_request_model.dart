@@ -4,6 +4,7 @@ class CheckoutRequestModel {
   final int storeId;
   final String fulfillmentType;
   final String? voucherCode;
+  final List<String> voucherCodes;
   final String paymentMethod;
   final String idempotencyKey;
   final List<CartItemModel> items;
@@ -13,6 +14,7 @@ class CheckoutRequestModel {
     required this.storeId,
     required this.fulfillmentType,
     this.voucherCode,
+    this.voucherCodes = const [],
     required this.paymentMethod,
     required this.idempotencyKey,
     required this.items,
@@ -22,6 +24,7 @@ class CheckoutRequestModel {
     'store_id': storeId,
     'fulfillment_type': fulfillmentType,
     if (voucherCode != null) 'voucher_code': voucherCode,
+    if (voucherCodes.isNotEmpty) 'voucher_codes': voucherCodes,
     'payment_method': paymentMethod,
     'idempotency_key': idempotencyKey,
     'items': items.map((e) => e.toJson()).toList(),

@@ -10,6 +10,8 @@ class LoobErrorDialog extends StatefulWidget {
   final String message;
   final String? errorCode;
   final String? traceId;
+  final String? actionLabel;
+  final VoidCallback? onActionPressed;
 
   const LoobErrorDialog({
     super.key,
@@ -17,6 +19,8 @@ class LoobErrorDialog extends StatefulWidget {
     required this.message,
     this.errorCode,
     this.traceId,
+    this.actionLabel,
+    this.onActionPressed,
   });
 
   /// Launch the custom error modal with pre-configured style parameters.
@@ -26,6 +30,8 @@ class LoobErrorDialog extends StatefulWidget {
     required String message,
     String? errorCode,
     String? traceId,
+    String? actionLabel,
+    VoidCallback? onActionPressed,
   }) {
     showDialog(
       context: context,
@@ -35,6 +41,8 @@ class LoobErrorDialog extends StatefulWidget {
           message: message,
           errorCode: errorCode,
           traceId: traceId,
+          actionLabel: actionLabel,
+          onActionPressed: onActionPressed,
         );
       },
     );
@@ -202,23 +210,42 @@ class _LoobErrorDialogState extends State<LoobErrorDialog> {
         AppSpacing.xl,
       ),
       actions: [
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: theme.colorScheme.primary,
-              foregroundColor: theme.colorScheme.onPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        Column(
+          children: [
+            if (widget.actionLabel != null && widget.onActionPressed != null) ...[
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    widget.onActionPressed!();
+                  },
+                  child: Text(
+                    widget.actionLabel!,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+                  ),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text(
+                  'Dismiss',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ),
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Dismiss',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
+          ],
         ),
       ],
     );

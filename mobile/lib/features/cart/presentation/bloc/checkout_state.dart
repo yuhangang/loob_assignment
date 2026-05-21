@@ -14,7 +14,7 @@ class CheckoutState {
   final String? error;
   final CheckoutResponseModel? checkout;
   final String? selectedVoucherCode;
-  final VoucherModel? selectedVoucher;
+  final List<VoucherModel> selectedVouchers;
   final VoucherValidationModel? voucherValidation;
   final CartItem? buyNowItem;
   final Set<String> mockPaidOrders;
@@ -29,7 +29,7 @@ class CheckoutState {
     this.error,
     this.checkout,
     this.selectedVoucherCode,
-    this.selectedVoucher,
+    this.selectedVouchers = const [],
     this.voucherValidation,
     this.buyNowItem,
     this.mockPaidOrders = const {},
@@ -37,8 +37,18 @@ class CheckoutState {
   });
 
   String? get activeVoucherCode {
-    final code = selectedVoucherCode ?? voucherCodeInput.trim();
-    return code.isEmpty ? null : code.toUpperCase();
+    final codes = activeVoucherCodes;
+    return codes.isEmpty ? null : codes.first;
+  }
+
+  List<String> get activeVoucherCodes {
+    final raw = selectedVoucherCode ?? voucherCodeInput.trim();
+    return raw
+        .split(RegExp(r'[\s,]+'))
+        .map((code) => code.trim().toUpperCase())
+        .where((code) => code.isNotEmpty)
+        .toSet()
+        .toList();
   }
 
   int getSubtotal(CartState cart) {
@@ -53,32 +63,41 @@ class CheckoutState {
     return buyNowItem != null ? [buyNowItem!] : cart.items;
   }
 
-  int estimateVoucherDiscount(VoucherModel voucher, int subtotal) {
-    if (subtotal < voucher.minSpend) return 0;
+  int estimateVouchersDiscount(List<VoucherModel> vouchers, int subtotal) {
+    var remainingSubtotal = subtotal;
+    var totalDiscount = 0;
+    for (final voucher in vouchers) {
+      if (remainingSubtotal < voucher.minSpend) continue;
 
-    var discount = 0;
-    switch (voucher.discountType) {
-      case 'PERCENTAGE':
-        discount = (subtotal * voucher.discountValue / 100).round();
-        final cap = voucher.maxDiscountCap;
-        if (cap != null && discount > cap) {
-          discount = cap;
-        }
-      case 'FIXED_AMOUNT':
-        discount = voucher.discountValue;
+      var discount = 0;
+      switch (voucher.discountType) {
+        case 'PERCENTAGE':
+          discount = (remainingSubtotal * voucher.discountValue / 100).round();
+          final cap = voucher.maxDiscountCap;
+          if (cap != null && discount > cap) {
+            discount = cap;
+          }
+        case 'FIXED_AMOUNT':
+          discount = voucher.discountValue;
+      }
+      if (discount > remainingSubtotal) {
+        discount = remainingSubtotal;
+      }
+      totalDiscount += discount;
+      remainingSubtotal -= discount;
     }
-    return discount > subtotal ? subtotal : discount;
+    return totalDiscount;
   }
 
   int currentVoucherDiscount(int subtotal) {
     final validation = voucherValidation;
-    if (validation != null && validation.code == activeVoucherCode) {
-      return validation.isValid ? validation.discountAmount : 0;
+    if (validation != null) {
+      final active = activeVoucherCodes;
+      if (active.contains(validation.code.toUpperCase())) {
+        return validation.isValid ? validation.discountAmount : 0;
+      }
     }
-    final selected = selectedVoucher;
-    return selected == null
-        ? 0
-        : estimateVoucherDiscount(selected, subtotal);
+    return estimateVouchersDiscount(selectedVouchers, subtotal);
   }
 
   CheckoutState copyWith({
@@ -90,7 +109,7 @@ class CheckoutState {
     String? Function()? error,
     CheckoutResponseModel? Function()? checkout,
     String? Function()? selectedVoucherCode,
-    VoucherModel? Function()? selectedVoucher,
+    List<VoucherModel>? selectedVouchers,
     VoucherValidationModel? Function()? voucherValidation,
     CartItem? Function()? buyNowItem,
     Set<String>? mockPaidOrders,
@@ -98,15 +117,21 @@ class CheckoutState {
   }) {
     return CheckoutState(
       methods: methods ?? this.methods,
-      selectedMethod: selectedMethod != null ? selectedMethod() : this.selectedMethod,
+      selectedMethod: selectedMethod != null
+          ? selectedMethod()
+          : this.selectedMethod,
       fulfillment: fulfillment ?? this.fulfillment,
       isLoadingMethods: isLoadingMethods ?? this.isLoadingMethods,
       isCheckingOut: isCheckingOut ?? this.isCheckingOut,
       error: error != null ? error() : this.error,
       checkout: checkout != null ? checkout() : this.checkout,
-      selectedVoucherCode: selectedVoucherCode != null ? selectedVoucherCode() : this.selectedVoucherCode,
-      selectedVoucher: selectedVoucher != null ? selectedVoucher() : this.selectedVoucher,
-      voucherValidation: voucherValidation != null ? voucherValidation() : this.voucherValidation,
+      selectedVoucherCode: selectedVoucherCode != null
+          ? selectedVoucherCode()
+          : this.selectedVoucherCode,
+      selectedVouchers: selectedVouchers ?? this.selectedVouchers,
+      voucherValidation: voucherValidation != null
+          ? voucherValidation()
+          : this.voucherValidation,
       buyNowItem: buyNowItem != null ? buyNowItem() : this.buyNowItem,
       mockPaidOrders: mockPaidOrders ?? this.mockPaidOrders,
       voucherCodeInput: voucherCodeInput ?? this.voucherCodeInput,

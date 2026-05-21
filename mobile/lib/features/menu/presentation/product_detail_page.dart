@@ -156,7 +156,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         for (final entry in _selections.entries)
           entry.key: entry.value.toList(),
       },
-      'quantity': action == 'buy_now' ? 1 : _quantity,
+      'quantity': _quantity,
     };
   }
 
@@ -728,7 +728,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                                         child: FittedBox(
                                           fit: BoxFit.scaleDown,
                                           child: Text(
-                                            context.l10n.buyNow,
+                                            context.l10n.orderNow,
                                             maxLines: 1,
                                             style: const TextStyle(
                                               fontWeight: FontWeight.w800,

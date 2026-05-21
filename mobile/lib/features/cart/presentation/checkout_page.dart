@@ -12,7 +12,10 @@ import '../../../core/theme/tokens/colors.dart';
 import '../../../core/theme/tokens/spacing.dart';
 import '../../../core/utils/extensions.dart';
 import '../../vouchers/data/models/wallet_model.dart';
+import '../../vouchers/data/models/voucher_model.dart';
 import '../../vouchers/domain/repositories/voucher_repository.dart';
+import '../../../core/network/api_exception.dart';
+import '../data/models/checkout_request_model.dart';
 import '../data/models/checkout_response_model.dart';
 import 'bloc/cart_bloc.dart';
 import 'bloc/cart_event.dart';
@@ -198,7 +201,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         context.read<CheckoutCubit>().updateBuyNowItemCustomizations(
           selectedOptions: selectedOptions,
           selectedIds: selectedIds,
-          quantity: 1,
+          quantity: quantity,
         );
       } else {
         context.read<CheckoutCubit>().updateBuyNowItemCustomizations(
@@ -241,8 +244,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
         listenWhen: (previous, current) =>
             previous.isCheckingOut != current.isCheckingOut ||
             previous.error != current.error ||
-            previous.checkout != current.checkout,
+            previous.checkout != current.checkout ||
+            previous.selectedVoucherCode != current.selectedVoucherCode,
         listener: (context, state) {
+          if (state.selectedVoucherCode != null &&
+              state.selectedVoucherCode!.replaceAll(' ', '') !=
+                  _voucherController.text.toUpperCase().replaceAll(' ', '')) {
+            _voucherController.text = state.selectedVoucherCode!;
+          } else if (state.selectedVoucherCode == null &&
+              _voucherController.text.isNotEmpty) {
+            _voucherController.clear();
+          }
+
           if (state.isCheckingOut) {
             LoobLoadingOverlay.show(
               context,
@@ -262,12 +275,25 @@ class _CheckoutPageState extends State<CheckoutPage> {
           }
 
           if (state.error != null) {
+            final error = state.error!;
+            final isSelectOutletError =
+                error == context.l10n.selectOutletFirst;
+
+            // Clear error in cubit so listener can trigger again if same error occurs
+            context.read<CheckoutCubit>().clearError();
+
             LoobErrorDialog.show(
               context,
               title: state.checkout == null
                   ? 'Checkout Failed'
                   : 'Payment Failed',
-              message: state.error!,
+              message: error,
+              actionLabel: isSelectOutletError
+                  ? context.l10n.selectOutletTitle
+                  : null,
+              onActionPressed: isSelectOutletError
+                  ? () => context.push(AppRouter.selectOutlet)
+                  : null,
             );
           }
         },
@@ -434,7 +460,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final methods = state.methods
         .where((method) => state.getSubtotal(cart) >= method.minAmount)
         .toList(growable: false);
-    final selectedVoucher = state.selectedVoucher;
     final voucherValidation = state.voucherValidation;
     final estimatedDiscount = state.currentVoucherDiscount(
       state.getSubtotal(cart),
@@ -590,66 +615,111 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
                 ],
               ),
-              if (state.activeVoucherCode != null) ...[
+              if (state.activeVoucherCodes.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.sm),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withValues(
-                      alpha: 0.15,
-                    ),
-                    borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-                    border: Border.all(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        color: theme.colorScheme.primary,
-                        size: 18,
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: state.activeVoucherCodes.map((code) {
+                    final voucher = state.selectedVouchers.cast<VoucherModel?>().firstWhere(
+                      (v) => v?.code.toUpperCase() == code.toUpperCase(),
+                      orElse: () => null,
+                    );
+
+                    final isThisInvalid = voucherValidation != null &&
+                        !voucherValidation.isValid &&
+                        voucherValidation.code.toUpperCase() == code.toUpperCase();
+
+                    final text = isThisInvalid
+                        ? voucherValidation.reason ?? context.l10n.checkoutFailedMsg
+                        : voucher == null
+                            ? context.l10n.voucherWillBeValidated(code)
+                            : context.l10n.voucherApplied(voucher.code);
+
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.xs,
                       ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          voucherValidation != null &&
-                                  voucherValidation.code ==
-                                      state.activeVoucherCode &&
-                                  !voucherValidation.isValid
-                              ? voucherValidation.reason ??
-                                    context.l10n.checkoutFailedMsg
-                              : selectedVoucher == null
-                              ? context.l10n.voucherWillBeValidated(
-                                  state.activeVoucherCode!,
-                                )
-                              : context.l10n.voucherApplied(
-                                  selectedVoucher.code,
-                                ),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w700,
+                      decoration: BoxDecoration(
+                        color: (isThisInvalid
+                                ? theme.colorScheme.errorContainer
+                                : theme.colorScheme.primaryContainer)
+                            .withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+                        border: Border.all(
+                          color: (isThisInvalid
+                                  ? theme.colorScheme.error
+                                  : theme.colorScheme.primary)
+                              .withValues(alpha: 0.25),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isThisInvalid
+                                    ? theme.colorScheme.error
+                                    : theme.colorScheme.primary)
+                                .withValues(alpha: 0.02),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
                           ),
-                        ),
+                        ],
                       ),
-                      IconButton(
-                        constraints: const BoxConstraints(),
-                        padding: EdgeInsets.zero,
-                        onPressed: () {
-                          _voucherController.clear();
-                          context.read<CheckoutCubit>().clearVoucher();
-                        },
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: theme.colorScheme.primary,
-                          size: 18,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isThisInvalid
+                                ? Icons.error_outline_rounded
+                                : Icons.check_circle_rounded,
+                            color: isThisInvalid
+                                ? theme.colorScheme.error
+                                : theme.colorScheme.primary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Flexible(
+                            child: Text(
+                              text,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: isThisInvalid
+                                    ? theme.colorScheme.error
+                                    : theme.colorScheme.primary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          GestureDetector(
+                            onTap: () {
+                              context.read<CheckoutCubit>().removeVoucher(code);
+                            },
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  color: (isThisInvalid
+                                          ? theme.colorScheme.error
+                                          : theme.colorScheme.primary)
+                                      .withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  color: isThisInvalid
+                                      ? theme.colorScheme.error
+                                      : theme.colorScheme.primary,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    );
+                  }).toList(),
                 ),
               ],
             ],
@@ -927,43 +997,73 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   userId: scrollContext.read<CartBloc>().userId,
                 ),
                 builder: (futureContext, snapshot) {
-                  return Column(
-                    children: [
-                      // Header
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.lg,
-                          AppSpacing.md,
-                          AppSpacing.lg,
-                          AppSpacing.sm,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              futureContext.l10n.selectVoucherTitle,
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w900,
+                  return BlocBuilder<CheckoutCubit, CheckoutState>(
+                    builder: (context, state) {
+                      final hasVouchers = snapshot.hasData && (snapshot.data?.vouchers.isNotEmpty ?? false);
+                      return Column(
+                        children: [
+                          // Header
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.lg,
+                              AppSpacing.md,
+                              AppSpacing.lg,
+                              AppSpacing.sm,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  futureContext.l10n.selectVoucherTitle,
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () => Navigator.pop(futureContext),
+                                  icon: const Icon(Icons.close_rounded),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 1),
+                          // Content
+                          Expanded(
+                            child: _buildBottomSheetContent(
+                              futureContext,
+                              snapshot,
+                              cart,
+                              scrollController,
+                              state,
+                            ),
+                          ),
+                          if (hasVouchers) ...[
+                            const Divider(height: 1),
+                            SafeArea(
+                              top: false,
+                              child: Padding(
+                                padding: const EdgeInsets.all(AppSpacing.lg),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  height: 50,
+                                  child: FilledButton(
+                                    onPressed: () => Navigator.pop(futureContext),
+                                    style: FilledButton.styleFrom(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          AppSpacing.radiusFull,
+                                        ),
+                                      ),
+                                    ),
+                                    child: const Text('Apply Selection'),
+                                  ),
+                                ),
                               ),
                             ),
-                            IconButton(
-                              onPressed: () => Navigator.pop(futureContext),
-                              icon: const Icon(Icons.close_rounded),
-                            ),
                           ],
-                        ),
-                      ),
-                      const Divider(height: 1),
-                      // Content
-                      Expanded(
-                        child: _buildBottomSheetContent(
-                          futureContext,
-                          snapshot,
-                          cart,
-                          scrollController,
-                        ),
-                      ),
-                    ],
+                        ],
+                      );
+                    },
                   );
                 },
               );
@@ -979,6 +1079,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     AsyncSnapshot<WalletModel> snapshot,
     CartState cart,
     ScrollController scrollController,
+    CheckoutState state,
   ) {
     final theme = Theme.of(context);
 
@@ -1076,7 +1177,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     final wallet = snapshot.data;
     final vouchers = wallet?.vouchers ?? const [];
-    final state = context.read<CheckoutCubit>().state;
 
     if (vouchers.isEmpty) {
       return Center(
@@ -1120,7 +1220,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       itemBuilder: (context, index) {
         final voucher = vouchers[index];
         final isEligible = state.getSubtotal(cart) >= voucher.minSpend;
-        final isSelected = state.selectedVoucherCode == voucher.code;
+        final isSelected = state.selectedVouchers.any((v) => v.code.toUpperCase() == voucher.code.toUpperCase());
 
         return Opacity(
           opacity: isEligible ? 1.0 : 0.6,
@@ -1139,10 +1239,61 @@ class _CheckoutPageState extends State<CheckoutPage> {
             child: InkWell(
               borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
               onTap: isEligible
-                  ? () {
-                      context.read<CheckoutCubit>().selectVoucher(voucher);
-                      _voucherController.text = voucher.code;
-                      Navigator.pop(modalContextOf(context));
+                  ? () async {
+                      final isSelected = state.selectedVouchers.any((v) => v.code.toUpperCase() == voucher.code.toUpperCase());
+                      if (isSelected) {
+                        context.read<CheckoutCubit>().selectVoucher(voucher);
+                        return;
+                      }
+
+                      LoobLoadingOverlay.show(context, message: 'Validating voucher...');
+                      try {
+                        final voucherCodes = [...state.activeVoucherCodes, voucher.code];
+                        final items = state.getItems(cart)
+                            .where((item) => item.isAvailable)
+                            .map(
+                              (item) => CartItemModel(
+                                menuItemId: item.product.id,
+                                quantity: item.quantity,
+                                customizationOptionIds: item.selectedCustomizationIds,
+                              ),
+                            )
+                            .toList();
+
+                        final validation = await sl<IVoucherRepository>().validateVoucher(
+                          countryCode: cart.countryCode,
+                          body: {
+                            'store_id': cart.storeId,
+                            'voucher_code': voucher.code,
+                            'voucher_codes': voucherCodes,
+                            'payment_method': state.selectedMethod ?? '',
+                            'items': items.map((e) => e.toJson()).toList(),
+                          },
+                        );
+
+                        if (!context.mounted) return;
+                        LoobLoadingOverlay.hide();
+
+                        if (!validation.isValid) {
+                          LoobErrorDialog.show(
+                            context,
+                            title: 'Voucher Not Eligible',
+                            message: validation.reason ?? 'This voucher is not eligible for this order.',
+                          );
+                          return;
+                        }
+
+                        context.read<CheckoutCubit>().selectVoucher(voucher);
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        LoobLoadingOverlay.hide();
+                        final message = e is ApiException ? e.message : 'Voucher validation failed';
+                        LoobErrorDialog.show(
+                          context,
+                          title: 'Validation Error',
+                          message: message,
+                        );
+                      }
                     }
                   : null,
               child: Padding(

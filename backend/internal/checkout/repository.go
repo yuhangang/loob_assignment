@@ -84,9 +84,11 @@ type CustomizationOptionRule struct {
 }
 
 type Voucher struct {
+	ID                       int
 	Code                     string
 	ZoneID                   sql.NullString
 	BrandID                  sql.NullInt64
+	VoucherType              string
 	DiscountType             string
 	DiscountValue            int
 	MinSpend                 int
@@ -94,6 +96,10 @@ type Voucher struct {
 	MaxRedemptions           sql.NullInt64
 	MaxRedemptionsPerUser    sql.NullInt64
 	AllowPromoItems          bool
+	StackingGroup            string
+	StackingPriority         int
+	Exclusive                bool
+	CombinableWithGroups     []string
 	ApplicableStoreIDs       []int
 	ApplicableCategoryIDs    []int
 	ApplicableItemIDs        []int
@@ -144,8 +150,19 @@ type Intent struct {
 	DiscountAmount int
 	TotalAmount    int
 	VoucherCode    string
+	Vouchers       []AppliedVoucher
 	CartPayload    []byte
 	ChargesPayload []byte
+}
+
+type AppliedVoucher struct {
+	VoucherID        int
+	Code             string
+	StackingGroup    string
+	StackingPriority int
+	EligibleSubtotal int
+	DiscountAmount   int
+	AppliedOrder     int
 }
 
 type PaymentTransaction struct {
@@ -408,36 +425,49 @@ func (r *Repository) GetCustomizationRules(ctx context.Context, menuItemIDs []in
 
 func (r *Repository) GetVoucher(ctx context.Context, countryID, userID, code string) (Voucher, error) {
 	var voucher Voucher
-	var applicableStoreIDs, applicableCategoryIDs, applicableItemIDs, applicablePaymentMethods []byte
+	var applicableStoreIDs, applicableCategoryIDs, applicableItemIDs, applicablePaymentMethods, combinableWithGroups []byte
 	err := r.db.QueryRowContext(ctx, `
-		SELECT v.code, v.zone_id, v.brand_id, v.discount_type, v.discount_value, v.min_spend,
+		SELECT v.id, v.code, v.zone_id, v.brand_id, v.voucher_type, v.discount_type, v.discount_value, v.min_spend,
 		       v.max_discount_cap, v.max_redemptions, v.max_redemptions_per_user,
+		       COALESCE(v.stacking_group, v.voucher_type), COALESCE(v.stacking_priority, 100),
+		       COALESCE(v.exclusive, false), COALESCE(v.combinable_with_groups, JSON_ARRAY()),
 		       v.allow_promo_items, COALESCE(v.applicable_store_ids, JSON_ARRAY()),
 		       COALESCE(v.applicable_category_ids, JSON_ARRAY()),
 		       COALESCE(v.applicable_item_ids, JSON_ARRAY()),
 		       COALESCE(v.applicable_payment_methods, JSON_ARRAY()),
 		       uv.status,
 		       (
-		         SELECT COUNT(*)
-		         FROM order_intents oi
-		         WHERE oi.country_id = v.country_id AND oi.voucher_code = v.code
-		           AND oi.status IN ('QUEUED', 'PROCESSING', 'READY_TO_COLLECT', 'COMPLETED')
+		         SELECT COALESCE(v.redemption_count, 0) + COALESCE(COUNT(*), 0)
+		         FROM order_intent_vouchers oiv
+		         INNER JOIN order_intents oi ON oi.tracking_id = oiv.order_tracking_id
+		         WHERE oi.country_id = v.country_id AND oiv.voucher_id = v.id
+		           AND oi.status = 'PAYMENT_PENDING'
 		       ) AS total_redemptions,
 		       (
-		         SELECT COUNT(*)
-		         FROM order_intents user_oi
-		         WHERE user_oi.country_id = v.country_id AND user_oi.voucher_code = v.code
-		           AND user_oi.user_id = ? AND user_oi.status IN ('QUEUED', 'PROCESSING', 'READY_TO_COLLECT', 'COMPLETED')
+		         COALESCE((
+		           SELECT vurc.redemption_count
+		           FROM voucher_user_redemption_counters vurc
+		           WHERE vurc.voucher_id = v.id AND vurc.user_id = ?
+		         ), 0) +
+		         (
+		           SELECT COALESCE(COUNT(*), 0)
+		           FROM order_intent_vouchers user_oiv
+		           INNER JOIN order_intents user_oi ON user_oi.tracking_id = user_oiv.order_tracking_id
+		           WHERE user_oi.country_id = v.country_id AND user_oiv.voucher_id = v.id
+		             AND user_oi.user_id = ? AND user_oi.status = 'PAYMENT_PENDING'
+		         )
 		       ) AS user_redemptions
 		FROM vouchers v
 		LEFT JOIN user_vouchers uv ON uv.voucher_id = v.id AND uv.user_id = ?
 		WHERE v.country_id = ? AND v.code = ? AND v.is_active = true
 		  AND v.voided_at IS NULL
 		  AND NOW() BETWEEN v.starts_at AND v.expires_at
-	`, userID, userID, countryID, code).Scan(
-		&voucher.Code, &voucher.ZoneID, &voucher.BrandID, &voucher.DiscountType,
+	`, userID, userID, userID, countryID, code).Scan(
+		&voucher.ID, &voucher.Code, &voucher.ZoneID, &voucher.BrandID, &voucher.VoucherType, &voucher.DiscountType,
 		&voucher.DiscountValue, &voucher.MinSpend, &voucher.MaxDiscountCap,
-		&voucher.MaxRedemptions, &voucher.MaxRedemptionsPerUser, &voucher.AllowPromoItems,
+		&voucher.MaxRedemptions, &voucher.MaxRedemptionsPerUser,
+		&voucher.StackingGroup, &voucher.StackingPriority, &voucher.Exclusive, &combinableWithGroups,
+		&voucher.AllowPromoItems,
 		&applicableStoreIDs, &applicableCategoryIDs, &applicableItemIDs,
 		&applicablePaymentMethods, &voucher.UserVoucherStatus,
 		&voucher.TotalRedemptions, &voucher.UserRedemptions,
@@ -452,6 +482,7 @@ func (r *Repository) GetVoucher(ctx context.Context, countryID, userID, code str
 	voucher.ApplicableCategoryIDs = decodeIntList(applicableCategoryIDs)
 	voucher.ApplicableItemIDs = decodeIntList(applicableItemIDs)
 	voucher.ApplicablePaymentMethods = decodeStringList(applicablePaymentMethods)
+	voucher.CombinableWithGroups = decodeStringList(combinableWithGroups)
 	return voucher, nil
 }
 
@@ -485,6 +516,10 @@ func (r *Repository) FindIntentByIdempotency(ctx context.Context, countryID, use
 	intent.VoucherCode = voucher.String
 	intent.ChargesPayload = chargesPayload
 	intent.Charges = decodeChargeLines(chargesPayload)
+	intent.Vouchers, err = r.listAppliedVouchers(ctx, intent.TrackingID)
+	if err != nil {
+		return IntentWithPayment{}, err
+	}
 	if paymentID.Valid {
 		payment.ID = paymentID.String
 		payment.OrderTrackingID = intent.TrackingID
@@ -511,7 +546,12 @@ func (r *Repository) CreateIntent(ctx context.Context, intent Intent) error {
 	if intent.VoucherCode != "" {
 		voucher = intent.VoucherCode
 	}
-	_, err = r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO order_intents (
 			tracking_id, trace_id, idempotency_key, user_id, store_id, country_id,
 			fulfillment_type, status, subtotal, charges_payload, tax_amount, discount_amount,
@@ -519,7 +559,13 @@ func (r *Repository) CreateIntent(ctx context.Context, intent Intent) error {
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, ?, CAST(? AS JSON))
 	`, intent.TrackingID, intent.TraceID, intent.IdempotencyKey, intent.UserID, intent.StoreID, intent.CountryID, intent.Fulfillment, intent.Status, intent.Subtotal, string(chargesPayload), intent.TaxAmount, intent.DiscountAmount, intent.TotalAmount, voucher, string(intent.CartPayload))
-	return err
+	if err != nil {
+		return err
+	}
+	if err := insertAppliedVouchers(ctx, tx, intent); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (r *Repository) CreateIntentWithPayment(ctx context.Context, intent Intent, payment PaymentTransaction) error {
@@ -533,6 +579,9 @@ func (r *Repository) CreateIntentWithPayment(ctx context.Context, intent Intent,
 	defer tx.Rollback()
 
 	if err := insertIntent(ctx, tx, intent); err != nil {
+		return err
+	}
+	if err := insertAppliedVouchers(ctx, tx, intent); err != nil {
 		return err
 	}
 	if err := insertPayment(ctx, tx, payment); err != nil {
@@ -601,6 +650,22 @@ func insertIntent(ctx context.Context, exec txExecutor, intent Intent) error {
 	return err
 }
 
+func insertAppliedVouchers(ctx context.Context, exec txExecutor, intent Intent) error {
+	for _, voucher := range intent.Vouchers {
+		_, err := exec.ExecContext(ctx, `
+			INSERT INTO order_intent_vouchers (
+				order_tracking_id, voucher_id, voucher_code, stacking_group, stacking_priority,
+				eligible_subtotal, discount_amount, applied_order
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, intent.TrackingID, voucher.VoucherID, voucher.Code, voucher.StackingGroup, voucher.StackingPriority, voucher.EligibleSubtotal, voucher.DiscountAmount, voucher.AppliedOrder)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func insertPayment(ctx context.Context, exec txExecutor, payment PaymentTransaction) error {
 	_, err := exec.ExecContext(ctx, `
 		INSERT INTO payment_transactions (
@@ -609,6 +674,38 @@ func insertPayment(ctx context.Context, exec txExecutor, payment PaymentTransact
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, payment.ID, payment.OrderTrackingID, payment.CountryID, payment.UserID, payment.Provider, payment.MethodCode, payment.Status, payment.CurrencyCode, payment.Amount)
 	return err
+}
+
+func (r *Repository) listAppliedVouchers(ctx context.Context, orderTrackingID string) ([]AppliedVoucher, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT voucher_id, voucher_code, stacking_group, stacking_priority,
+		       eligible_subtotal, discount_amount, applied_order
+		FROM order_intent_vouchers
+		WHERE order_tracking_id = ?
+		ORDER BY applied_order ASC
+	`, orderTrackingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	vouchers := []AppliedVoucher{}
+	for rows.Next() {
+		var voucher AppliedVoucher
+		if err := rows.Scan(
+			&voucher.VoucherID,
+			&voucher.Code,
+			&voucher.StackingGroup,
+			&voucher.StackingPriority,
+			&voucher.EligibleSubtotal,
+			&voucher.DiscountAmount,
+			&voucher.AppliedOrder,
+		); err != nil {
+			return nil, err
+		}
+		vouchers = append(vouchers, voucher)
+	}
+	return vouchers, rows.Err()
 }
 
 func (r *Repository) GetStatus(ctx context.Context, countryID, trackingID string) (Status, error) {
@@ -951,3 +1048,15 @@ func decodeChargeLines(raw []byte) []ChargeLine {
 	}
 	return []ChargeLine{}
 }
+
+func (r *Repository) GetUserTransactionCount(ctx context.Context, userID string) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM order_intents
+		WHERE user_id = ?
+		  AND status NOT IN ('PAYMENT_PENDING', 'FAILED', 'PAYMENT_FAILED')
+	`, userID).Scan(&count)
+	return count, err
+}
+

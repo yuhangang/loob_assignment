@@ -23,7 +23,6 @@ import 'widgets/hero_banner.dart';
 import 'widgets/home_error_view.dart';
 import 'widgets/home_header_profile_row.dart';
 import 'widgets/loyalty_card.dart';
-import 'widgets/marketing_popup_dialog.dart';
 import 'widgets/order_again_section.dart';
 
 /// Main home page with brand immersion, loyalty card, dynamic banners,
@@ -36,10 +35,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  late final HomeCubit _homeCubit;
   late final ScrollController _scrollController;
   bool _isHeaderCollapsed = false; // Tracks whether SliverAppBar is collapsed
-  bool _isPromoClaimed = false; // Tracks whether the promo/event has been claimed
 
   // expandedHeight(210) - toolbarHeight(66) = 144 — the scroll offset at which
   // the header is fully collapsed and we swap to the compact title bar.
@@ -48,18 +45,10 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _homeCubit = HomeCubit();
     _scrollController = ScrollController()..addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final lang = context.read<LanguageCubit>().state.languageCode;
-      final brand = context.read<ThemeCubit>().state;
-      final country = context.read<CartBloc>().state.countryCode;
-      _homeCubit.loadHome(
-        countryCode: country,
-        language: lang,
-        brandId: brand.brandId,
-      );
+      _reloadHome(context);
     });
   }
 
@@ -73,30 +62,18 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _scrollController.dispose();
-    _homeCubit.close();
     super.dispose();
-  }
-
-  void _showMarketingPopup(BuildContext context, MarketingPopupModel popup) async {
-    final claimed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => MarketingPopupDialog(popup: popup),
-    );
-    if (claimed == true && mounted) {
-      setState(() => _isPromoClaimed = true);
-    }
   }
 
   void _reloadHome(BuildContext context) {
     final lang = context.read<LanguageCubit>().state.languageCode;
     final brand = context.read<ThemeCubit>().state;
     final country = context.read<CartBloc>().state.countryCode;
-    _homeCubit.loadHome(
-      countryCode: country,
-      language: lang,
-      brandId: brand.brandId,
-    );
+    context.read<HomeCubit>().loadHome(
+          countryCode: country,
+          language: lang,
+          brandId: brand.brandId,
+        );
   }
 
   bool _authScopeChanged(AuthState previous, AuthState current) {
@@ -148,28 +125,10 @@ class _HomePageState extends State<HomePage> {
         ),
       ],
       child: BlocBuilder<HomeCubit, HomeState>(
-        bloc: _homeCubit,
         builder: (context, state) {
           final config = state is HomeLoaded ? state.config : null;
 
           return Scaffold(
-            floatingActionButton: config != null &&
-                    config.marketingPopup.active &&
-                    !_isPromoClaimed
-                ? FloatingActionButton.extended(
-                    onPressed: () =>
-                        _showMarketingPopup(context, config.marketingPopup),
-                    label: Text(
-                      config.marketingPopup.buttonText.isNotEmpty
-                          ? config.marketingPopup.buttonText
-                          : context.l10n.claimPromo,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    icon: const Icon(Icons.celebration_rounded),
-                    backgroundColor: theme.colorScheme.secondary,
-                    foregroundColor: theme.colorScheme.onSecondary,
-                  )
-                : null,
             body: CustomScrollView(
               controller: _scrollController,
               slivers: [
@@ -178,6 +137,10 @@ class _HomePageState extends State<HomePage> {
                     final profile = profileState is UserProfileLoaded
                         ? profileState.profile
                         : null;
+                    final isProfileLoading =
+                        profileState is UserProfileLoading ||
+                        profileState is UserProfileInitial;
+
                     return SliverAppBar(
                       pinned: true,
                       floating: false,
@@ -191,7 +154,10 @@ class _HomePageState extends State<HomePage> {
                       titleSpacing: 0,
                       // Only show collapsed bar once the expanded header has scrolled away
                       title: _isHeaderCollapsed
-                          ? CollapsedHomeBar(profile: profile)
+                          ? CollapsedHomeBar(
+                              profile: profile,
+                              isLoading: isProfileLoading,
+                            )
                           : null,
                       // Full expanded header content
                       flexibleSpace: _buildExpandedHeader(
@@ -200,6 +166,7 @@ class _HomePageState extends State<HomePage> {
                         config,
                         _greeting(context),
                         profile,
+                        isProfileLoading,
                       ),
                     );
                   },
@@ -290,22 +257,7 @@ class _HomePageState extends State<HomePage> {
                     hasScrollBody: false,
                     child: HomeErrorView(
                       message: state.message,
-                      onRetry: () {
-                        final lang = context
-                            .read<LanguageCubit>()
-                            .state
-                            .languageCode;
-                        final brand = context.read<ThemeCubit>().state;
-                        final country = context
-                            .read<CartBloc>()
-                            .state
-                            .countryCode;
-                        _homeCubit.loadHome(
-                          countryCode: country,
-                          language: lang,
-                          brandId: brand.brandId,
-                        );
-                      },
+                      onRetry: () => _reloadHome(context),
                     ),
                   )
                 else if (state is HomeLoaded)
@@ -346,6 +298,7 @@ class _HomePageState extends State<HomePage> {
     AppConfigModel? config,
     String greetingText,
     UserProfileModel? profile,
+    bool isProfileLoading,
   ) {
     return FlexibleSpaceBar(
       collapseMode: CollapseMode.pin,
@@ -366,9 +319,13 @@ class _HomePageState extends State<HomePage> {
                 HomeHeaderProfileRow(
                   greetingText: greetingText,
                   profile: profile,
+                  isLoading: isProfileLoading,
                 ),
                 const SizedBox(height: 8),
-                LoyaltyCard(profile: profile),
+                LoyaltyCard(
+                  profile: profile,
+                  isLoading: isProfileLoading,
+                ),
                 const SizedBox(height: 8),
               ],
             ),

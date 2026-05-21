@@ -49,7 +49,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   void onVoucherCodeChanged(String value) {
     emit(
       state.copyWith(
-        selectedVoucher: () => null,
+        selectedVouchers: const [],
         voucherValidation: () => null,
         selectedVoucherCode: () =>
             value.trim().isEmpty ? null : value.trim().toUpperCase(),
@@ -59,11 +59,41 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   }
 
   void selectVoucher(VoucherModel voucher) {
+    final isAlreadySelected = state.selectedVouchers.any((v) => v.code == voucher.code);
+    final updatedVouchers = List<VoucherModel>.from(state.selectedVouchers);
+    if (isAlreadySelected) {
+      updatedVouchers.removeWhere((v) => v.code == voucher.code);
+    } else {
+      updatedVouchers.add(voucher);
+    }
+
+    final codesString = updatedVouchers.isEmpty
+        ? null
+        : updatedVouchers.map((v) => v.code).join(', ');
+
     emit(
       state.copyWith(
-        voucherCodeInput: voucher.code,
-        selectedVoucherCode: () => voucher.code,
-        selectedVoucher: () => voucher,
+        voucherCodeInput: codesString ?? '',
+        selectedVoucherCode: () => codesString,
+        selectedVouchers: updatedVouchers,
+        voucherValidation: () => null,
+      ),
+    );
+  }
+
+  void removeVoucher(String code) {
+    final updatedVouchers = List<VoucherModel>.from(state.selectedVouchers)
+      ..removeWhere((v) => v.code.toUpperCase() == code.toUpperCase());
+
+    final codesString = updatedVouchers.isEmpty
+        ? null
+        : updatedVouchers.map((v) => v.code).join(', ');
+
+    emit(
+      state.copyWith(
+        voucherCodeInput: codesString ?? '',
+        selectedVoucherCode: () => codesString,
+        selectedVouchers: updatedVouchers,
         voucherValidation: () => null,
       ),
     );
@@ -74,7 +104,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       state.copyWith(
         voucherCodeInput: '',
         selectedVoucherCode: () => null,
-        selectedVoucher: () => null,
+        selectedVouchers: const [],
         voucherValidation: () => null,
       ),
     );
@@ -120,17 +150,22 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       );
       final updatedPaidOrders = Set<String>.from(state.mockPaidOrders)
         ..add(orderTrackingId);
-      emit(state.copyWith(
-        mockPaidOrders: updatedPaidOrders,
-        isCheckingOut: false,
-      ));
+      emit(
+        state.copyWith(mockPaidOrders: updatedPaidOrders, isCheckingOut: false),
+      );
       if (state.buyNowItem == null) {
         onCartCleared();
       }
     } catch (e) {
-      final message = e is ApiException ? e.message : 'Failed to confirm payment';
+      final message = e is ApiException
+          ? e.message
+          : 'Failed to confirm payment';
       emit(state.copyWith(isCheckingOut: false, error: () => message));
     }
+  }
+
+  void clearError() {
+    emit(state.copyWith(error: () => null));
   }
 
   Future<void> submitCheckout({
@@ -161,6 +196,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       storeId: cart.storeId,
       fulfillmentType: state.fulfillment,
       voucherCode: state.activeVoucherCode,
+      voucherCodes: state.activeVoucherCodes,
       paymentMethod: state.selectedMethod!,
       idempotencyKey:
           'mobile-${DateTime.now().microsecondsSinceEpoch}-${state.getTotalQuantity(cart)}',
@@ -177,14 +213,15 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           .toList(),
     );
 
-    final voucherCode = state.activeVoucherCode;
-    if (voucherCode != null) {
+    final voucherCodes = state.activeVoucherCodes;
+    if (voucherCodes.isNotEmpty) {
       try {
         final validation = await _voucherRepository.validateVoucher(
           countryCode: cart.countryCode,
           body: {
             'store_id': request.storeId,
-            'voucher_code': voucherCode,
+            'voucher_code': voucherCodes.first,
+            'voucher_codes': voucherCodes,
             'payment_method': request.paymentMethod,
             'items': request.items.map((e) => e.toJson()).toList(),
           },

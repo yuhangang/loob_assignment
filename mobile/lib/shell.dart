@@ -8,6 +8,9 @@ import 'core/theme/tokens/spacing.dart';
 import 'features/cart/presentation/bloc/cart_bloc.dart';
 import 'features/cart/presentation/bloc/cart_state.dart';
 import 'features/cart/presentation/widgets/active_overlay_bar.dart';
+import 'features/home/data/models/app_config_model.dart';
+import 'features/home/presentation/home_cubit.dart';
+import 'features/home/presentation/widgets/marketing_popup_dialog.dart';
 import 'features/orders/presentation/bloc/active_order_cubit.dart';
 import 'features/orders/presentation/bloc/active_order_state.dart';
 
@@ -22,8 +25,6 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  bool get _isHomeTab => widget.navigationShell.currentIndex == 0;
-
   @override
   void initState() {
     super.initState();
@@ -34,88 +35,136 @@ class _AppShellState extends State<AppShell> {
   void didUpdateWidget(covariant AppShell oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.navigationShell.currentIndex !=
-            widget.navigationShell.currentIndex &&
-        _isHomeTab) {
+        widget.navigationShell.currentIndex) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _fetchActiveOrder());
     }
   }
 
   void _fetchActiveOrder() {
-    if (!mounted || !_isHomeTab) return;
+    if (!mounted) return;
     final countryCode = context.read<CartBloc>().state.countryCode;
     context.read<ActiveOrderCubit>().fetchActiveOrder(countryCode: countryCode);
   }
 
+  void _showMarketingPopup(MarketingPopupModel popup) async {
+    final claimed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => MarketingPopupDialog(popup: popup),
+    );
+    if (claimed == true && mounted) {
+      context.read<HomeCubit>().claimPromo();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return BlocListener<CartBloc, CartState>(
       listenWhen: (previous, current) =>
           previous.countryCode != current.countryCode,
       listener: (_, _) => _fetchActiveOrder(),
-      child: Scaffold(
-        body: Stack(
-          children: [
-            widget.navigationShell,
-            if (_isHomeTab)
-              BlocBuilder<CartBloc, CartState>(
-                builder: (context, cartState) {
-                  return BlocBuilder<ActiveOrderCubit, ActiveOrderState>(
-                    builder: (context, activeOrderState) {
-                      final activeOrder = activeOrderState.activeOrder;
-                      if (cartState.totalQuantity == 0 && activeOrder == null) {
-                        return const SizedBox.shrink();
-                      }
+      child: BlocBuilder<HomeCubit, HomeState>(
+        builder: (context, homeState) {
+          final config = homeState is HomeLoaded ? homeState.config : null;
+          final isPromoClaimed = homeState is HomeLoaded
+              ? homeState.isPromoClaimed
+              : false;
 
-                      return Positioned(
-                        left: AppSpacing.pageHorizontal,
-                        right: AppSpacing.pageHorizontal,
-                        bottom: MediaQuery.paddingOf(context).bottom + 76.0,
-                        child: ActiveOverlayBar(
-                          cartState: cartState,
-                          activeOrder: activeOrder,
+          return Scaffold(
+            body: Stack(
+              children: [
+                widget.navigationShell,
+
+                Positioned(
+                  left: AppSpacing.pageHorizontal,
+                  right: AppSpacing.pageHorizontal,
+                  bottom: MediaQuery.paddingOf(context).bottom,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (config != null &&
+                          config.marketingPopup.active &&
+                          !isPromoClaimed)
+                        FloatingActionButton.extended(
+                          onPressed: () =>
+                              _showMarketingPopup(config.marketingPopup),
+                          label: Text(
+                            config.marketingPopup.buttonText.isNotEmpty
+                                ? config.marketingPopup.buttonText
+                                : context.l10n.claimPromo,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          icon: const Icon(Icons.celebration_rounded),
+                          backgroundColor: theme.colorScheme.secondary,
+                          foregroundColor: theme.colorScheme.onSecondary,
                         ),
-                      );
-                    },
-                  );
-                },
-              ),
-          ],
-        ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: widget.navigationShell.currentIndex,
-          onTap: (index) {
-            if (index == 2) {
-              AppRouter.ordersRefreshSignal.value++;
-            }
-            widget.navigationShell.goBranch(
-              index,
-              initialLocation: index == widget.navigationShell.currentIndex,
-            );
-          },
-          type: BottomNavigationBarType.fixed,
-          items: [
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.home_outlined),
-              activeIcon: const Icon(Icons.home_rounded),
-              label: context.l10n.home,
+                      BlocBuilder<CartBloc, CartState>(
+                        builder: (context, cartState) {
+                          return BlocBuilder<
+                            ActiveOrderCubit,
+                            ActiveOrderState
+                          >(
+                            builder: (context, activeOrderState) {
+                              final activeOrder = activeOrderState.activeOrder;
+                              if (cartState.totalQuantity == 0 &&
+                                  activeOrder == null) {
+                                return const SizedBox.shrink();
+                              }
+
+                              return ActiveOverlayBar(
+                                cartState: cartState,
+                                activeOrder: activeOrder,
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.restaurant_menu_outlined),
-              activeIcon: const Icon(Icons.restaurant_menu_rounded),
-              label: context.l10n.menu,
+
+            bottomNavigationBar: BottomNavigationBar(
+              currentIndex: widget.navigationShell.currentIndex,
+              onTap: (index) {
+                if (index == 2) {
+                  AppRouter.ordersRefreshSignal.value++;
+                }
+                widget.navigationShell.goBranch(
+                  index,
+                  initialLocation: index == widget.navigationShell.currentIndex,
+                );
+              },
+              type: BottomNavigationBarType.fixed,
+              items: [
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.home_outlined),
+                  activeIcon: const Icon(Icons.home_rounded),
+                  label: context.l10n.home,
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.restaurant_menu_outlined),
+                  activeIcon: const Icon(Icons.restaurant_menu_rounded),
+                  label: context.l10n.menu,
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.assignment_outlined),
+                  activeIcon: const Icon(Icons.assignment_rounded),
+                  label: context.l10n.orders,
+                ),
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.settings_outlined),
+                  activeIcon: const Icon(Icons.settings_rounded),
+                  label: context.l10n.settings,
+                ),
+              ],
             ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.assignment_outlined),
-              activeIcon: const Icon(Icons.assignment_rounded),
-              label: context.l10n.orders,
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.settings_outlined),
-              activeIcon: const Icon(Icons.settings_rounded),
-              label: context.l10n.settings,
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

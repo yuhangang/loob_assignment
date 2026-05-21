@@ -200,28 +200,29 @@ class CartPage extends StatelessWidget {
         product: enrichedProduct,
         selectedOptions: selectedOptions,
         customizationOptionIds: selectedIds,
-        quantity: 1,
+        quantity: quantity,
       );
-      context.push(
-        AppRouter.checkout,
-        extra: {'buyNowItem': buyNowItem},
-      );
+      context.push(AppRouter.checkout, extra: {'buyNowItem': buyNowItem});
       return;
     }
 
     if (action == 'add') {
-      context.read<CartBloc>().add(CartItemAdded(
-        product: enrichedProduct,
-        selectedOptions: selectedOptions,
-        customizationOptionIds: selectedIds,
-        quantity: quantity,
-      ));
+      context.read<CartBloc>().add(
+        CartItemAdded(
+          product: enrichedProduct,
+          selectedOptions: selectedOptions,
+          customizationOptionIds: selectedIds,
+          quantity: quantity,
+        ),
+      );
     } else {
-      context.read<CartBloc>().add(CartItemConfigurationUpdated(
-        item: item,
-        selectedOptions: selectedOptions,
-        quantity: quantity,
-      ));
+      context.read<CartBloc>().add(
+        CartItemConfigurationUpdated(
+          item: item,
+          selectedOptions: selectedOptions,
+          quantity: quantity,
+        ),
+      );
     }
   }
 

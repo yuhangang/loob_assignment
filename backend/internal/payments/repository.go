@@ -102,15 +102,14 @@ func (r *Repository) ApplyCallback(ctx context.Context, update CallbackUpdate) (
 
 	var provider, userID, countryID, methodCode, currencyCode, orderTrackingID string
 	var amount int
-	var voucherCode sql.NullString
 	if err := tx.QueryRowContext(ctx, `
 		SELECT pt.provider, pt.user_id, pt.country_id, COALESCE(pt.payment_method_code, ''),
-		       pt.currency_code, pt.amount, COALESCE(pt.order_tracking_id, ''), oi.voucher_code
+		       pt.currency_code, pt.amount, COALESCE(pt.order_tracking_id, '')
 		FROM payment_transactions pt
 		LEFT JOIN order_intents oi ON oi.tracking_id = pt.order_tracking_id
 		WHERE pt.id = ?
 		FOR UPDATE
-	`, update.TransactionID).Scan(&provider, &userID, &countryID, &methodCode, &currencyCode, &amount, &orderTrackingID, &voucherCode); err != nil {
+	`, update.TransactionID).Scan(&provider, &userID, &countryID, &methodCode, &currencyCode, &amount, &orderTrackingID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return TransactionRow{}, ErrNotFound
 		}
@@ -156,7 +155,6 @@ func (r *Repository) ApplyCallback(ctx context.Context, update CallbackUpdate) (
 			MethodCode:      methodCode,
 			CurrencyCode:    currencyCode,
 			Amount:          amount,
-			VoucherCode:     voucherCode,
 		}); err != nil {
 			return TransactionRow{}, err
 		}
@@ -180,7 +178,6 @@ type capturedPaymentEffect struct {
 	MethodCode      string
 	CurrencyCode    string
 	Amount          int
-	VoucherCode     sql.NullString
 }
 
 func applyCapturedPaymentEffects(ctx context.Context, tx *sql.Tx, effect capturedPaymentEffect) error {
@@ -273,13 +270,8 @@ func applyCapturedPaymentEffects(ctx context.Context, tx *sql.Tx, effect capture
 		}
 	}
 
-	if effect.VoucherCode.Valid && effect.VoucherCode.String != "" {
-		if _, err := tx.ExecContext(ctx, `
-			UPDATE user_vouchers uv
-			INNER JOIN vouchers v ON v.id = uv.voucher_id
-			SET uv.status = 'USED', uv.used_at = COALESCE(uv.used_at, NOW())
-			WHERE uv.user_id = ? AND v.country_id = ? AND v.code = ? AND uv.status = 'AVAILABLE'
-		`, effect.UserID, effect.CountryID, effect.VoucherCode.String); err != nil {
+	if effect.OrderTrackingID != "" {
+		if err := applyVoucherRedemptions(ctx, tx, effect); err != nil {
 			return err
 		}
 	}
@@ -334,6 +326,56 @@ func applyCapturedPaymentEffects(ctx context.Context, tx *sql.Tx, effect capture
 		VALUES (?, ?, 'EARN', ?, ?, 'PAYMENT', ?, ?)
 	`, effect.UserID, effect.CountryID, points, balance, effect.TransactionID, "Order "+effect.OrderTrackingID)
 	return err
+}
+
+func applyVoucherRedemptions(ctx context.Context, tx *sql.Tx, effect capturedPaymentEffect) error {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT oiv.voucher_id
+		FROM order_intent_vouchers oiv
+		INNER JOIN order_intents oi ON oi.tracking_id = oiv.order_tracking_id
+		WHERE oiv.order_tracking_id = ? AND oi.country_id = ? AND oi.user_id = ?
+		FOR UPDATE
+	`, effect.OrderTrackingID, effect.CountryID, effect.UserID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	voucherIDs := []int{}
+	for rows.Next() {
+		var voucherID int
+		if err := rows.Scan(&voucherID); err != nil {
+			return err
+		}
+		voucherIDs = append(voucherIDs, voucherID)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, voucherID := range voucherIDs {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE user_vouchers
+			SET status = 'USED', used_at = COALESCE(used_at, NOW())
+			WHERE user_id = ? AND voucher_id = ? AND status = 'AVAILABLE'
+		`, effect.UserID, voucherID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE vouchers
+			SET redemption_count = redemption_count + 1
+			WHERE id = ?
+		`, voucherID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO voucher_user_redemption_counters (voucher_id, user_id, redemption_count)
+			VALUES (?, ?, 1)
+			ON DUPLICATE KEY UPDATE redemption_count = redemption_count + 1
+		`, voucherID, effect.UserID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *Repository) Get(ctx context.Context, countryID, transactionID string) (TransactionRow, error) {

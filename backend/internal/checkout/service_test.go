@@ -29,6 +29,7 @@ type mockRepository struct {
 	getMenuItemNames        func(ctx context.Context, itemIDs []int) (map[int]string, error)
 	getOptionNames          func(ctx context.Context, optionIDs []int) (map[int]string, error)
 	markOrderCollected      func(ctx context.Context, countryID, userID, trackingID string) error
+	getUserTransactionCount func(ctx context.Context, userID string) (int, error)
 }
 
 type mockPaymentStarter struct {
@@ -105,6 +106,12 @@ func (m *mockRepository) GetOptionNames(ctx context.Context, optionIDs []int) (m
 		return m.getOptionNames(ctx, optionIDs)
 	}
 	return map[int]string{}, nil
+}
+func (m *mockRepository) GetUserTransactionCount(ctx context.Context, userID string) (int, error) {
+	if m.getUserTransactionCount != nil {
+		return m.getUserTransactionCount(ctx, userID)
+	}
+	return 0, nil
 }
 
 func TestValidate(t *testing.T) {
@@ -302,6 +309,27 @@ func TestDiscountEligibilityRules(t *testing.T) {
 		t.Fatalf("payment method error = %v, want %v", err, ErrVoucherNotEligible)
 	}
 
+	// Empty payment method should bypass payment method eligibility check
+	discount, err = svc.discount(context.Background(), voucherEligibilityRequest{
+		CountryID:     "MY",
+		UserID:        "u1",
+		Code:          "TEAONLY",
+		StoreID:       1,
+		PaymentMethod: "",
+		Subtotal:      2200,
+		Lines: []pricedCartLine{
+			{MenuItemID: 100, CategoryID: 10, BrandID: 1, Subtotal: 900},
+			{MenuItemID: 101, CategoryID: 10, BrandID: 1, Subtotal: 800, IsPromoItem: true},
+			{MenuItemID: 200, CategoryID: 12, BrandID: 2, Subtotal: 500},
+		},
+	})
+	if err != nil {
+		t.Fatalf("empty payment method error = %v, want nil", err)
+	}
+	if discount != 300 {
+		t.Fatalf("discount = %d, want 300", discount)
+	}
+
 	_, err = svc.discount(context.Background(), voucherEligibilityRequest{
 		CountryID: "MY",
 		UserID:    "u1",
@@ -311,6 +339,95 @@ func TestDiscountEligibilityRules(t *testing.T) {
 	})
 	if !errors.Is(err, ErrVoucherNotEligible) {
 		t.Fatalf("used voucher error = %v, want %v", err, ErrVoucherNotEligible)
+	}
+}
+
+func TestCalculateVoucherStackAppliesPriorityAndRemainingSubtotal(t *testing.T) {
+	repo := &mockRepository{
+		getVoucher: func(ctx context.Context, countryID, userID, code string) (Voucher, error) {
+			switch code {
+			case "CART10":
+				return Voucher{
+					ID:               1,
+					Code:             "CART10",
+					VoucherType:      "CART_DISCOUNT",
+					StackingGroup:    "CART_DISCOUNT",
+					StackingPriority: 10,
+					DiscountType:     "PERCENTAGE",
+					DiscountValue:    10,
+					AllowPromoItems:  true,
+				}, nil
+			case "BRAND5":
+				return Voucher{
+					ID:               2,
+					Code:             "BRAND5",
+					BrandID:          sql.NullInt64{Int64: 1, Valid: true},
+					VoucherType:      "BRAND_DISCOUNT",
+					StackingGroup:    "BRAND_DISCOUNT",
+					StackingPriority: 20,
+					DiscountType:     "FIXED_AMOUNT",
+					DiscountValue:    500,
+					AllowPromoItems:  true,
+				}, nil
+			default:
+				return Voucher{}, ErrNotFound
+			}
+		},
+	}
+	svc := NewService(repo, nil)
+
+	applied, err := svc.calculateVoucherStack(context.Background(), voucherStackRequest{
+		CountryID: "MY",
+		UserID:    "u1",
+		Codes:     []string{"BRAND5", "CART10"},
+		Subtotal:  2000,
+		Lines: []pricedCartLine{
+			{MenuItemID: 100, CategoryID: 10, BrandID: 1, Subtotal: 2000},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(applied) != 2 {
+		t.Fatalf("applied vouchers = %d, want 2", len(applied))
+	}
+	if applied[0].Code != "CART10" || applied[0].DiscountAmount != 200 {
+		t.Fatalf("first applied voucher = %+v, want CART10 discount 200", applied[0])
+	}
+	if applied[1].Code != "BRAND5" || applied[1].DiscountAmount != 500 {
+		t.Fatalf("second applied voucher = %+v, want BRAND5 discount 500", applied[1])
+	}
+	if totalVoucherDiscount(applied) != 700 {
+		t.Fatalf("total discount = %d, want 700", totalVoucherDiscount(applied))
+	}
+}
+
+func TestCalculateVoucherStackRejectsDuplicateGroup(t *testing.T) {
+	repo := &mockRepository{
+		getVoucher: func(ctx context.Context, countryID, userID, code string) (Voucher, error) {
+			return Voucher{
+				ID:               1,
+				Code:             code,
+				VoucherType:      "CART_DISCOUNT",
+				StackingGroup:    "CART_DISCOUNT",
+				StackingPriority: 100,
+				DiscountType:     "FIXED_AMOUNT",
+				DiscountValue:    100,
+				AllowPromoItems:  true,
+			}, nil
+		},
+	}
+	svc := NewService(repo, nil)
+
+	_, err := svc.calculateVoucherStack(context.Background(), voucherStackRequest{
+		CountryID: "MY",
+		UserID:    "u1",
+		Codes:     []string{"A", "B"},
+		Subtotal:  1000,
+		Lines:     []pricedCartLine{{MenuItemID: 100, CategoryID: 10, BrandID: 1, Subtotal: 1000}},
+	})
+	if !errors.Is(err, ErrVoucherNotEligible) {
+		t.Fatalf("duplicate group error = %v, want %v", err, ErrVoucherNotEligible)
 	}
 }
 
@@ -689,3 +806,57 @@ func TestListReorderItemsReturnsDedupedProductsOnly(t *testing.T) {
 		t.Fatalf("unexpected options: %+v", item.CustomizationOptions)
 	}
 }
+
+func TestValidateVoucherWELCOME10FirstTimeOnly(t *testing.T) {
+	var transactionCount int
+	repo := &mockRepository{
+		getVoucher: func(ctx context.Context, countryID, userID, code string) (Voucher, error) {
+			if code == "WELCOME10" {
+				return Voucher{
+					Code:          "WELCOME10",
+					VoucherType:   "NEW_USER",
+					DiscountType:  "PERCENTAGE",
+					DiscountValue: 10,
+					MinSpend:      100,
+				}, nil
+			}
+			return Voucher{}, errors.New("not found")
+		},
+		getUserTransactionCount: func(ctx context.Context, userID string) (int, error) {
+			return transactionCount, nil
+		},
+	}
+	svc := NewService(repo, nil)
+
+	t.Run("eligible first-time user", func(t *testing.T) {
+		transactionCount = 0
+		disc, err := svc.discount(context.Background(), voucherEligibilityRequest{
+			CountryID: "MY",
+			UserID:    "u1",
+			Code:      "WELCOME10",
+			Subtotal:  200,
+			Lines:     []pricedCartLine{{MenuItemID: 1, Subtotal: 200}},
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if disc != 20 { // 10% of 200
+			t.Errorf("expected discount of 20, got %d", disc)
+		}
+	})
+
+	t.Run("ineligible returning user", func(t *testing.T) {
+		transactionCount = 5
+		_, err := svc.discount(context.Background(), voucherEligibilityRequest{
+			CountryID: "MY",
+			UserID:    "u1",
+			Code:      "WELCOME10",
+			Subtotal:  200,
+			Lines:     []pricedCartLine{{MenuItemID: 1, Subtotal: 200}},
+		})
+		if !errors.Is(err, ErrVoucherNotEligible) {
+			t.Errorf("expected ErrVoucherNotEligible, got %v", err)
+		}
+	})
+}
+

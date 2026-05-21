@@ -89,13 +89,24 @@ class _SelectOutletPageState extends State<SelectOutletPage> {
           onPressed: () => context.pop(),
         ),
         centerTitle: true,
-        title: Text(
-          context.l10n.selectOutletTitle,
-          style: theme.textTheme.titleMedium?.copyWith(
-            color: primaryColor,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.8,
-          ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isTealive ? Icons.local_drink_rounded : Icons.coffee_rounded,
+              color: primaryColor,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              context.l10n.selectOutletTitle,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: primaryColor,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
         ),
         actions: [
           // Dynamic Cart Button with Badge

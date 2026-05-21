@@ -30,16 +30,35 @@ class HomeLoaded extends HomeState {
   final List<FeedItemModel> feedItems;
   final List<CampaignModel> banners;
   final List<LocalOrderItemModel> recentOrders;
+  final bool isPromoClaimed;
 
   const HomeLoaded({
     required this.config,
     required this.feedItems,
     required this.banners,
     required this.recentOrders,
+    this.isPromoClaimed = false,
   });
 
+  HomeLoaded copyWith({
+    AppConfigModel? config,
+    List<FeedItemModel>? feedItems,
+    List<CampaignModel>? banners,
+    List<LocalOrderItemModel>? recentOrders,
+    bool? isPromoClaimed,
+  }) {
+    return HomeLoaded(
+      config: config ?? this.config,
+      feedItems: feedItems ?? this.feedItems,
+      banners: banners ?? this.banners,
+      recentOrders: recentOrders ?? this.recentOrders,
+      isPromoClaimed: isPromoClaimed ?? this.isPromoClaimed,
+    );
+  }
+
   @override
-  List<Object?> get props => [config, feedItems, banners, recentOrders];
+  List<Object?> get props =>
+      [config, feedItems, banners, recentOrders, isPromoClaimed];
 }
 
 class HomeError extends HomeState {
@@ -105,6 +124,12 @@ class HomeCubit extends Cubit<HomeState> {
       );
     } catch (e) {
       emit(HomeError(e.toString()));
+    }
+  }
+
+  void claimPromo() {
+    if (state is HomeLoaded) {
+      emit((state as HomeLoaded).copyWith(isPromoClaimed: true));
     }
   }
 

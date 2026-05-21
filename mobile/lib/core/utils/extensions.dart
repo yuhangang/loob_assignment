@@ -77,10 +77,10 @@ extension ContextExtensions on BuildContext {
     );
   }
 
-  /// Returns the bottom padding needed to clear the Home-only floating overlay.
+  /// Returns the bottom padding needed to clear the floating overlay.
   double get cartFloatingBarPadding {
     final shell = StatefulNavigationShell.maybeOf(this);
-    if (shell == null || shell.currentIndex != 0) {
+    if (shell == null) {
       return 0.0;
     }
 

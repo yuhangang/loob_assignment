@@ -7,16 +7,65 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/tokens/colors.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
+import '../../../../core/widgets/loob_skeleton.dart';
 import '../../../settings/data/models/user_profile_model.dart';
 
 class LoyaltyCard extends StatelessWidget {
   final UserProfileModel? profile;
+  final bool isLoading;
 
-  const LoyaltyCard({super.key, required this.profile});
+  const LoyaltyCard({
+    super.key,
+    required this.profile,
+    this.isLoading = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    if (isLoading) {
+      return Container(
+        decoration: BoxDecoration(
+          color: theme.cardTheme.color ?? AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.08),
+            width: 1,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: const Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LoobSkeleton(width: 100, height: 10, borderRadius: 4),
+                  SizedBox(height: 8),
+                  LoobSkeleton(width: 60, height: 20, borderRadius: 4),
+                ],
+              ),
+            ),
+            SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LoobSkeleton(width: 100, height: 10, borderRadius: 4),
+                  SizedBox(height: 8),
+                  LoobSkeleton(width: 60, height: 20, borderRadius: 4),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final isGuest = profile == null;
 
     return Container(

@@ -31,11 +31,15 @@ type CheckoutRepository interface {
 	GetMenuItemNames(ctx context.Context, itemIDs []int) (map[int]string, error)
 	GetOptionNames(ctx context.Context, optionIDs []int) (map[int]string, error)
 	MarkOrderCollected(ctx context.Context, countryID, userID, trackingID string) error
+	GetUserTransactionCount(ctx context.Context, userID string) (int, error)
 }
+
+type VoucherEligibilityRule func(ctx context.Context, s *Service, voucher Voucher, req voucherEligibilityRequest) error
 
 type Service struct {
 	repo     CheckoutRepository
 	payments PaymentStarter
+	rules    map[string]VoucherEligibilityRule
 }
 
 type CheckoutContext struct {
@@ -48,7 +52,29 @@ type PaymentStarter interface {
 }
 
 func NewService(repo CheckoutRepository, payments PaymentStarter) *Service {
-	return &Service{repo: repo, payments: payments}
+	s := &Service{
+		repo:     repo,
+		payments: payments,
+		rules:    make(map[string]VoucherEligibilityRule),
+	}
+	s.registerDefaultRules()
+	return s
+}
+
+func (s *Service) registerDefaultRules() {
+	s.rules["NEW_USER"] = s.validateNewUserRule
+	s.rules["WELCOME10"] = s.validateNewUserRule
+}
+
+func (s *Service) validateNewUserRule(ctx context.Context, srv *Service, voucher Voucher, req voucherEligibilityRequest) error {
+	count, err := srv.repo.GetUserTransactionCount(ctx, req.UserID)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return ErrVoucherNotEligible
+	}
+	return nil
 }
 
 func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req CheckoutRequest) (CheckoutResponse, error) {
@@ -154,12 +180,14 @@ func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req Checkout
 		})
 	}
 
+	voucherCodes := normalizeVoucherCodes(req.VoucherCode, req.VoucherCodes)
+	appliedVouchers := []AppliedVoucher{}
 	discount := 0
-	if strings.TrimSpace(req.VoucherCode) != "" {
-		discount, err = s.discount(ctx, voucherEligibilityRequest{
+	if len(voucherCodes) > 0 {
+		appliedVouchers, err = s.calculateVoucherStack(ctx, voucherStackRequest{
 			CountryID:     rc.CountryCode,
 			UserID:        req.UserID,
-			Code:          req.VoucherCode,
+			Codes:         voucherCodes,
 			StoreID:       store.ID,
 			ZoneID:        store.ZoneID,
 			PaymentMethod: req.PaymentMethod,
@@ -169,6 +197,7 @@ func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req Checkout
 		if err != nil {
 			return CheckoutResponse{}, err
 		}
+		discount = totalVoucherDiscount(appliedVouchers)
 	}
 
 	chargeDefinitions, err := s.repo.ListChargeDefinitions(ctx, rc.CountryCode, store, req.Fulfillment)
@@ -224,7 +253,8 @@ func (s *Service) Checkout(ctx context.Context, rc CheckoutContext, req Checkout
 		TaxAmount:      taxAmount,
 		DiscountAmount: discount,
 		TotalAmount:    total,
-		VoucherCode:    strings.TrimSpace(req.VoucherCode),
+		VoucherCode:    firstVoucherCode(voucherCodes),
+		Vouchers:       appliedVouchers,
 		CartPayload:    cartPayload,
 	}
 	payment := PaymentTransaction{
@@ -757,8 +787,8 @@ func normalizeOrderListRequest(req OrderListRequest) (int, int) {
 }
 
 func (s *Service) ValidateVoucher(ctx context.Context, rc CheckoutContext, req VoucherValidationRequest) (VoucherValidationResponse, error) {
-	code := strings.ToUpper(strings.TrimSpace(req.VoucherCode))
-	if code == "" {
+	codes := normalizeVoucherCodes(req.VoucherCode, req.VoucherCodes)
+	if len(codes) == 0 {
 		return VoucherValidationResponse{}, ErrVoucherNotFound
 	}
 	if strings.TrimSpace(req.UserID) == "" {
@@ -828,27 +858,10 @@ func (s *Service) ValidateVoucher(ctx context.Context, rc CheckoutContext, req V
 		})
 	}
 
-	voucher, err := s.repo.GetVoucher(ctx, rc.CountryCode, req.UserID, code)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return VoucherValidationResponse{Code: code, IsValid: false, Reason: ErrVoucherNotFound.Error()}, nil
-		}
-		return VoucherValidationResponse{}, err
-	}
-	eligibleSubtotal := voucherEligibleSubtotal(voucher, voucherEligibilityRequest{
+	applied, err := s.calculateVoucherStack(ctx, voucherStackRequest{
 		CountryID:     rc.CountryCode,
 		UserID:        req.UserID,
-		Code:          code,
-		StoreID:       store.ID,
-		ZoneID:        store.ZoneID,
-		PaymentMethod: req.PaymentMethod,
-		Subtotal:      subtotal,
-		Lines:         lines,
-	})
-	discount, err := s.discount(ctx, voucherEligibilityRequest{
-		CountryID:     rc.CountryCode,
-		UserID:        req.UserID,
-		Code:          code,
+		Codes:         codes,
 		StoreID:       store.ID,
 		ZoneID:        store.ZoneID,
 		PaymentMethod: req.PaymentMethod,
@@ -857,18 +870,24 @@ func (s *Service) ValidateVoucher(ctx context.Context, rc CheckoutContext, req V
 	})
 	if err != nil {
 		if errors.Is(err, ErrVoucherNotEligible) {
-			return VoucherValidationResponse{Code: code, IsValid: false, Reason: err.Error(), EligibleSubtotal: eligibleSubtotal}, nil
+			return VoucherValidationResponse{Code: codes[0], IsValid: false, Reason: err.Error()}, nil
 		}
 		if errors.Is(err, ErrVoucherNotFound) {
-			return VoucherValidationResponse{Code: code, IsValid: false, Reason: err.Error()}, nil
+			return VoucherValidationResponse{Code: codes[0], IsValid: false, Reason: err.Error()}, nil
 		}
 		return VoucherValidationResponse{}, err
 	}
+	discount := totalVoucherDiscount(applied)
+	eligibleSubtotal := 0
+	if len(applied) > 0 {
+		eligibleSubtotal = applied[0].EligibleSubtotal
+	}
 	return VoucherValidationResponse{
-		Code:             code,
+		Code:             codes[0],
 		IsValid:          true,
 		EligibleSubtotal: eligibleSubtotal,
 		DiscountAmount:   discount,
+		Vouchers:         appliedVoucherResponses(applied),
 	}, nil
 }
 
@@ -894,6 +913,17 @@ type voucherEligibilityRequest struct {
 	Lines         []pricedCartLine
 }
 
+type voucherStackRequest struct {
+	CountryID     string
+	UserID        string
+	Codes         []string
+	StoreID       int
+	ZoneID        string
+	PaymentMethod string
+	Subtotal      int
+	Lines         []pricedCartLine
+}
+
 func (s *Service) discount(ctx context.Context, req voucherEligibilityRequest) (int, error) {
 	voucher, err := s.repo.GetVoucher(ctx, req.CountryID, req.UserID, strings.ToUpper(strings.TrimSpace(req.Code)))
 	if err != nil {
@@ -902,29 +932,11 @@ func (s *Service) discount(ctx context.Context, req voucherEligibilityRequest) (
 		}
 		return 0, err
 	}
-	eligibleSubtotal := voucherEligibleSubtotal(voucher, req)
-	if eligibleSubtotal <= 0 {
-		return 0, ErrVoucherNotEligible
-	}
-	if eligibleSubtotal < voucher.MinSpend {
-		return 0, ErrVoucherNotEligible
-	}
-	if voucher.UserVoucherStatus.Valid && voucher.UserVoucherStatus.String != "AVAILABLE" {
-		return 0, ErrVoucherNotEligible
-	}
-	if voucher.ZoneID.Valid && voucher.ZoneID.String != req.ZoneID {
-		return 0, ErrVoucherNotEligible
-	}
-	if voucher.MaxRedemptions.Valid && voucher.TotalRedemptions >= int(voucher.MaxRedemptions.Int64) {
-		return 0, ErrVoucherNotEligible
-	}
-	if voucher.MaxRedemptionsPerUser.Valid && voucher.UserRedemptions >= int(voucher.MaxRedemptionsPerUser.Int64) {
-		return 0, ErrVoucherNotEligible
-	}
-	if len(voucher.ApplicablePaymentMethods) > 0 && !containsStringFold(voucher.ApplicablePaymentMethods, req.PaymentMethod) {
-		return 0, ErrVoucherNotEligible
+	if err := s.validateVoucherEligibility(ctx, voucher, req); err != nil {
+		return 0, err
 	}
 
+	eligibleSubtotal := voucherEligibleSubtotal(voucher, req)
 	var discount int
 	switch voucher.DiscountType {
 	case "PERCENTAGE":
@@ -939,6 +951,246 @@ func (s *Service) discount(ctx context.Context, req voucherEligibilityRequest) (
 		return eligibleSubtotal, nil
 	}
 	return discount, nil
+}
+
+func (s *Service) calculateVoucherStack(ctx context.Context, req voucherStackRequest) ([]AppliedVoucher, error) {
+	if len(req.Codes) == 0 {
+		return []AppliedVoucher{}, nil
+	}
+	vouchers := make([]Voucher, 0, len(req.Codes))
+	seenCodes := map[string]bool{}
+	for _, code := range req.Codes {
+		normalized := strings.ToUpper(strings.TrimSpace(code))
+		if normalized == "" || seenCodes[normalized] {
+			continue
+		}
+		seenCodes[normalized] = true
+		voucher, err := s.repo.GetVoucher(ctx, req.CountryID, req.UserID, normalized)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return nil, ErrVoucherNotFound
+			}
+			return nil, err
+		}
+		if err := s.validateVoucherEligibility(ctx, voucher, voucherEligibilityRequest{
+			CountryID:     req.CountryID,
+			UserID:        req.UserID,
+			Code:          normalized,
+			StoreID:       req.StoreID,
+			ZoneID:        req.ZoneID,
+			PaymentMethod: req.PaymentMethod,
+			Subtotal:      req.Subtotal,
+			Lines:         req.Lines,
+		}); err != nil {
+			return nil, err
+		}
+		vouchers = append(vouchers, voucher)
+	}
+	if err := validateVoucherStackPolicy(vouchers); err != nil {
+		return nil, err
+	}
+	sort.SliceStable(vouchers, func(i, j int) bool {
+		if vouchers[i].StackingPriority == vouchers[j].StackingPriority {
+			return vouchers[i].Code < vouchers[j].Code
+		}
+		return vouchers[i].StackingPriority < vouchers[j].StackingPriority
+	})
+
+	applied := make([]AppliedVoucher, 0, len(vouchers))
+	totalDiscount := 0
+	for i, voucher := range vouchers {
+		eligibilityReq := voucherEligibilityRequest{
+			CountryID:     req.CountryID,
+			UserID:        req.UserID,
+			Code:          voucher.Code,
+			StoreID:       req.StoreID,
+			ZoneID:        req.ZoneID,
+			PaymentMethod: req.PaymentMethod,
+			Subtotal:      req.Subtotal,
+			Lines:         req.Lines,
+		}
+		eligibleSubtotal := voucherEligibleSubtotal(voucher, eligibilityReq)
+		if req.Subtotal <= 0 || eligibleSubtotal <= 0 {
+			return nil, ErrVoucherNotEligible
+		}
+		remainingSubtotal := req.Subtotal - totalDiscount
+		if remainingSubtotal <= 0 {
+			break
+		}
+		discountBase := prorateAmount(eligibleSubtotal, remainingSubtotal, req.Subtotal)
+		discount := calculateVoucherDiscount(voucher, discountBase)
+		if discount > discountBase {
+			discount = discountBase
+		}
+		if discount <= 0 {
+			return nil, ErrVoucherNotEligible
+		}
+		if totalDiscount+discount > req.Subtotal {
+			discount = req.Subtotal - totalDiscount
+		}
+		totalDiscount += discount
+		applied = append(applied, AppliedVoucher{
+			VoucherID:        voucher.ID,
+			Code:             voucher.Code,
+			StackingGroup:    normalizedStackingGroup(voucher),
+			StackingPriority: voucher.StackingPriority,
+			EligibleSubtotal: eligibleSubtotal,
+			DiscountAmount:   discount,
+			AppliedOrder:     i + 1,
+		})
+	}
+	return applied, nil
+}
+
+func (s *Service) validateVoucherEligibility(ctx context.Context, voucher Voucher, req voucherEligibilityRequest) error {
+	eligibleSubtotal := voucherEligibleSubtotal(voucher, req)
+	if eligibleSubtotal <= 0 {
+		return ErrVoucherNotEligible
+	}
+	if eligibleSubtotal < voucher.MinSpend {
+		return ErrVoucherNotEligible
+	}
+	if voucher.UserVoucherStatus.Valid && voucher.UserVoucherStatus.String != "AVAILABLE" {
+		return ErrVoucherNotEligible
+	}
+	if voucher.ZoneID.Valid && voucher.ZoneID.String != req.ZoneID {
+		return ErrVoucherNotEligible
+	}
+	if voucher.MaxRedemptions.Valid && voucher.TotalRedemptions >= int(voucher.MaxRedemptions.Int64) {
+		return ErrVoucherNotEligible
+	}
+	if voucher.MaxRedemptionsPerUser.Valid && voucher.UserRedemptions >= int(voucher.MaxRedemptionsPerUser.Int64) {
+		return ErrVoucherNotEligible
+	}
+	if len(voucher.ApplicablePaymentMethods) > 0 && req.PaymentMethod != "" && !containsStringFold(voucher.ApplicablePaymentMethods, req.PaymentMethod) {
+		return ErrVoucherNotEligible
+	}
+
+	// Dynamic scalable voucher rules registry execution:
+	// 1. Match by VoucherType (e.g. "NEW_USER")
+	if rule, exists := s.rules[strings.ToUpper(strings.TrimSpace(voucher.VoucherType))]; exists {
+		if err := rule(ctx, s, voucher, req); err != nil {
+			return err
+		}
+	}
+	// 2. Match by Code as a fallback or specific rule (e.g. "WELCOME10")
+	if rule, exists := s.rules[strings.ToUpper(strings.TrimSpace(voucher.Code))]; exists {
+		if err := rule(ctx, s, voucher, req); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateVoucherStackPolicy(vouchers []Voucher) error {
+	if len(vouchers) <= 1 {
+		return nil
+	}
+	seenGroups := map[string]string{}
+	for _, voucher := range vouchers {
+		group := normalizedStackingGroup(voucher)
+		if voucher.Exclusive {
+			return ErrVoucherNotEligible
+		}
+		if _, exists := seenGroups[group]; exists {
+			return ErrVoucherNotEligible
+		}
+		seenGroups[group] = voucher.Code
+	}
+	for _, voucher := range vouchers {
+		if len(voucher.CombinableWithGroups) == 0 {
+			continue
+		}
+		for _, other := range vouchers {
+			if other.Code == voucher.Code {
+				continue
+			}
+			if !containsStringFold(voucher.CombinableWithGroups, normalizedStackingGroup(other)) {
+				return ErrVoucherNotEligible
+			}
+		}
+	}
+	return nil
+}
+
+func calculateVoucherDiscount(voucher Voucher, eligibleSubtotal int) int {
+	if eligibleSubtotal <= 0 {
+		return 0
+	}
+	var discount int
+	switch voucher.DiscountType {
+	case "PERCENTAGE":
+		discount = (eligibleSubtotal*voucher.DiscountValue + 50) / 100
+		if voucher.MaxDiscountCap.Valid && discount > int(voucher.MaxDiscountCap.Int64) {
+			discount = int(voucher.MaxDiscountCap.Int64)
+		}
+	case "FIXED_AMOUNT":
+		discount = voucher.DiscountValue
+	}
+	if discount > eligibleSubtotal {
+		return eligibleSubtotal
+	}
+	return discount
+}
+
+func normalizedStackingGroup(voucher Voucher) string {
+	group := strings.ToUpper(strings.TrimSpace(voucher.StackingGroup))
+	if group != "" {
+		return group
+	}
+	group = strings.ToUpper(strings.TrimSpace(voucher.VoucherType))
+	if group != "" {
+		return group
+	}
+	return "CART_DISCOUNT"
+}
+
+func normalizeVoucherCodes(legacyCode string, codes []string) []string {
+	seen := map[string]bool{}
+	normalized := []string{}
+	add := func(code string) {
+		code = strings.ToUpper(strings.TrimSpace(code))
+		if code == "" || seen[code] {
+			return
+		}
+		seen[code] = true
+		normalized = append(normalized, code)
+	}
+	add(legacyCode)
+	for _, code := range codes {
+		add(code)
+	}
+	return normalized
+}
+
+func firstVoucherCode(codes []string) string {
+	if len(codes) == 0 {
+		return ""
+	}
+	return codes[0]
+}
+
+func totalVoucherDiscount(vouchers []AppliedVoucher) int {
+	total := 0
+	for _, voucher := range vouchers {
+		total += voucher.DiscountAmount
+	}
+	return total
+}
+
+func appliedVoucherResponses(vouchers []AppliedVoucher) []AppliedVoucherResponse {
+	responses := make([]AppliedVoucherResponse, 0, len(vouchers))
+	for _, voucher := range vouchers {
+		responses = append(responses, AppliedVoucherResponse{
+			Code:             voucher.Code,
+			StackingGroup:    voucher.StackingGroup,
+			AppliedOrder:     voucher.AppliedOrder,
+			EligibleSubtotal: voucher.EligibleSubtotal,
+			DiscountAmount:   voucher.DiscountAmount,
+		})
+	}
+	return responses
 }
 
 func voucherEligibleSubtotal(voucher Voucher, req voucherEligibilityRequest) int {
@@ -1090,6 +1342,7 @@ func responseFromIntent(intentWithPayment IntentWithPayment) CheckoutResponse {
 		Charges:         chargeLineResponses(intent.Charges),
 		TaxAmount:       intent.TaxAmount,
 		DiscountAmount:  intent.DiscountAmount,
+		Vouchers:        appliedVoucherResponses(intent.Vouchers),
 		TotalAmount:     intent.TotalAmount,
 		Payment:         responsePayment,
 	}

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/cart/data/datasources/cart_remote_data_source.dart';
 import '../../features/cart/presentation/bloc/cart_bloc.dart';
 import '../../features/cart/presentation/bloc/cart_event.dart';
+import '../../features/home/presentation/home_cubit.dart';
 import '../../features/menu/domain/repositories/menu_repository.dart';
 import '../../features/orders/presentation/bloc/active_order_cubit.dart';
 import '../../features/settings/presentation/user_profile_cubit.dart';
@@ -45,6 +46,7 @@ class AppProviders extends StatelessWidget {
         BlocProvider(create: (_) => sl<UserProfileCubit>()..loadProfile()),
         BlocProvider(create: (_) => VoucherCubit()..loadWallet()),
         BlocProvider(create: (_) => ActiveOrderCubit()),
+        BlocProvider(create: (_) => HomeCubit()),
       ],
       child: child,
     );

@@ -36,7 +36,6 @@ class ActiveOverlayBar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         if (showCartBar) ...[
-          _buildVoucherButton(context, theme),
           const SizedBox(height: AppSpacing.md),
           _buildBar(context, theme),
         ],
@@ -45,103 +44,6 @@ class ActiveOverlayBar extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
         ],
       ],
-    );
-  }
-
-  Widget _buildVoucherButton(BuildContext context, ThemeData theme) {
-    return BlocBuilder<VoucherCubit, VoucherState>(
-      builder: (context, state) {
-        int count = 0;
-        if (state is VoucherLoaded) {
-          count = state.vouchers.where((v) => v.status == 'AVAILABLE').length;
-        }
-
-        return Container(
-          decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(
-                color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-              child: Material(
-                color: AppColors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    context.push(AppRouter.vouchers);
-                  },
-                  borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.brightness == Brightness.dark
-                          ? theme.colorScheme.surface.withValues(alpha: 0.85)
-                          : AppColors.white.withValues(alpha: 0.88),
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.radiusFull,
-                      ),
-                      border: Border.all(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.confirmation_number_rounded,
-                          color: theme.colorScheme.primary,
-                          size: 16,
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
-                        Text(
-                          'My Vouchers',
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        if (count > 0) ...[
-                          const SizedBox(width: AppSpacing.xs),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.secondary,
-                              borderRadius: BorderRadius.circular(
-                                AppSpacing.radiusFull,
-                              ),
-                            ),
-                            child: Text(
-                              '$count',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 9,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 

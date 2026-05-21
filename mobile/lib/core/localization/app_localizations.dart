@@ -199,7 +199,6 @@ class AppLocalizations {
       'otp_incorrect_err': 'Incorrect code. Try "123456"',
       'demo_otp_helper': 'Demo Mock Verification Code is "123456"',
       'select_country_title': 'Select Country',
-      'buy_now': 'Buy Now',
       'unpaid_order': 'UNPAID ORDER',
       'uncollected_order': 'UNCOLLECTED ORDER',
       'ready_for_collection': 'Ready for Collection',
@@ -421,7 +420,6 @@ class AppLocalizations {
       'otp_incorrect_err': 'Kod salah. Cuba "123456"',
       'demo_otp_helper': 'Kod Pengesahan Demo adalah "123456"',
       'select_country_title': 'Pilih Negara',
-      'buy_now': 'Beli Sekarang',
       'unpaid_order': 'PESANAN BELUM DIBAYAR',
       'uncollected_order': 'PESANAN BELUM DIAMBIL',
       'ready_for_collection': 'Sedia untuk Diambil',
@@ -649,7 +647,6 @@ class AppLocalizations {
   String get otpIncorrectErr => _translate('otp_incorrect_err');
   String get demoOtpHelper => _translate('demo_otp_helper');
   String get selectCountryTitle => _translate('select_country_title');
-  String get buyNow => _translate('buy_now');
   String get unpaidOrder => _translate('unpaid_order');
   String get uncollectedOrder => _translate('uncollected_order');
   String get readyForCollection => _translate('ready_for_collection');

@@ -840,7 +840,7 @@ class _MenuPageState extends State<MenuPage> {
           product: product,
           selectedOptions: selectedOptions,
           customizationOptionIds: allOptionIds,
-          quantity: 1,
+          quantity: quantity,
         );
         AuthGuard.run(context, () {
           context.push(AppRouter.checkout, extra: {'buyNowItem': buyNowItem});

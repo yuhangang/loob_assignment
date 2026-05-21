@@ -5,6 +5,7 @@ type CheckoutRequest struct {
 	StoreID        int        `json:"store_id"`
 	Fulfillment    string     `json:"fulfillment_type"`
 	VoucherCode    string     `json:"voucher_code"`
+	VoucherCodes   []string   `json:"voucher_codes"`
 	PaymentMethod  string     `json:"payment_method"`
 	IdempotencyKey string     `json:"idempotency_key"`
 	Items          []CartItem `json:"items"`
@@ -24,6 +25,7 @@ type CheckoutResponse struct {
 	Charges         []ChargeLineResponse        `json:"charges"`
 	TaxAmount       int                         `json:"tax_amount"`
 	DiscountAmount  int                         `json:"discount_amount"`
+	Vouchers        []AppliedVoucherResponse    `json:"vouchers,omitempty"`
 	TotalAmount     int                         `json:"total_amount"`
 	Payment         *PaymentTransactionResponse `json:"payment,omitempty"`
 }
@@ -32,14 +34,24 @@ type VoucherValidationRequest struct {
 	UserID        string     `json:"user_id"`
 	StoreID       int        `json:"store_id"`
 	VoucherCode   string     `json:"voucher_code"`
+	VoucherCodes  []string   `json:"voucher_codes"`
 	PaymentMethod string     `json:"payment_method"`
 	Items         []CartItem `json:"items"`
 }
 
 type VoucherValidationResponse struct {
+	Code             string                   `json:"code"`
+	IsValid          bool                     `json:"is_valid"`
+	Reason           string                   `json:"reason,omitempty"`
+	EligibleSubtotal int                      `json:"eligible_subtotal"`
+	DiscountAmount   int                      `json:"discount_amount"`
+	Vouchers         []AppliedVoucherResponse `json:"vouchers,omitempty"`
+}
+
+type AppliedVoucherResponse struct {
 	Code             string `json:"code"`
-	IsValid          bool   `json:"is_valid"`
-	Reason           string `json:"reason,omitempty"`
+	StackingGroup    string `json:"stacking_group"`
+	AppliedOrder     int    `json:"applied_order"`
 	EligibleSubtotal int    `json:"eligible_subtotal"`
 	DiscountAmount   int    `json:"discount_amount"`
 }

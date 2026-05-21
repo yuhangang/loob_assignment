@@ -116,13 +116,10 @@ class OrderAgainSection extends StatelessWidget {
           product: fullProduct,
           selectedOptions: selectedOptions,
           customizationOptionIds: allOptionIds,
-          quantity: 1,
+          quantity: quantity,
         );
         AuthGuard.run(context, () {
-          context.push(
-            AppRouter.checkout,
-            extra: {'buyNowItem': buyNowItem},
-          );
+          context.push(AppRouter.checkout, extra: {'buyNowItem': buyNowItem});
         });
       } else {
         context.read<CartBloc>().add(

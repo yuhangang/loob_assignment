@@ -66,16 +66,17 @@ The Go API intercepts these headers via a global middleware.
 *   **Tech Product (App):** The Flutter developers write zero logic for language fallback or currency math. They just bind `json['name']` to the Text widget. This drastically reduces mobile app bugs and QA testing time.
 
 ### C. Voucher Discount Contract
-The checkout API accepts one `voucher_code` per order. Stacking is intentionally disabled.
+The checkout API accepts `voucher_codes` for stacked vouchers and still accepts the legacy `voucher_code` field as the first voucher for older clients.
 
-This keeps the assignment implementation defensible because percentage discounts, fixed-amount discounts, shipping vouchers, brand vouchers, promo items, and payment-method promotions otherwise need a policy engine that defines priority, mutual exclusion, liability owner, rounding, and max cap interactions. For this scope, a single best user-selected voucher gives clear customer behavior and predictable finance reporting.
+Stacking is controlled by voucher policy fields rather than client order. Each voucher has a `stacking_group`, `stacking_priority`, `exclusive` flag, and optional `combinable_with_groups` allow-list. Checkout applies lower-priority numbers first, allows only one voucher per stacking group, rejects exclusive vouchers when combined, and applies percentage vouchers against the remaining eligible subtotal after earlier discounts.
 
 Voucher eligibility is still production-shaped:
 
 * Country availability is enforced by `vouchers.country_id`.
 * Expiry is enforced with `starts_at`, `expires_at`, and `voided_at`.
 * Minimum spend, max cap, max redemptions, max per-user redemptions, promo-item allowance, store/category/item scope, and payment-method scope are evaluated during checkout.
-* Redemption is finalized only after captured payment, when `user_vouchers.status` moves to `USED`.
+* Applied voucher rows are persisted in `order_intent_vouchers` with per-voucher eligible subtotal, discount amount, group, priority, and applied order.
+* Redemption is finalized only after captured payment, when each applied `user_vouchers.status` moves to `USED` and voucher redemption counters are incremented.
 
 ---
 

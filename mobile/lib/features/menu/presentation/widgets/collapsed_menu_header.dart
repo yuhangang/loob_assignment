@@ -29,7 +29,13 @@ class CollapsedMenuHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.storefront_rounded, color: primaryColor, size: 24),
+          Icon(
+            selectedStore.brandId == 1
+                ? Icons.local_drink_rounded
+                : Icons.coffee_rounded,
+            color: primaryColor,
+            size: 22,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: InkWell(

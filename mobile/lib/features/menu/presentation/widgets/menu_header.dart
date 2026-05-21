@@ -121,7 +121,26 @@ class MenuHeader extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 children: [
-                  Icon(Icons.storefront_rounded, color: primaryColor, size: 24),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selectedStore.brandId == 1
+                          ? AppColors.tealivePrimary
+                          : AppColors.baskbearAccent,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      selectedStore.brandId == 1 ? 'Tealive' : 'Bask Bear',
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

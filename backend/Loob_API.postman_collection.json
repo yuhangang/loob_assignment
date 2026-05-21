@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "a1b2c3d4-e5f6-4g7h-8i9j-k0l1m2n3o4p5",
 		"name": "Loob API",
-		"description": "API collection for Loob backend services including Catalog, Checkout, Campaigns, Vouchers, and Payments.",
+		"description": "API collection for Loob backend services including Catalog, Checkout, Campaigns, Vouchers, Payments, Cart, and Users.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -179,6 +179,48 @@
 					"response": []
 				},
 				{
+					"name": "Get Item",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/catalog/items/:item_id?store_id=1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"catalog",
+								"items",
+								":item_id"
+							],
+							"query": [
+								{
+									"key": "store_id",
+									"value": "1"
+								}
+							],
+							"variable": [
+								{
+									"key": "item_id",
+									"value": "101"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "List Brands",
 					"request": {
 						"method": "GET",
@@ -241,15 +283,165 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "Invalidate Menu Cache",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							},
+							{
+								"key": "X-Internal-Secret",
+								"value": "{{internalSecret}}",
+								"description": "Required admin secret for cache invalidation"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"country_code\": \"MY\",\n    \"store_code\": \"STORE-001\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/catalog/invalidate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"catalog",
+								"invalidate"
+							]
+						}
+					},
+					"response": []
 				}
 			]
 		},
 		{
-			"name": "Checkout",
+			"name": "Orders",
 			"item": [
+				{
+					"name": "List Orders",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/orders?page=1&limit=10&status=CONFIRMED",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"orders"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "status",
+									"value": "CONFIRMED",
+									"description": "Filter by order status. Can be repeated for multiple statuses."
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Reorder Items",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/orders/reorder-items?limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"orders",
+								"reorder-items"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
 				{
 					"name": "Checkout Order",
 					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
 						"method": "POST",
 						"header": [
 							{
@@ -287,6 +479,16 @@
 				{
 					"name": "Order Status",
 					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
 						"header": [
 							{
@@ -315,6 +517,335 @@
 									"key": "tracking_id",
 									"value": "TRK-12345"
 								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Collect Order",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/orders/:tracking_id/collect",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"orders",
+								":tracking_id",
+								"collect"
+							],
+							"variable": [
+								{
+									"key": "tracking_id",
+									"value": "TRK-12345"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Cart",
+			"item": [
+				{
+					"name": "Get Cart",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/cart?store_id=1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"cart"
+							],
+							"query": [
+								{
+									"key": "store_id",
+									"value": "1",
+									"description": "Optional store ID for availability checks"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Cart (Consolidated)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"method\": \"upsert\",\n    \"store_id\": 1,\n    \"menu_item_id\": 101,\n    \"quantity\": 2,\n    \"customization_option_ids\": [1, 5]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/cart/update",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"cart",
+								"update"
+							]
+						},
+						"description": "Consolidated cart mutation endpoint. The 'method' field determines the operation: 'upsert' (add or merge an item), 'update' (replace an existing line-item by item_id), 'remove' (delete a line-item by item_id), 'clear' (wipe the entire cart). Always returns the full refreshed CartResponse."
+					},
+					"response": []
+				},
+				{
+					"name": "Upsert Item",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"store_id\": 1,\n    \"menu_item_id\": 101,\n    \"quantity\": 2,\n    \"customization_option_ids\": [1, 5]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/cart/items",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"cart",
+								"items"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Item",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"store_id\": 1,\n    \"menu_item_id\": 101,\n    \"quantity\": 3,\n    \"customization_option_ids\": [1, 5, 8]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/cart/items/:item_id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"cart",
+								"items",
+								":item_id"
+							],
+							"variable": [
+								{
+									"key": "item_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Item",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/cart/items/:item_id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"cart",
+								"items",
+								":item_id"
+							],
+							"variable": [
+								{
+									"key": "item_id",
+									"value": "1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Clear Cart",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/cart",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"cart"
 							]
 						}
 					},
@@ -368,6 +899,16 @@
 				{
 					"name": "Voucher Wallet",
 					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
 						"header": [
 							{
@@ -380,7 +921,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{baseUrl}}/api/v1/vouchers/wallet?user_id=user_123&brand_id=1",
+							"raw": "{{baseUrl}}/api/v1/vouchers/wallet?brand_id=1",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -392,13 +933,56 @@
 							],
 							"query": [
 								{
-									"key": "user_id",
-									"value": "user_123"
-								},
-								{
 									"key": "brand_id",
 									"value": "1"
 								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Voucher",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"store_id\": 1,\n    \"voucher_code\": \"PROMO2024\",\n    \"payment_method\": \"GRABPAY\",\n    \"items\": [\n        {\n            \"menu_item_id\": 101,\n            \"quantity\": 2,\n            \"customization_option_ids\": [1, 5]\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/vouchers/validate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"vouchers",
+								"validate"
 							]
 						}
 					},
@@ -486,6 +1070,16 @@
 				{
 					"name": "Get Transaction",
 					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
 						"header": [
 							{
@@ -557,6 +1151,225 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Get Profile",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/profile",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Profile",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"display_name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"preferred_language\": \"en\",\n    \"marketing_opt_in\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/profile",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Wallet History",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/wallet/history",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"wallet",
+								"history"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Top Up Wallet",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 5000,\n    \"description\": \"Wallet top-up\",\n    \"payment_method\": \"GRABPAY\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/wallet/topups",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"wallet",
+								"topups"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Loyalty History",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Country-Code",
+								"value": "{{countryId}}"
+							},
+							{
+								"key": "X-Language",
+								"value": "{{language}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/loyalty/history",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"loyalty",
+								"history"
+							]
+						}
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"event": [
@@ -589,6 +1402,18 @@
 			"key": "language",
 			"value": "en",
 			"type": "string"
+		},
+		{
+			"key": "authToken",
+			"value": "",
+			"type": "string",
+			"description": "Firebase ID token (or mock token) for authenticated endpoints"
+		},
+		{
+			"key": "internalSecret",
+			"value": "",
+			"type": "string",
+			"description": "Internal API secret for admin endpoints like cache invalidation"
 		}
 	],
 	"auth": {

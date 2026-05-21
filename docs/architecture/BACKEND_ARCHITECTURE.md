@@ -16,7 +16,7 @@ This document is the implementation contract for the Loob assessment backend. It
 | --- | --- | --- |
 | Menu | Category browsing, localized names/descriptions, country pricing/currency, customizations, dietary tags, availability by country or outlet. | `catalog` exposes categories-first reads (`/catalog/categories`, `/catalog/categories/:category_id/items`). MySQL stores translation JSON, zone pricing, dietary tags, customization groups/options, and outlet item status; the API resolves one lean country/language payload for the mobile app. |
 | Ordering | Cart management, checkout for dine-in/takeaway/delivery, status/history, and peak-load handling. | `cart` owns persisted cart lines; `checkout` validates cart, customization, voucher, payment method, idempotency, charges, and tax; the assignment runtime creates a `PAYMENT_PENDING` intent plus pending payment transaction atomically, then `payments` moves successful mock-gateway callbacks to `READY_TO_COLLECT`. The cloud target can add SQS FIFO between payment capture and kitchen/order processing when burst buffering is required. |
-| Vouchers | Listing/redemption, percentage/fixed discounts, minimum spend, per-user limits, expiry, country availability, and stacking decision. | `vouchers` lists active country-scoped wallet vouchers. `checkout` supports one voucher per order, validates discount type, minimum spend, cap, brand/store/category/item/payment scope, max redemption count, max per-user count, expiry, and promo-item rules. Captured payment marks the user voucher as used. Voucher stacking is intentionally disabled for this assessment to keep discount liability deterministic and avoid ambiguous ordering of cart, brand, shipping, and payment-method promotions. |
+| Vouchers | Listing/redemption, percentage/fixed discounts, minimum spend, per-user limits, expiry, country availability, and stacking decision. | `vouchers` lists active country-scoped wallet vouchers. `checkout` supports stacked vouchers through `voucher_codes`, validates discount type, minimum spend, cap, brand/store/category/item/payment scope, max redemption count, max per-user count, expiry, promo-item rules, stacking group, priority, exclusivity, and compatible groups. Captured payment marks each applied voucher as used and increments redemption counters. |
 | Multi-country | Country onboarding, localized content, region flags, tax rules, timezone handling. | `contextx` resolves `X-Country-Code` and `Accept-Language`; countries carry currency, default language, tax rate, and timezone; feature flags and checkout charge definitions are country/zone/brand scoped. Checkout/status/history require an explicit country header. All monetary values stay integer minor units. |
 
 ## Non-Goals For The Assignment
@@ -133,7 +133,7 @@ Handlers must not read raw headers repeatedly. They should consume a typed reque
 
 ### Checkout And Payment Flow
 
-1. Client submits cart, store, fulfillment type, voucher code, and idempotency key.
+1. Client submits cart, store, fulfillment type, optional `voucher_codes`, and idempotency key.
 2. Checkout service authenticates user and validates country/store/brand availability.
 3. Service performs fast checks:
    - cart shape and item availability
@@ -142,7 +142,7 @@ Handlers must not read raw headers repeatedly. They should consume a typed reque
 4. Service resolves payment method, charges, tax, and total.
 5. Service creates an `OrderIntent` plus pending `payment_transactions` row in one transaction.
 6. API returns `202 Accepted` with `PAYMENT_PENDING`, `order_tracking_id`, `status_url`, and payment transaction details.
-7. The mock gateway callback captures, fails, or cancels the payment. Successful capture moves the order to `READY_TO_COLLECT`, marks vouchers as used, applies wallet spend or top-up effects, and awards loyalty points.
+7. The mock gateway callback captures, fails, or cancels the payment. Successful capture moves the order to `READY_TO_COLLECT`, marks applied vouchers as used, applies wallet spend or top-up effects, and awards loyalty points.
 
 For this assessment, payment-first checkout keeps the runtime executable without AWS credentials. A production flash-sale path can add a queue adapter after payment capture; the API must not claim kitchen processing unless the durable queue write succeeds.
 
