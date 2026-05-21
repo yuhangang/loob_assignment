@@ -76,6 +76,21 @@ class _HomePageState extends State<HomePage> {
         );
   }
 
+  Future<void> _refreshEntireHomePage(BuildContext context) async {
+    final lang = context.read<LanguageCubit>().state.languageCode;
+    final brand = context.read<ThemeCubit>().state;
+    final country = context.read<CartBloc>().state.countryCode;
+
+    await Future.wait([
+      context.read<HomeCubit>().loadHome(
+            countryCode: country,
+            language: lang,
+            brandId: brand.brandId,
+          ),
+      context.read<UserProfileCubit>().loadProfile(),
+    ]);
+  }
+
   bool _authScopeChanged(AuthState previous, AuthState current) {
     final previousUser = previous is Authenticated ? previous.user.uid : '';
     final currentUser = current is Authenticated ? current.user.uid : '';
@@ -129,48 +144,53 @@ class _HomePageState extends State<HomePage> {
           final config = state is HomeLoaded ? state.config : null;
 
           return Scaffold(
-            body: CustomScrollView(
-              controller: _scrollController,
-              slivers: [
-                BlocBuilder<UserProfileCubit, UserProfileState>(
-                  builder: (context, profileState) {
-                    final profile = profileState is UserProfileLoaded
-                        ? profileState.profile
-                        : null;
-                    final isProfileLoading =
-                        profileState is UserProfileLoading ||
-                        profileState is UserProfileInitial;
-
-                    return SliverAppBar(
-                      pinned: true,
-                      floating: false,
-                      snap: false,
-                      expandedHeight: 144,
-                      toolbarHeight: 66,
-                      backgroundColor: theme.scaffoldBackgroundColor,
-                      surfaceTintColor: AppColors.transparent,
-                      elevation: 0,
-                      automaticallyImplyLeading: false,
-                      titleSpacing: 0,
-                      // Only show collapsed bar once the expanded header has scrolled away
-                      title: _isHeaderCollapsed
-                          ? CollapsedHomeBar(
-                              profile: profile,
-                              isLoading: isProfileLoading,
-                            )
-                          : null,
-                      // Full expanded header content
-                      flexibleSpace: _buildExpandedHeader(
-                        context,
-                        theme,
-                        config,
-                        _greeting(context),
-                        profile,
-                        isProfileLoading,
-                      ),
-                    );
-                  },
-                ),
+            body: RefreshIndicator(
+              onRefresh: () => _refreshEntireHomePage(context),
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  BlocBuilder<UserProfileCubit, UserProfileState>(
+                    builder: (context, profileState) {
+                      final profile = profileState is UserProfileLoaded
+                          ? profileState.profile
+                          : null;
+                      final isProfileLoading =
+                          profileState is UserProfileLoading ||
+                          profileState is UserProfileInitial;
+                      final hasProfileError = profileState is UserProfileError;
+  
+                      return SliverAppBar(
+                        pinned: true,
+                        floating: false,
+                        snap: false,
+                        expandedHeight: 144,
+                        toolbarHeight: 66,
+                        backgroundColor: theme.scaffoldBackgroundColor,
+                        surfaceTintColor: AppColors.transparent,
+                        elevation: 0,
+                        automaticallyImplyLeading: false,
+                        titleSpacing: 0,
+                        // Only show collapsed bar once the expanded header has scrolled away
+                        title: _isHeaderCollapsed
+                            ? CollapsedHomeBar(
+                                profile: profile,
+                                isLoading: isProfileLoading,
+                              )
+                            : null,
+                        // Full expanded header content
+                        flexibleSpace: _buildExpandedHeader(
+                          context,
+                          theme,
+                          config,
+                          _greeting(context),
+                          profile,
+                          isProfileLoading,
+                          hasProfileError: hasProfileError,
+                        ),
+                      );
+                    },
+                  ),
 
                 // ── Brand Tab Bar (Hidden to match premium reference layout) ──
                 const SliverToBoxAdapter(child: SizedBox.shrink()),
@@ -257,7 +277,7 @@ class _HomePageState extends State<HomePage> {
                     hasScrollBody: false,
                     child: HomeErrorView(
                       message: state.message,
-                      onRetry: () => _reloadHome(context),
+                      onRetry: () => _refreshEntireHomePage(context),
                     ),
                   )
                 else if (state is HomeLoaded)
@@ -281,16 +301,17 @@ class _HomePageState extends State<HomePage> {
                 // Bottom space for comfortable navigation overlay
                 SliverToBoxAdapter(
                   child: SizedBox(
-                    height: AppSpacing.xxxl + context.cartFloatingBarPadding,
+                    height: AppSpacing.xxl + context.cartFloatingBarPadding,
                   ),
                 ),
               ],
             ),
-          );
-        },
-      ),
-    );
-  }
+          ),
+        );
+      },
+    ),
+  );
+}
 
   Widget _buildExpandedHeader(
     BuildContext context,
@@ -298,8 +319,9 @@ class _HomePageState extends State<HomePage> {
     AppConfigModel? config,
     String greetingText,
     UserProfileModel? profile,
-    bool isProfileLoading,
-  ) {
+    bool isProfileLoading, {
+    bool hasProfileError = false,
+  }) {
     return FlexibleSpaceBar(
       collapseMode: CollapseMode.pin,
       background: Container(
@@ -316,16 +338,155 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                HomeHeaderProfileRow(
-                  greetingText: greetingText,
-                  profile: profile,
-                  isLoading: isProfileLoading,
-                ),
+                if (hasProfileError)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.error.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.cloud_off_rounded,
+                              color: theme.colorScheme.error,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                context.l10n.homeHeaderSyncFailed,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.error,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              Text(
+                                context.l10n.guestLabel,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  color: theme.colorScheme.onSurface,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 18,
+                                  letterSpacing: 0.1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                else
+                  HomeHeaderProfileRow(
+                    greetingText: greetingText,
+                    profile: profile,
+                    isLoading: isProfileLoading,
+                  ),
                 const SizedBox(height: 8),
-                LoyaltyCard(
-                  profile: profile,
-                  isLoading: isProfileLoading,
-                ),
+                if (hasProfileError)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: theme.cardTheme.color ?? AppColors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: theme.colorScheme.error.withValues(alpha: 0.2),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.colorScheme.error.withValues(alpha: 0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.error.withValues(alpha: 0.08),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.signal_wifi_off_rounded,
+                            color: theme.colorScheme.error,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                context.l10n.homeHeaderSyncFailed,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: theme.colorScheme.onSurface,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                context.l10n.homeHeaderSyncFailedDesc,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.62),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 9,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        SizedBox(
+                          height: 36,
+                          child: FilledButton.icon(
+                            onPressed: () => _refreshEntireHomePage(context),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: theme.colorScheme.error,
+                              foregroundColor: theme.colorScheme.onError,
+                              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.refresh_rounded, size: 14),
+                            label: Text(
+                              context.l10n.retry,
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  LoyaltyCard(
+                    profile: profile,
+                    isLoading: isProfileLoading,
+                  ),
                 const SizedBox(height: 8),
               ],
             ),

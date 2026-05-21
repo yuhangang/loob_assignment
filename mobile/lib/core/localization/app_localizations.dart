@@ -190,6 +190,9 @@ class AppLocalizations {
       'home_guest_rewards_title': 'Log in to unlock rewards',
       'home_guest_rewards_desc':
           'Earn TPoints, use wallet balance, and scan your member QR.',
+      'home_header_sync_failed': 'Sync Failed',
+      'home_header_sync_failed_desc':
+          'Unable to load rewards. Tap refresh to retry.',
       'guest_desc':
           'Log in to earn loyalty points, claim discount vouchers, and order online.',
       'login_signup': 'Login / Sign Up',
@@ -416,6 +419,9 @@ class AppLocalizations {
       'home_guest_rewards_title': 'Log masuk untuk ganjaran',
       'home_guest_rewards_desc':
           'Kumpul TPoints, guna baki wallet dan imbas QR ahli anda.',
+      'home_header_sync_failed': 'Penyelarasan Gagal',
+      'home_header_sync_failed_desc':
+          'Gagal memuatkan ganjaran. Sila segarkan semula.',
       'guest_desc':
           'Log masuk untuk mendapatkan mata ganjaran, menuntut baucher diskaun dan membuat pesanan atas talian.',
       'login_signup': 'Log Masuk / Daftar',
@@ -652,6 +658,9 @@ class AppLocalizations {
   String get welcomeGuest => _translate('welcome_guest');
   String get homeGuestRewardsTitle => _translate('home_guest_rewards_title');
   String get homeGuestRewardsDesc => _translate('home_guest_rewards_desc');
+  String get homeHeaderSyncFailed => _translate('home_header_sync_failed');
+  String get homeHeaderSyncFailedDesc =>
+      _translate('home_header_sync_failed_desc');
   String get guestDesc => _translate('guest_desc');
   String get loginSignup => _translate('login_signup');
   String get welcomeLoob => _translate('welcome_loob');
