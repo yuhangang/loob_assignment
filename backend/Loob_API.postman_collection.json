@@ -459,7 +459,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"user_id\": \"user_123\",\n    \"store_id\": 1,\n    \"fulfillment_type\": \"PICKUP\",\n    \"voucher_code\": \"PROMO2024\",\n    \"payment_method\": \"GRABPAY\",\n    \"idempotency_key\": \"{{$guid}}\",\n    \"items\": [\n        {\n            \"menu_item_id\": 101,\n            \"quantity\": 2,\n            \"customization_option_ids\": [1, 5]\n        }\n    ]\n}"
+							"raw": "{\n    \"user_id\": \"user_123\",\n    \"store_id\": 1,\n    \"fulfillment_type\": \"PICKUP\",\n    \"voucher_code\": \"PROMO2024\",\n    \"voucher_codes\": [\n        \"PROMO2024\",\n        \"WELCOME10\"\n    ],\n    \"payment_method\": \"GRABPAY\",\n    \"idempotency_key\": \"{{$guid}}\",\n    \"items\": [\n        {\n            \"menu_item_id\": 101,\n            \"quantity\": 2,\n            \"customization_option_ids\": [1, 5]\n        }\n    ]\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/orders/checkout",
@@ -971,7 +971,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"store_id\": 1,\n    \"voucher_code\": \"PROMO2024\",\n    \"payment_method\": \"GRABPAY\",\n    \"items\": [\n        {\n            \"menu_item_id\": 101,\n            \"quantity\": 2,\n            \"customization_option_ids\": [1, 5]\n        }\n    ]\n}"
+							"raw": "{\n    \"store_id\": 1,\n    \"voucher_code\": \"PROMO2024\",\n    \"voucher_codes\": [\n        \"PROMO2024\",\n        \"WELCOME10\"\n    ],\n    \"payment_method\": \"GRABPAY\",\n    \"items\": [\n        {\n            \"menu_item_id\": 101,\n            \"quantity\": 2,\n            \"customization_option_ids\": [1, 5]\n        }\n    ]\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/vouchers/validate",
@@ -1378,7 +1378,50 @@
 			"script": {
 				"type": "text/javascript",
 				"exec": [
-					""
+					"let token = pm.environment.get(\"authToken\");",
+					"let needsUpdate = true;",
+					"",
+					"if (token) {",
+					"    try {",
+					"        const parts = token.split('.');",
+					"        if (parts.length === 3) {",
+					"            const payload = JSON.parse(Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString());",
+					"            const now = Math.floor(Date.now() / 1000);",
+					"            if (payload.exp > now + 300) {",
+					"                needsUpdate = false;",
+					"            }",
+					"        }",
+					"    } catch (e) {",
+					"        // Ignored",
+					"    }",
+					"}",
+					"",
+					"if (needsUpdate) {",
+					"    const header = {",
+					"        alg: \"none\",",
+					"        typ: \"JWT\"",
+					"    };",
+					"    const now = Math.floor(Date.now() / 1000);",
+					"    const projectId = pm.environment.get(\"firebaseProjectId\") || \"mock-project-id\";",
+					"    const payload = {",
+					"        aud: projectId,",
+					"        iss: \"https://securetoken.google.com/\" + projectId,",
+					"        sub: pm.environment.get(\"userId\") || \"user_123\",",
+					"        iat: now,",
+					"        exp: now + 3600,",
+					"        phone_number: \"+60123456789\"",
+					"    };",
+					"",
+					"    function base64url(source) {",
+					"        let encoded = Buffer.from(JSON.stringify(source)).toString('base64');",
+					"        encoded = encoded.replace(/=/g, '').replace(/\\+/g, '-').replace(/\\//g, '_');",
+					"        return encoded;",
+					"    }",
+					"",
+					"    token = base64url(header) + \".\" + base64url(payload) + \".mock-signature\";",
+					"    pm.environment.set(\"authToken\", token);",
+					"    console.log(\"Automatically generated/updated a fresh mock auth token.\");",
+					"}"
 				]
 			}
 		},

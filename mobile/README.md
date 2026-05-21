@@ -30,10 +30,6 @@ The app follows a **Feature-Driven (Domain-Driven)** modular structure to ensure
    ```bash
    flutter pub get
    ```
-3. Run code generation (required for `injectable` and `drift`):
-   ```bash
-   dart run build_runner build --delete-conflicting-outputs
-   ```
 
 ### Running the App
 To run the application on a connected device or emulator:
