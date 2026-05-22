@@ -12,6 +12,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	mysql "github.com/go-sql-driver/mysql"
 )
 
 var DB *sql.DB
@@ -41,12 +42,24 @@ func InitDB() {
 			dbname = "loob_unified"
 		}
 
-		// user:pass@tcp(host:port)/dbname?charset=utf8mb4&parseTime=True&loc=Local
-		dsn = user + ":" + pass + "@tcp(" + host + ":" + port + ")/" + dbname + "?charset=utf8mb4&parseTime=True&loc=Local"
+		cfg := mysql.NewConfig()
+		cfg.User = user
+		cfg.Passwd = pass
+		cfg.Net = "tcp"
+		cfg.Addr = host + ":" + port
+		cfg.DBName = dbname
+		cfg.Params = map[string]string{
+			"charset": "utf8mb4",
+		}
+		dsn = cfg.FormatDSN()
 	}
 
-	var err error
-	DB, err = sql.Open("mysql", dsn)
+	normalizedDSN, err := normalizeUTCMySQLDSN(dsn)
+	if err != nil {
+		log.Fatalf("Failed to normalize database DSN: %v", err)
+	}
+
+	DB, err = sql.Open("mysql", normalizedDSN)
 	if err != nil {
 		log.Fatalf("Failed to open database connection: %v", err)
 	}
@@ -63,7 +76,12 @@ func InitDB() {
 }
 
 func Open(dsn string) (*sql.DB, error) {
-	db, err := sql.Open("mysql", dsn)
+	normalizedDSN, err := normalizeUTCMySQLDSN(dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	db, err := sql.Open("mysql", normalizedDSN)
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +95,22 @@ func Open(dsn string) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func normalizeUTCMySQLDSN(dsn string) (string, error) {
+	cfg, err := mysql.ParseDSN(dsn)
+	if err != nil {
+		return "", fmt.Errorf("parse mysql dsn: %w", err)
+	}
+
+	cfg.ParseTime = true
+	cfg.Loc = time.UTC
+	if cfg.Params == nil {
+		cfg.Params = make(map[string]string)
+	}
+	cfg.Params["time_zone"] = "'+00:00'"
+
+	return cfg.FormatDSN(), nil
 }
 
 func RunMigrations(db *sql.DB, migrationsDir string) error {

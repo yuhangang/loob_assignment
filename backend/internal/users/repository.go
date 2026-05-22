@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/loob/backend/internal/timeutil"
 )
 
 type Repository struct {
@@ -167,7 +169,7 @@ func (r *Repository) ListWalletTransactions(ctx context.Context, userID, country
 		tx.ReferenceType = refType.String
 		tx.ReferenceID = refID.String
 		tx.Description = description.String
-		tx.CreatedAt = createdAt.Format("2006-01-02T15:04:05Z07:00")
+		tx.CreatedAt = timeutil.FormatRFC3339UTC(createdAt)
 		history.Transactions = append(history.Transactions, tx)
 	}
 	return history, rows.Err()
@@ -215,7 +217,7 @@ func (r *Repository) ListLoyaltyTransactions(ctx context.Context, userID, countr
 		tx.ReferenceType = refType.String
 		tx.ReferenceID = refID.String
 		tx.Description = description.String
-		tx.CreatedAt = createdAt.Format("2006-01-02T15:04:05Z07:00")
+		tx.CreatedAt = timeutil.FormatRFC3339UTC(createdAt)
 		history.Transactions = append(history.Transactions, tx)
 	}
 	return history, rows.Err()

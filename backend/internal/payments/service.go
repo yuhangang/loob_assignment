@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/loob/backend/internal/platform"
+	"github.com/loob/backend/internal/timeutil"
 )
 
 type PaymentRepository interface {
@@ -233,7 +234,7 @@ func toDomain(row TransactionRow) Transaction {
 		OrderStatus:       row.OrderStatus,
 		CurrencyCode:      row.CurrencyCode,
 		Amount:            row.Amount,
-		UpdatedAt:         row.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:         timeutil.FormatRFC3339UTC(row.UpdatedAt),
 	}
 }
 

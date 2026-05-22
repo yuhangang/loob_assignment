@@ -10,6 +10,7 @@ import (
 
 	"github.com/loob/backend/internal/payments"
 	"github.com/loob/backend/internal/platform"
+	"github.com/loob/backend/internal/timeutil"
 )
 
 type CheckoutRepository interface {
@@ -1364,8 +1365,8 @@ func orderStatusFromRow(status Status) OrderStatus {
 		TaxAmount:            status.TaxAmount,
 		DiscountAmount:       status.DiscountAmount,
 		TotalAmount:          status.TotalAmount,
-		CreatedAt:            status.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:            status.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt:            timeutil.FormatRFC3339UTC(status.CreatedAt),
+		UpdatedAt:            timeutil.FormatRFC3339UTC(status.UpdatedAt),
 		Items:                []OrderStatusItem{},
 	}
 }

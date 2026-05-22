@@ -7,6 +7,8 @@ import (
 	"html"
 	"math"
 	"strings"
+
+	"github.com/loob/backend/internal/timeutil"
 )
 
 type VoucherRepository interface {
@@ -88,8 +90,8 @@ func (s *Service) Wallet(ctx context.Context, countryID, language, userID string
 			DiscountValue:              row.DiscountValue,
 			MinSpend:                   row.MinSpend,
 			Status:                     status,
-			StartsAt:                   row.StartsAt.Format("2006-01-02T15:04:05Z07:00"),
-			ExpiresAt:                  row.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
+			StartsAt:                   timeutil.FormatRFC3339UTC(row.StartsAt),
+			ExpiresAt:                  timeutil.FormatRFC3339UTC(row.ExpiresAt),
 		}
 		if row.MaxDiscountCap.Valid {
 			capValue := int(row.MaxDiscountCap.Int64)

@@ -7,6 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	mysql "github.com/go-sql-driver/mysql"
 )
 
 // A minimal mock SQL driver to test DB interactions without MySQL.
@@ -167,5 +170,32 @@ func TestMigrationApplied(t *testing.T) {
 	}
 	if !applied {
 		t.Error("expected migration to be applied (since mock always returns rows), got false")
+	}
+}
+
+func TestNormalizeUTCMySQLDSN(t *testing.T) {
+	t.Parallel()
+
+	dsn, err := normalizeUTCMySQLDSN("user:pass@tcp(127.0.0.1:3306)/loob_unified?charset=utf8mb4&loc=Local")
+	if err != nil {
+		t.Fatalf("normalizeUTCMySQLDSN() error = %v", err)
+	}
+
+	cfg, err := mysql.ParseDSN(dsn)
+	if err != nil {
+		t.Fatalf("mysql.ParseDSN() error = %v", err)
+	}
+
+	if !cfg.ParseTime {
+		t.Fatalf("ParseTime = false, want true")
+	}
+	if cfg.Loc != time.UTC {
+		t.Fatalf("Loc = %v, want %v", cfg.Loc, time.UTC)
+	}
+	if got := cfg.Params["time_zone"]; got != "'+00:00'" {
+		t.Fatalf("time_zone = %q, want %q", got, "'+00:00'")
+	}
+	if got := cfg.Params["charset"]; got != "utf8mb4" {
+		t.Fatalf("charset = %q, want %q", got, "utf8mb4")
 	}
 }

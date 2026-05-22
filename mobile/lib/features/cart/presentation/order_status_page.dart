@@ -716,14 +716,11 @@ extension on String {
   /// Parses ISO-8601 datetime and returns a short local representation.
   String get toLocalTime {
     if (isEmpty) return '-';
-    try {
-      final dt = DateTime.parse(this).toLocal();
-      String pad(int n) => n.toString().padLeft(2, '0');
-      return '${dt.year}-${pad(dt.month)}-${pad(dt.day)} '
-          '${pad(dt.hour)}:${pad(dt.minute)}';
-    } catch (_) {
-      return this;
-    }
+    final dt = tryParseBackendUtcDateTime?.toLocal();
+    if (dt == null) return this;
+    String pad(int n) => n.toString().padLeft(2, '0');
+    return '${dt.year}-${pad(dt.month)}-${pad(dt.day)} '
+        '${pad(dt.hour)}:${pad(dt.minute)}';
   }
 }
 

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/tokens/spacing.dart';
 import '../../../../core/utils/extensions.dart';
@@ -129,9 +128,7 @@ class RewardsCard extends StatelessWidget {
 
   String _formatTimestamp(String rawTimestamp) {
     if (rawTimestamp.isEmpty) return '';
-    final parsed = DateTime.tryParse(rawTimestamp);
-    if (parsed == null) return rawTimestamp;
-    return DateFormat('dd MMM yyyy, hh:mm a').format(parsed.toLocal());
+    return rawTimestamp.toLocalDateTimeLabel();
   }
 
   String _walletTitle(BuildContext context, WalletTransactionModel tx) {

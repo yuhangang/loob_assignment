@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../features/cart/presentation/bloc/cart_bloc.dart';
 import '../../features/orders/presentation/bloc/active_order_cubit.dart';
@@ -11,6 +12,26 @@ extension StringExtensions on String {
   /// Capitalize the first letter.
   String get capitalized =>
       isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
+
+  DateTime? get tryParseBackendUtcDateTime {
+    if (trim().isEmpty) return null;
+
+    var normalized = trim();
+    final hasUtcOrOffset = RegExp(
+      r'(Z|[+-]\\d{2}:\\d{2})$',
+    ).hasMatch(normalized);
+    if (!hasUtcOrOffset) {
+      normalized = '${normalized}Z';
+    }
+
+    return DateTime.tryParse(normalized);
+  }
+
+  String toLocalDateTimeLabel([String pattern = 'dd MMM yyyy, hh:mm a']) {
+    final parsed = tryParseBackendUtcDateTime;
+    if (parsed == null) return this;
+    return DateFormat(pattern).format(parsed.toLocal());
+  }
 }
 
 extension StringCurrencyExtension on String {

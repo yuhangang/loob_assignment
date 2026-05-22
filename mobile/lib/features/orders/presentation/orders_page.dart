@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/router/app_router.dart';
@@ -174,9 +173,7 @@ class _OrderCard extends StatelessWidget {
 
   String _formatTimestamp(String rawTimestamp) {
     if (rawTimestamp.isEmpty) return '';
-    final parsed = DateTime.tryParse(rawTimestamp);
-    if (parsed == null) return rawTimestamp;
-    return DateFormat('dd MMM yyyy, hh:mm a').format(parsed.toLocal());
+    return rawTimestamp.toLocalDateTimeLabel();
   }
 
   @override
